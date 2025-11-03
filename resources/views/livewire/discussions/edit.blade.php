@@ -1,0 +1,285 @@
+<div class="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 p-6">
+    <div class="max-w-5xl mx-auto space-y-6">
+        {{-- Hero Header --}}
+        <div class="relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-2xl shadow-2xl p-8 text-white">
+            <div class="absolute inset-0 bg-black/10"></div>
+            <div class="relative z-10 flex items-center justify-between">
+                <div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                        </div>
+                        <h1 class="text-4xl font-bold">Edit Discussion</h1>
+                    </div>
+                    <p class="text-blue-100 text-lg">Update your discussion details and settings</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <flux:button href="{{ route('discussions.show', $discussion) }}" icon="eye" variant="ghost" class="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border-white/30" wire:navigate>
+                        View
+                    </flux:button>
+                    <flux:button href="{{ route('discussions.index') }}" icon="arrow-left" variant="ghost" class="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border-white/30" wire:navigate>
+                        Back
+                    </flux:button>
+                </div>
+            </div>
+        </div>
+
+        {{-- Main Form --}}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <form wire:submit="update" class="p-8">
+                <div class="space-y-6">
+                    {{-- Title Section --}}
+                    <div>
+                        <flux:label for="title" value="Discussion Title" required />
+                        <flux:input 
+                            id="title" 
+                            wire:model="title" 
+                            placeholder="e.g., How to implement authentication in Laravel?" 
+                            class="text-lg"
+                        />
+                        <flux:error name="title" />
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Write a clear, descriptive title that summarizes your discussion</p>
+                    </div>
+
+                    {{-- Category and Course Selection --}}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <flux:label for="category" value="Category" required />
+                            <flux:select id="category" wire:model="category">
+                                <option value="general">General Discussion</option>
+                                <option value="question">Question</option>
+                                <option value="help">Help Request</option>
+                                <option value="announcement">Announcement</option>
+                                <option value="project">Project Share</option>
+                                <option value="feedback">Feedback</option>
+                            </flux:select>
+                            <flux:error name="category" />
+                        </div>
+
+                        <div>
+                            <flux:label for="courseId" value="Related Course">
+                                <svg class="w-4 h-4 inline ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </flux:label>
+                            <flux:select id="courseId" wire:model.live="courseId" :disabled="!$isStaff && $discussion->course_id">
+                                <option value="">@if($isStaff)General Conversation (No Course)@elseSelect a course...@endif</option>
+                                @forelse($courses as $course)
+                                    <option value="{{ $course->id }}" {{ $discussion->course_id == $course->id ? 'selected' : '' }}>
+                                        {{ $course->title }}
+                                    </option>
+                                @empty
+                                    <option value="" disabled>No courses available</option>
+                                @endforelse
+                            </flux:select>
+                            <flux:error name="courseId" />
+                            @if($isStaff)
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">💬 Staff members can change course association</p>
+                            @else
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Course cannot be changed by students</p>
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Lesson Selection (if course is selected) --}}
+                    @if($courseId && $lessons->count() > 0)
+                        <div>
+                            <flux:label for="lessonId" value="Related Lesson (Optional)" />
+                            <flux:select id="lessonId" wire:model="lessonId">
+                                <option value="">No specific lesson</option>
+                                @foreach($lessons as $lesson)
+                                    <option value="{{ $lesson->id }}" {{ $discussion->lesson_id == $lesson->id ? 'selected' : '' }}>
+                                        {{ $lesson->title }}
+                                    </option>
+                                @endforeach
+                            </flux:select>
+                            <flux:error name="lessonId" />
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Select a specific lesson if this discussion relates to one</p>
+                        </div>
+                    @elseif($courseId)
+                        <div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p class="text-sm text-blue-700 dark:text-blue-300">ℹ️ No lessons available for this course yet.</p>
+                        </div>
+                    @endif
+
+                    {{-- Tags Section --}}
+                    <div>
+                        <flux:label value="Tags (Optional)" />
+                        <div class="space-y-2">
+                            <div class="flex gap-2">
+                                <flux:input 
+                                    wire:model="tagInput" 
+                                    placeholder="Add a tag and press Enter..."
+                                    wire:keydown.enter.prevent="addTag"
+                                    maxlength="20"
+                                />
+                                <flux:button type="button" wire:click="addTag" icon="plus" :disabled="empty($tagInput) || count($tags) >= 5">
+                                    Add
+                                </flux:button>
+                            </div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Add up to 5 tags to help others find your discussion. Press Enter to add.</p>
+                            
+                            @if(count($tags) > 0)
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    @foreach($tags as $index => $tag)
+                                        <flux:badge color="blue" class="cursor-pointer group">
+                                            <span>{{ $tag }}</span>
+                                            <button 
+                                                type="button" 
+                                                wire:click="removeTag({{ $index }})" 
+                                                class="ml-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </flux:badge>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
+                        <flux:error name="tags" />
+                    </div>
+
+                    {{-- Content Editor --}}
+                    <div>
+                        <flux:label for="content" value="Discussion Content" required />
+                        <flux:textarea 
+                            id="content" 
+                            wire:model="content" 
+                            placeholder="Write your discussion here... Be clear and detailed so others can help or participate effectively..."
+                            rows="15"
+                            class="font-mono text-sm"
+                        />
+                        <flux:error name="content" />
+                        <div class="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                            <span>Markdown is supported. Use **bold**, *italic*, `code`, and more.</span>
+                            <span wire:ignore>{{ strlen($content ?? '') }} characters</span>
+                        </div>
+                    </div>
+
+                    {{-- Staff-only Advanced Options --}}
+                    @if($isStaff)
+                        <div class="border-t border-gray-200 dark:border-gray-700 pt-6 space-y-4">
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                Staff Settings
+                            </h3>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                                    <flux:checkbox id="isPinned" wire:model="isPinned" />
+                                    <div class="flex-1">
+                                        <flux:label for="isPinned" value="Pin Discussion" class="font-semibold" />
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">Pin this discussion to the top of the list</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                                    <flux:checkbox id="isLocked" wire:model="isLocked" />
+                                    <div class="flex-1">
+                                        <flux:label for="isLocked" value="Lock Discussion" class="font-semibold" />
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">Prevent new replies to this discussion</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <flux:label for="status" value="Discussion Status" />
+                                <flux:select id="status" wire:model="status">
+                                    <option value="active">Active</option>
+                                    <option value="closed">Closed</option>
+                                    <option value="archived">Archived</option>
+                                </flux:select>
+                                <flux:error name="status" />
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Change the status of this discussion</p>
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- Preview Section (Optional) --}}
+                    @if(strlen($title) > 0 && strlen($content) > 10)
+                        <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Preview</h3>
+                            <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                                <h4 class="text-xl font-bold text-gray-900 dark:text-white mb-2">{{ $title }}</h4>
+                                <div class="flex items-center gap-2 mb-3">
+                                    <flux:badge color="purple">{{ ucfirst($category) }}</flux:badge>
+                                    @if(count($tags) > 0)
+                                        @foreach(array_slice($tags, 0, 3) as $tag)
+                                            <flux:badge color="blue">{{ $tag }}</flux:badge>
+                                        @endforeach
+                                    @endif
+                                </div>
+                                <div class="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
+                                    <p>{{ Str::limit($content, 200) }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- Actions --}}
+                    <div class="flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center gap-3">
+                            @if($discussion->user_id === auth()->id() || $isStaff)
+                                <flux:button 
+                                    type="button" 
+                                    wire:click="delete"
+                                    wire:confirm="Are you sure you want to delete this discussion? This action cannot be undone."
+                                    variant="danger"
+                                    icon="trash"
+                                    wire:loading.attr="disabled"
+                                >
+                                    <span wire:loading.remove wire:target="delete">Delete</span>
+                                    <span wire:loading wire:target="delete">Deleting...</span>
+                                </flux:button>
+                            @endif
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <flux:button type="button" href="{{ route('discussions.show', $discussion) }}" variant="ghost" wire:navigate>
+                                Cancel
+                            </flux:button>
+                            <flux:button type="submit" icon="check" wire:loading.attr="disabled">
+                                <span wire:loading.remove wire:target="update">Update Discussion</span>
+                                <span wire:loading wire:target="update">Updating...</span>
+                            </flux:button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        @if (session()->has('message'))
+            <div class="fixed bottom-4 right-4 z-50 animate-fade-in">
+                <div class="bg-green-500 text-white px-6 py-4 rounded-lg shadow-xl flex items-center gap-3 max-w-md">
+                    <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                        <p class="font-semibold">Success</p>
+                        <p class="text-sm">{{ session('message') }}</p>
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        @if (session()->has('error'))
+            <div class="fixed bottom-4 right-4 z-50 animate-fade-in">
+                <div class="bg-red-500 text-white px-6 py-4 rounded-lg shadow-xl flex items-center gap-3 max-w-md">
+                    <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                        <p class="font-semibold">Error</p>
+                        <p class="text-sm">{{ session('error') }}</p>
+                    </div>
+                </div>
+            </div>
+        @endif
+    </div>
+</div>

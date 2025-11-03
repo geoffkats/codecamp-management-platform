@@ -1,0 +1,313 @@
+    <div class="flex flex-col gap-6 p-6">
+        <!-- Header -->
+        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div class="flex items-center gap-4">
+                @if($user->profile_image)
+                    <img src="{{ asset('storage/' . $user->profile_image) }}" 
+                         alt="{{ $user->name }}" 
+                         class="h-20 w-20 rounded-full object-cover border-4 border-blue-500">
+                @else
+                    <div class="h-20 w-20 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center border-4 border-blue-500">
+                        <span class="text-3xl font-bold text-white">{{ $user->initials() }}</span>
+                    </div>
+                @endif
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900 dark:text-white">{{ $user->name }}</h1>
+                    <p class="text-gray-600 dark:text-gray-400">{{ $user->email }}</p>
+                    <div class="flex items-center gap-2 mt-2">
+                        @foreach($user->roles as $role)
+                            <flux:badge variant="primary" size="sm">{{ ucfirst($role->name) }}</flux:badge>
+                        @endforeach
+                        <flux:badge variant="{{ $user->is_active ? 'success' : 'danger' }}" size="sm">
+                            {{ $user->is_active ? 'Active' : 'Inactive' }}
+                        </flux:badge>
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+            @can('update', $user)
+                <flux:button href="{{ route('admin.users.edit', $user) }}" variant="primary" wire:navigate>
+                    Edit Profile
+                </flux:button>
+            @endcan
+                @if(Auth::user()->hasAnyRole(['admin']))
+                    <flux:button wire:click="openResetModal" variant="ghost" title="Reset Password">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                        Reset Password
+                    </flux:button>
+                @endif
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl shadow-lg p-6">
+                <p class="text-sm font-medium text-blue-100 mb-1">Total Points</p>
+                <p class="text-3xl font-bold">{{ number_format($stats['total_points']) }}</p>
+                <p class="text-sm text-blue-100 mt-2">Level {{ $stats['level'] }}</p>
+            </div>
+            <div class="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl shadow-lg p-6">
+                <p class="text-sm font-medium text-green-100 mb-1">Courses Completed</p>
+                <p class="text-3xl font-bold">{{ $stats['courses_completed'] }}</p>
+                <p class="text-sm text-green-100 mt-2">of {{ $stats['courses_enrolled'] }} enrolled</p>
+            </div>
+            <div class="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl shadow-lg p-6">
+                <p class="text-sm font-medium text-purple-100 mb-1">Badges Earned</p>
+                <p class="text-3xl font-bold">{{ $stats['badges_earned'] }}</p>
+                <p class="text-sm text-purple-100 mt-2">achievements</p>
+            </div>
+            <div class="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-xl shadow-lg p-6">
+                <p class="text-sm font-medium text-orange-100 mb-1">Avg Score</p>
+                <p class="text-3xl font-bold">{{ number_format($stats['average_score'], 1) }}%</p>
+                <p class="text-sm text-orange-100 mt-2">across all courses</p>
+            </div>
+        </div>
+
+        <!-- Leaderboard Position -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Leaderboard Position</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Overall ranking</p>
+                </div>
+                <div class="text-center">
+                    <div class="text-5xl font-bold text-blue-600 dark:text-blue-400">#{{ $leaderboardPosition }}</div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">of {{ $totalUsers }} users</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Recent Courses -->
+            @if($user->hasRole('teacher') && $recentActivity['recent_courses']->count() > 0)
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Created Courses</h2>
+                    <div class="space-y-3">
+                        @foreach($recentActivity['recent_courses'] as $course)
+                            <a href="{{ route('courses.show', $course) }}" class="block">
+                                <div class="flex items-center gap-4 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
+                                    <div class="flex-1">
+                                        <h3 class="font-semibold text-gray-900 dark:text-white">{{ $course->title }}</h3>
+                                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                            {{ $course->enrollments()->count() }} enrollments
+                                        </p>
+                                    </div>
+                                    <flux:badge variant="{{ $course->is_published ? 'success' : 'warning' }}" size="sm">
+                                        {{ $course->is_published ? 'Published' : 'Draft' }}
+                                    </flux:badge>
+                                </div>
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            <!-- Recent Enrollments -->
+            @if($recentActivity['recent_enrollments']->count() > 0)
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Recent Enrollments</h2>
+                    <div class="space-y-3">
+                        @foreach($recentActivity['recent_enrollments'] as $enrollment)
+                            <a href="{{ route('courses.show', $enrollment->course) }}" class="block">
+                                <div class="flex items-center gap-4 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
+                                    <div class="flex-1">
+                                        <h3 class="font-semibold text-gray-900 dark:text-white">{{ $enrollment->course->title }}</h3>
+                                        <div class="mt-2">
+                                            <div class="flex items-center justify-between text-xs mb-1">
+                                                <span class="text-gray-600 dark:text-gray-400">Progress</span>
+                                                <span class="font-semibold">{{ number_format($enrollment->progress_percentage ?? 0, 1) }}%</span>
+                                            </div>
+                                            <div class="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                <div class="h-full bg-blue-500 rounded-full" style="width: {{ $enrollment->progress_percentage ?? 0 }}%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    @if($enrollment->completed_at)
+                                        <flux:badge variant="success" size="sm">Completed</flux:badge>
+                                    @endif
+                                </div>
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            <!-- Recent Badges -->
+            @if($recentActivity['recent_badges']->count() > 0)
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Recent Badges</h2>
+                    <div class="grid grid-cols-2 gap-4">
+                        @foreach($recentActivity['recent_badges'] as $badge)
+                            <div class="text-center">
+                                <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 shadow-lg">
+                                    <div class="text-white filter drop-shadow-lg">
+                                        <x-badge-icon :icon="$badge->icon ?? 'trophy'" class="w-12 h-12" />
+                                    </div>
+                                </div>
+                                <p class="mt-2 text-sm font-semibold text-gray-900 dark:text-white line-clamp-2">{{ $badge->name }}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    @if($badge->pivot->earned_at)
+                                        {{ \Carbon\Carbon::parse($badge->pivot->earned_at)->diffForHumans() }}
+                                    @else
+                                        Recently
+                                    @endif
+                                </p>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            <!-- Bio Section -->
+            @if($user->bio)
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">About</h2>
+                    <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ $user->bio }}</p>
+                </div>
+            @endif
+        </div>
+
+        <!-- Activity Summary -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Activity Summary</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Lessons Completed</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white mt-1">{{ $stats['lessons_completed'] }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Courses Created</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white mt-1">{{ $stats['courses_created'] }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Member Since</p>
+                    <p class="text-lg font-semibold text-gray-900 dark:text-white mt-1">{{ $user->created_at->format('M Y') }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Last Login</p>
+                    <p class="text-lg font-semibold text-gray-900 dark:text-white mt-1">
+                        {{ $user->last_login_at ? $user->last_login_at->diffForHumans() : 'Never' }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Password Reset Modal --}}
+    @if($showResetModal)
+        <flux:modal name="reset-password" :show="$showResetModal" wire:model="showResetModal">
+            <form wire:submit.prevent="confirmResetPassword">
+                <div class="p-6">
+                    @if(!$newPassword)
+                        {{-- Confirmation Step --}}
+                        <div class="mb-6">
+                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Reset Password</h2>
+                            <p class="text-gray-600 dark:text-gray-400">
+                                Are you sure you want to reset the password for <strong>{{ $user->name }}</strong> ({{ $user->email }})?
+                            </p>
+                            <p class="text-sm text-gray-500 dark:text-gray-500 mt-2">
+                                A new secure password will be generated and displayed for you to share with the user.
+                            </p>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-3 mt-6">
+                            <flux:button type="button" wire:click="closeResetModal" variant="ghost">Cancel</flux:button>
+                            <flux:button type="submit" variant="primary">Reset Password</flux:button>
+                        </div>
+                    @else
+                        {{-- Success Step with Password Display --}}
+                        <div class="mb-6">
+                            <div class="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/30">
+                                <svg class="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">Password Reset Successful!</h2>
+                            <p class="text-gray-600 dark:text-gray-400 text-center mb-6">
+                                Password has been reset for <strong>{{ $user->name }}</strong>
+                            </p>
+
+                            <div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 mb-4">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    New Password
+                                </label>
+                                <div class="flex items-center gap-2">
+                                    <input 
+                                        type="text" 
+                                        value="{{ $newPassword }}" 
+                                        id="new-password-field-show"
+                                        readonly
+                                        class="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg font-mono text-lg font-bold text-gray-900 dark:text-white"
+                                    >
+                                    <button 
+                                        type="button"
+                                        id="copy-btn-show"
+                                        onclick="copyPasswordShow(this)"
+                                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                                    >
+                                        Copy
+                                    </button>
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                    ⚠️ Please copy this password now. It will not be shown again.
+                                </p>
+                            </div>
+
+                            <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                                <p class="text-sm text-yellow-800 dark:text-yellow-200">
+                                    <strong>Important:</strong> Share this password securely with the user. They should change it after their first login.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-center mt-6">
+                            <flux:button type="button" wire:click="closeResetModal" variant="primary">Done</flux:button>
+                        </div>
+
+                        <script>
+                            function copyPasswordShow(btn) {
+                                const field = document.getElementById('new-password-field-show');
+                                if (!field) return;
+                                
+                                // Select the text
+                                field.select();
+                                field.setSelectionRange(0, 99999); // For mobile devices
+                                
+                                // Copy to clipboard
+                                try {
+                                    navigator.clipboard.writeText(field.value).then(function() {
+                                        // Show feedback
+                                        const originalText = btn.textContent;
+                                        btn.textContent = 'Copied!';
+                                        btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                                        btn.classList.add('bg-green-600', 'hover:bg-green-700');
+                                        setTimeout(() => {
+                                            btn.textContent = originalText;
+                                            btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                                            btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                                        }, 2000);
+                                    });
+                                } catch (err) {
+                                    // Fallback for older browsers
+                                    document.execCommand('copy');
+                                    const originalText = btn.textContent;
+                                    btn.textContent = 'Copied!';
+                                    btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                                    btn.classList.add('bg-green-600', 'hover:bg-green-700');
+                                    setTimeout(() => {
+                                        btn.textContent = originalText;
+                                        btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                                        btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                                    }, 2000);
+                                }
+                            }
+                        </script>
+                    @endif
+                </div>
+            </form>
+        </flux:modal>
+    @endif
+</div>

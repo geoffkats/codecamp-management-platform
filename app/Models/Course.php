@@ -1,0 +1,102 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
+
+class Course extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    protected $fillable = [
+        'title',
+        'slug',
+        'description',
+        'short_description',
+        'instructor_id',
+        'featured_image',
+        'difficulty_level',
+        'estimated_duration',
+        'is_published',
+        'is_featured',
+        'enrollment_type',
+        'max_students',
+        'price',
+        'category',
+        'tags',
+        'requirements',
+        'what_you_learn',
+        'approval_status',
+        'submitted_for_approval_at',
+        'approved_at',
+        'approved_by',
+        'approval_notes',
+        'rejection_reason',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_published' => 'boolean',
+            'is_featured' => 'boolean',
+            'price' => 'decimal:2',
+            'tags' => 'array',
+            'requirements' => 'array',
+            'what_you_learn' => 'array',
+            'submitted_for_approval_at' => 'datetime',
+            'approved_at' => 'datetime',
+        ];
+    }
+
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::creating(function ($course) {
+            if (empty($course->slug)) {
+                $course->slug = Str::slug($course->title);
+            }
+        });
+    }
+
+    public function instructor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'instructor_id');
+    }
+
+    public function modules(): HasMany
+    {
+        return $this->hasMany(CourseModule::class)->orderBy('order_index');
+    }
+
+    public function enrollments(): HasMany
+    {
+        return $this->hasMany(CourseEnrollment::class);
+    }
+
+    public function lessons(): HasMany
+    {
+        return $this->hasMany(Lesson::class)->orderBy('order_index');
+    }
+
+    public function assessments(): HasMany
+    {
+        return $this->hasMany(Assessment::class);
+    }
+
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(CourseInvitation::class);
+    }
+
+    public function enrollmentRequests(): HasMany
+    {
+        return $this->hasMany(EnrollmentRequest::class);
+    }
+}
+
