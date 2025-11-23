@@ -9,10 +9,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 #[Layout('components.layouts.app')]
 class Create extends Component
 {
+    use WithFileUploads;
     public $title = '';
     public $content = '';
     public $courseId = null;
@@ -24,6 +26,14 @@ class Create extends Component
     public $attachments = [];
     public $allowReplies = true;
     public $notifySubscribers = true;
+    
+    // Rich content fields
+    public $subjectTag = '';
+    public $scratchProjectId = '';
+    public $codeLanguage = '';
+    public $codeTitle = '';
+    public $codeContent = '';
+    public $images = [];
 
     protected function rules(): array
     {
@@ -37,6 +47,12 @@ class Create extends Component
             'category' => ['required', 'string', 'in:general,question,help,announcement,project,feedback'],
             'allowReplies' => ['boolean'],
             'notifySubscribers' => ['boolean'],
+            'subjectTag' => ['nullable', 'string', 'in:scratch,python,web,javascript'],
+            'scratchProjectId' => ['nullable', 'string', 'max:50'],
+            'codeLanguage' => ['nullable', 'string', 'in:python,javascript,html,css,php,sql'],
+            'codeTitle' => ['nullable', 'string', 'max:100'],
+            'codeContent' => ['nullable', 'string'],
+            'images' => ['nullable', 'array', 'max:5'],
         ];
     }
 
@@ -109,6 +125,16 @@ class Create extends Component
             }
         }
 
+        // Prepare code snippets array
+        $codeSnippets = [];
+        if (!empty($this->codeContent) && !empty($this->codeLanguage)) {
+            $codeSnippets[] = [
+                'language' => $this->codeLanguage,
+                'code' => $this->codeContent,
+                'title' => $this->codeTitle ?? null,
+            ];
+        }
+
         $discussion = Discussion::create([
             'user_id' => $user->id,
             'course_id' => $this->courseId, // Nullable for staff conversations
@@ -118,6 +144,10 @@ class Create extends Component
             'is_pinned' => $this->isPinned && $isStaff,
             'is_locked' => false,
             'status' => 'active',
+            'subject_tag' => $this->subjectTag ?: null,
+            'scratch_project_id' => $this->scratchProjectId ?: null,
+            'code_snippets' => !empty($codeSnippets) ? $codeSnippets : null,
+            'attachments' => !empty($this->images) ? $this->images : null,
         ]);
 
         // Note: Category and tags are stored but not yet used in the database schema
@@ -126,14 +156,15 @@ class Create extends Component
         // Award XP for creating discussion
         try {
             $user = Auth::user();
-            if (!$user->points) {
-                \App\Models\UserPoint::create([
+            $points = $user->points;
+            if (!$points) {
+                $points = \App\Models\UserPoint::create([
                     'user_id' => $user->id,
                     'total_points' => 0,
                     'level' => 1,
                 ]);
             }
-            $user->points->increment('total_points', 10); // Small XP for participation
+            $points->increment('total_points', 10); // Small XP for participation
         } catch (\Exception $e) {
             // XP awarding failed, but discussion was created, so continue
         }

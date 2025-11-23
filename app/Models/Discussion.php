@@ -24,6 +24,13 @@ class Discussion extends Model
         'replies_count',
         'last_reply_at',
         'last_reply_by',
+        'subject_tag',
+        'upvotes',
+        'helpful_count',
+        'has_best_answer',
+        'scratch_project_id',
+        'code_snippets',
+        'attachments',
     ];
 
     protected function casts(): array
@@ -31,7 +38,10 @@ class Discussion extends Model
         return [
             'is_pinned' => 'boolean',
             'is_locked' => 'boolean',
+            'has_best_answer' => 'boolean',
             'last_reply_at' => 'datetime',
+            'code_snippets' => 'array',
+            'attachments' => 'array',
         ];
     }
 
@@ -58,6 +68,24 @@ class Discussion extends Model
     public function lastReplyBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'last_reply_by');
+    }
+
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(DiscussionReaction::class);
+    }
+
+    public function userReactions()
+    {
+        return $this->reactions()->where('user_id', auth()->id());
+    }
+    
+    public function getUserReactionTypesAttribute()
+    {
+        if (!auth()->check()) {
+            return [];
+        }
+        return $this->userReactions->pluck('reaction_type')->toArray();
     }
 }
 

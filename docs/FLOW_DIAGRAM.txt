@@ -1,0 +1,98 @@
+SUMMERNOTE WYSIWYG EDITOR - DATA FLOW DIAGRAM
+================================================
+
+CREATING A NEW LESSON:
+----------------------
+1. Teacher clicks "+ Add" in Lessons column
+2. Modal opens with empty form
+3. Summernote initializes on textarea
+4. Teacher types formatted content
+5. onChange callback fires
+6. @this.set('formData.content', contents)
+7. Livewire syncs to Builder.php
+8. Teacher clicks "Save Lesson"
+9. saveLesson() method executes
+10. Content saved to lessons.content column
+11. Modal closes
+12. Success!
+
+EDITING AN EXISTING LESSON:
+---------------------------
+1. Teacher clicks on lesson card
+2. editItem('lesson', id) called
+3. Lesson data loaded from database
+4. formData.content = $item->content
+5. Modal opens with form data
+6. Summernote initializes
+7. onInit callback sets initial content
+8. $(textarea).summernote('code', initialContent)
+9. Teacher edits content
+10. onChange syncs to Livewire
+11. Teacher clicks "Save Lesson"
+12. saveLesson() updates database
+13. Success!
+
+DISPLAYING TO STUDENTS:
+-----------------------
+1. Student navigates to lesson
+2. Controller/Livewire loads lesson
+3. Blade view renders
+4. {!! $lesson->content !!} outputs HTML
+5. Student sees formatted content
+6. Success!
+
+COMPONENT ARCHITECTURE:
+-----------------------
+┌─────────────────────────────────────┐
+│  Blade Template (builder.blade.php) │
+│  ┌───────────────────────────────┐  │
+│  │  Summernote Editor (textarea) │  │
+│  │  - wire:ignore wrapper        │  │
+│  │  - jQuery + Summernote CDN    │  │
+│  │  - Initialization script      │  │
+│  └───────────────────────────────┘  │
+└─────────────────────────────────────┘
+              ↓ onChange
+┌─────────────────────────────────────┐
+│  Livewire Component (Builder.php)   │
+│  ┌───────────────────────────────┐  │
+│  │  formData['content']          │  │
+│  │  - Synced via @this.set()     │  │
+│  │  - Validated                  │  │
+│  │  - Saved to database          │  │
+│  └───────────────────────────────┘  │
+└─────────────────────────────────────┘
+              ↓ saveLesson()
+┌─────────────────────────────────────┐
+│  Database (lessons table)           │
+│  ┌───────────────────────────────┐  │
+│  │  content (longText, nullable) │  │
+│  │  - Stores HTML                │  │
+│  └───────────────────────────────┘  │
+└─────────────────────────────────────┘
+              ↓ Display
+┌─────────────────────────────────────┐
+│  Student View (show.blade.php)      │
+│  ┌───────────────────────────────┐  │
+│  │  {!! $lesson->content !!}     │  │
+│  │  - Renders HTML               │  │
+│  └───────────────────────────────┘  │
+└─────────────────────────────────────┘
+
+KEY FILES:
+----------
+✅ resources/views/livewire/curriculum/builder.blade.php
+✅ app/Livewire/Curriculum/Builder.php
+✅ resources/views/partials/head.blade.php
+✅ resources/views/components/layouts/app/sidebar.blade.php
+✅ resources/views/lessons/show-example.blade.php (example)
+
+DEPENDENCIES:
+-------------
+- jQuery 3.6.0 (CDN)
+- Summernote 0.8.18 (CDN)
+- Livewire 3.x
+- Laravel (your version)
+- Flux UI (your version)
+
+STATUS: ✅ COMPLETE AND READY TO USE

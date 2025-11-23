@@ -2,20 +2,35 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
         @include('partials.head')
+        @livewireStyles
     </head>
     <body class="min-h-screen bg-white dark:bg-zinc-800">
         <flux:sidebar sticky stashable class="border-e border-zinc-200 bg-gradient-to-b from-gray-50 via-blue-50/30 to-purple-50/30 dark:border-zinc-700 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 shadow-xl">
             <flux:sidebar.toggle class="lg:hidden" icon="x-mark" />
 
             {{-- Logo Section --}}
+            @php
+                $appName = \App\Models\SystemSetting::get('app_name', config('app.name'));
+                $appShortName = \App\Models\SystemSetting::get('app_short_name', 'CAU');
+                $appTagline = \App\Models\SystemSetting::get('app_tagline', 'E-Learning Platform');
+                $logo = \App\Models\SystemSetting::get('logo');
+                $logoDark = \App\Models\SystemSetting::get('logo_dark');
+            @endphp
             <div class="me-5 mb-4">
                 <a href="{{ route('dashboard') }}" class="flex items-center space-x-3 rtl:space-x-reverse group" wire:navigate>
-                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
-                        <x-app-logo class="w-8 h-8" />
-                    </div>
+                    @if($logo || $logoDark)
+                        <div class="w-12 h-12 rounded-xl bg-white dark:bg-gray-800 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform overflow-hidden">
+                            <img src="{{ asset('storage/' . ($logo ?: $logoDark)) }}" alt="{{ $appName }}" class="w-10 h-10 object-contain dark:hidden">
+                            <img src="{{ asset('storage/' . ($logoDark ?: $logo)) }}" alt="{{ $appName }}" class="w-10 h-10 object-contain hidden dark:block">
+                        </div>
+                    @else
+                        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                            <x-app-logo class="w-8 h-8" />
+                        </div>
+                    @endif
                     <div class="flex-1 min-w-0">
-                        <h2 class="text-lg font-bold text-gray-900 dark:text-white truncate">CodeCamps</h2>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">Learning Platform</p>
+                        <h2 class="text-lg font-bold text-gray-900 dark:text-white truncate">{{ $appShortName }}</h2>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $appTagline }}</p>
                     </div>
                 </a>
             </div>
@@ -147,6 +162,8 @@
 
         {{ $slot }}
 
+        @livewireScripts
         @fluxScripts
+        @stack('scripts')
     </body>
 </html>

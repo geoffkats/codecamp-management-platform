@@ -13,6 +13,7 @@ use App\Policies\LessonPolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 
 class AppServiceProvider extends AuthServiceProvider
 {
@@ -42,6 +43,9 @@ class AppServiceProvider extends AuthServiceProvider
      */
     public function boot(): void
     {
+        // Set default string length to prevent MySQL key length issues
+        Schema::defaultStringLength(191);
+        
         $this->registerPolicies();
 
         // Register permission gates
@@ -74,7 +78,11 @@ class AppServiceProvider extends AuthServiceProvider
         });
 
         Gate::define('enroll_courses', function (User $user) {
-            return $user->hasPermission('enroll_courses') || $user->isStudent();
+            return $user->hasPermission('enroll_courses') 
+                || $user->isStudent() 
+                || $user->isAdmin() 
+                || $user->isTeacher() 
+                || $user->isSupervisor();
         });
     }
 }

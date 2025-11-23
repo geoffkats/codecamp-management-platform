@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Quizzes;
 
-use App\Models\Quiz;
+use App\Models\Assessment;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -21,14 +21,36 @@ class Index extends Component
 
     public function render()
     {
-        $query = Quiz::query();
+        $user = Auth::user();
+        $query = Assessment::where('assessment_type', 'quiz');
 
         // Role-based filtering
-        if (Auth::user()->hasRole('student')) {
-            $query->whereHas('lesson.course.enrollments', fn($q) => $q->where('user_id', Auth::id()))
-                  ->where('is_published', true);
-        } elseif (Auth::user()->hasRole('teacher')) {
-            $query->whereHas('lesson.course', fn($q) => $q->where('instructor_id', Auth::id()));
+        if ($user->hasRole('student')) {
+            // Students can see quizzes from:
+            // 1. Courses they're enrolled in
+            // 2. Open courses (enrollment_type = 'open')
+            // AND the quiz must be approved AND not locked
+            $query->where('approval_status', 'approved')
+                  ->where('is_locked', false)
+                  ->where(function($q) use ($user) {
+                      // From enrolled courses
+                      $q->whereHas('course.enrollments', fn($enrollmentQuery) => $enrollmentQuery->where('user_id', $user->id))
+                        // OR from open courses
+                        ->orWhereHas('course', fn($courseQuery) => $courseQuery->where('enrollment_type', 'open'))
+                        // OR from lessons in enrolled courses
+                        ->orWhereHas('lesson.course.enrollments', fn($enrollmentQuery) => $enrollmentQuery->where('user_id', $user->id))
+                        // OR from lessons in open courses
+                        ->orWhereHas('lesson.course', fn($courseQuery) => $courseQuery->where('enrollment_type', 'open'));
+                  });
+        } elseif ($user->hasRole('teacher')) {
+            // Teachers see quizzes from their courses
+            $query->where(function($q) use ($user) {
+                $q->whereHas('course', fn($courseQuery) => $courseQuery->where('instructor_id', $user->id))
+                  ->orWhereHas('lesson.course', fn($courseQuery) => $courseQuery->where('instructor_id', $user->id));
+            });
+        } elseif ($user->hasAnyRole(['admin', 'supervisor'])) {
+            // Admins and supervisors see all quizzes
+            // No additional filtering needed
         }
 
         if ($this->search) {
@@ -39,7 +61,7 @@ class Index extends Component
             $query->whereHas('lesson', fn($q) => $q->where('course_id', $this->courseId));
         }
 
-        $quizzes = $query->with(['lesson.course'])
+        $quizzes = $query->with(['lesson.course', 'course'])
             ->orderByDesc('created_at')
             ->paginate(12);
 
@@ -48,10 +70,10 @@ class Index extends Component
         if (Auth::user()->hasRole('student')) {
             $quizIds = $quizzes->pluck('id')->toArray();
             if (!empty($quizIds)) {
-            $attempts = \App\Models\QuizAttempt::where('user_id', Auth::id())
-                ->whereIn('quiz_id', $quizIds)
+            $attempts = \App\Models\AssessmentAttempt::where('user_id', Auth::id())
+                ->whereIn('assessment_id', $quizIds)
                 ->get()
-                ->keyBy('quiz_id');
+                ->keyBy('assessment_id');
             }
         }
 
@@ -69,25 +91,37 @@ class Index extends Component
         ];
 
         if (Auth::user()->hasRole('student')) {
-            $allQuizIds = Quiz::whereHas('lesson.course.enrollments', fn($q) => $q->where('user_id', Auth::id()))
-                ->where('is_published', true)
+            $allQuizIds = Assessment::where('assessment_type', 'quiz')
+                ->where('approval_status', 'approved')
+                ->where('is_locked', false)
+                ->where(function($q) use ($user) {
+                    $q->whereHas('course.enrollments', fn($enrollmentQuery) => $enrollmentQuery->where('user_id', $user->id))
+                      ->orWhereHas('course', fn($courseQuery) => $courseQuery->where('enrollment_type', 'open'))
+                      ->orWhereHas('lesson.course.enrollments', fn($enrollmentQuery) => $enrollmentQuery->where('user_id', $user->id))
+                      ->orWhereHas('lesson.course', fn($courseQuery) => $courseQuery->where('enrollment_type', 'open'));
+                })
                 ->pluck('id');
             
             $stats['total'] = $allQuizIds->count();
             
-            $allAttempts = \App\Models\QuizAttempt::where('user_id', Auth::id())
-                ->whereIn('quiz_id', $allQuizIds)
+            $allAttempts = \App\Models\AssessmentAttempt::where('user_id', Auth::id())
+                ->whereIn('assessment_id', $allQuizIds)
                 ->get();
             
-            $completedQuizzes = $allAttempts->groupBy('quiz_id')->keys();
+            $completedQuizzes = $allAttempts->groupBy('assessment_id')->keys();
             $stats['completed'] = $completedQuizzes->count();
             
             if ($allAttempts->isNotEmpty()) {
-                $stats['average_score'] = round($allAttempts->avg('percentage_score'), 1);
-                $stats['perfect_scores'] = $allAttempts->where('percentage_score', 100)->groupBy('quiz_id')->count();
+                $stats['average_score'] = round($allAttempts->avg('score'), 1);
+                $stats['perfect_scores'] = $allAttempts->where('score', 100)->groupBy('assessment_id')->count();
             }
         } elseif (Auth::user()->hasRole('teacher')) {
-            $stats['total'] = Quiz::whereHas('lesson.course', fn($q) => $q->where('instructor_id', Auth::id()))->count();
+            $stats['total'] = Assessment::where('assessment_type', 'quiz')
+                ->where(function($q) use ($user) {
+                    $q->whereHas('course', fn($courseQuery) => $courseQuery->where('instructor_id', $user->id))
+                      ->orWhereHas('lesson.course', fn($courseQuery) => $courseQuery->where('instructor_id', $user->id));
+                })
+                ->count();
         }
 
         return view('livewire.quizzes.index', [

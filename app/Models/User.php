@@ -101,4 +101,72 @@ class User extends Authenticatable
     {
         return $this->hasMany(Notification::class);
     }
+
+    public function studentProfile()
+    {
+        return $this->hasOne(StudentProfile::class);
+    }
+
+    public function invitations()
+    {
+        return $this->hasMany(CourseInvitation::class);
+    }
+
+    public function studentAttendances()
+    {
+        return $this->hasManyThrough(
+            StudentAttendance::class,
+            StudentProfile::class,
+            'user_id', // Foreign key on student_profiles table
+            'student_profile_id', // Foreign key on student_attendances table
+            'id', // Local key on users table
+            'id' // Local key on student_profiles table
+        );
+    }
+
+    public function checkedInToday()
+    {
+        if (!$this->studentProfile) {
+            return false;
+        }
+        
+        return $this->studentAttendances()
+            ->whereDate('attendance_date', today())
+            ->whereIn('status', ['present', 'late'])
+            ->exists();
+    }
+
+    public function todayCheckIn()
+    {
+        if (!$this->studentProfile) {
+            return null;
+        }
+        
+        return $this->studentAttendances()
+            ->whereDate('attendance_date', today())
+            ->whereIn('status', ['present', 'late'])
+            ->first();
+    }
+
+    public function getTodayCheckInAttribute()
+    {
+        return $this->todayCheckIn();
+    }
+
+    public function discussionReplies()
+    {
+        return $this->hasMany(DiscussionReply::class);
+    }
+
+    public function getHelperLevelAttribute()
+    {
+        $count = $this->helpful_answers_count ?? 0;
+        
+        if ($count >= 100) return 'community-leader';
+        if ($count >= 50) return 'discussion-master';
+        if ($count >= 20) return 'code-mentor';
+        if ($count >= 5) return 'helper';
+        
+        return null;
+    }
 }

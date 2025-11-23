@@ -15,13 +15,13 @@ class Index extends Component
 
     protected $paginationTheme = 'tailwind';
 
-    public $filterStatus = 'pending'; // 'all', 'pending', 'approved', 'rejected'
+    public $filterStatus = 'all'; // 'all', 'pending', 'approved', 'rejected'
     public $filterType = 'all'; // 'all', 'course', 'lesson', 'module', 'assessment'
     public $filterPriority = 'all'; // 'all', 'high', 'medium', 'low'
     public $search = '';
 
     protected $queryString = [
-        'filterStatus' => ['except' => 'pending'],
+        'filterStatus' => ['except' => 'all'],
         'filterType' => ['except' => 'all'],
         'filterPriority' => ['except' => 'all'],
         'search' => ['except' => ''],

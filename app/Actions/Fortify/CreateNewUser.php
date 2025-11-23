@@ -30,10 +30,57 @@ class CreateNewUser implements CreatesNewUsers
             'password' => $this->passwordRules(),
         ])->validate();
 
-        return User::create([
+        $user = User::create([
             'name' => $input['name'],
             'email' => $input['email'],
             'password' => $input['password'],
         ]);
+
+        // Automatically assign student role
+        $studentRole = \App\Models\Role::where('name', 'student')->first();
+        if ($studentRole) {
+            $user->roles()->attach($studentRole->id);
+        }
+
+        // Create basic student profile
+        \App\Models\StudentProfile::create([
+            'user_id' => $user->id,
+            'student_id' => $this->generateStudentId(),
+            'full_name' => $input['name'],
+            'email' => $input['email'],
+            'date_of_birth' => null, // Can be filled later
+            'gender' => null, // Can be filled later
+            'phone_number' => null, // Can be filled later
+            'address' => null, // Can be filled later
+        ]);
+
+        // Create user points record for gamification
+        \App\Models\UserPoint::create([
+            'user_id' => $user->id,
+            'total_points' => 0,
+            'level' => 1,
+            'points_to_next_level' => 100,
+        ]);
+
+        return $user;
+    }
+
+    /**
+     * Generate unique student ID
+     */
+    private function generateStudentId(): string
+    {
+        $year = date('Y');
+        $lastStudent = \App\Models\StudentProfile::whereYear('created_at', $year)
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if ($lastStudent && preg_match('/STU-' . $year . '-(\d+)/', $lastStudent->student_id, $matches)) {
+            $nextNumber = intval($matches[1]) + 1;
+        } else {
+            $nextNumber = 1;
+        }
+
+        return 'STU-' . $year . '-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 }

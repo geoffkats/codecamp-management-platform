@@ -2,8 +2,8 @@
 
 namespace App\Livewire\Quizzes;
 
-use App\Models\Quiz;
-use App\Models\QuizAttempt;
+use App\Models\Assessment;
+use App\Models\AssessmentAttempt;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -11,29 +11,32 @@ use Livewire\Component;
 #[Layout('components.layouts.app')]
 class Show extends Component
 {
-    public Quiz $quiz;
+    public Assessment $assessment;
     public $userAttempts = [];
     public $hasTaken = false;
     public $bestScore = null;
     public $bestAttempt = null;
     public $attemptsRemaining = null;
 
-    public function mount(Quiz $quiz)
+    public function mount(Assessment $assessment)
     {
-        $this->quiz = $quiz->load([
+        // Ensure this is a quiz type assessment
+        if ($assessment->assessment_type !== 'quiz') {
+            abort(404, 'Assessment not found.');
+        }
+
+        $this->assessment = $assessment->load([
             'lesson.course',
-            'questions' => function ($q) {
-                $q->orderBy('order');
-            },
-            'questions.options',
+            'course',
+            'questions',
         ]);
 
         // Check access
         $this->checkAccess();
 
         // Load user attempts
-        $this->userAttempts = QuizAttempt::where('user_id', Auth::id())
-            ->where('quiz_id', $this->quiz->id)
+        $this->userAttempts = AssessmentAttempt::where('user_id', Auth::id())
+            ->where('assessment_id', $this->assessment->id)
             ->latest('completed_at')
             ->take(5)
             ->get();
@@ -49,12 +52,12 @@ class Show extends Component
         }
 
         // Calculate remaining attempts
-        $attemptCount = QuizAttempt::where('user_id', Auth::id())
-            ->where('quiz_id', $this->quiz->id)
+        $attemptCount = AssessmentAttempt::where('user_id', Auth::id())
+            ->where('assessment_id', $this->assessment->id)
             ->count();
 
-        if ($this->quiz->max_attempts && $this->quiz->max_attempts > 0) {
-            $this->attemptsRemaining = max(0, $this->quiz->max_attempts - $attemptCount);
+        if ($this->assessment->max_attempts && $this->assessment->max_attempts > 0) {
+            $this->attemptsRemaining = max(0, $this->assessment->max_attempts - $attemptCount);
         } else {
             $this->attemptsRemaining = 'unlimited';
         }
@@ -62,27 +65,41 @@ class Show extends Component
 
     protected function checkAccess()
     {
-        if (Auth::user()->hasRole('student')) {
-            // Students must be enrolled in the course
-            $isEnrolled = $this->quiz->lesson->course->enrollments()
-                ->where('user_id', Auth::id())
-                ->exists();
-
-            if (!$isEnrolled) {
-                abort(403, 'You must be enrolled in this course to view the quiz.');
+        $user = Auth::user();
+        
+        if ($user->hasRole('student')) {
+            // Check if quiz is locked
+            if ($this->assessment->is_locked) {
+                abort(403, 'This quiz is currently locked and cannot be accessed.');
             }
 
-            // Quiz must be published
-            if (!$this->quiz->is_published) {
-                abort(403, 'This quiz is not yet published.');
+            // Check if quiz is approved
+            if ($this->assessment->approval_status !== 'approved') {
+                abort(403, 'This quiz is not yet available.');
             }
-        } elseif (Auth::user()->hasRole('teacher')) {
+
+            // Students must be enrolled in the course OR course must be open
+            $course = $this->assessment->course ?? $this->assessment->lesson->course ?? null;
+            
+            if ($course) {
+                $isEnrolled = $course->enrollments()
+                    ->where('user_id', $user->id)
+                    ->exists();
+                
+                $isOpen = $course->enrollment_type === 'open';
+                
+                if (!$isEnrolled && !$isOpen) {
+                    abort(403, 'You must be enrolled in this course to view the quiz.');
+                }
+            }
+        } elseif ($user->hasRole('teacher')) {
             // Teachers can only view quizzes from their own courses
-            $course = $this->quiz->lesson->course ?? null;
-            if (!$course || $course->instructor_id !== Auth::id()) {
+            $course = $this->assessment->course ?? $this->assessment->lesson->course ?? null;
+            if (!$course || $course->instructor_id !== $user->id) {
                 abort(403, 'You can only view quizzes from your own courses.');
             }
         }
+        // Admins and supervisors can view all quizzes
     }
 
     public function render()
@@ -97,11 +114,11 @@ class Show extends Component
     private function getStatistics()
     {
         // Only show stats to teachers/admins
-        if (!Auth::user()->hasAnyRole(['teacher', 'admin'])) {
+        if (!Auth::user()->hasAnyRole(['teacher', 'admin', 'supervisor'])) {
             return null;
         }
 
-        $allAttempts = QuizAttempt::where('quiz_id', $this->quiz->id)->get();
+        $allAttempts = AssessmentAttempt::where('assessment_id', $this->assessment->id)->get();
 
         if ($allAttempts->isEmpty()) {
             return [

@@ -83,7 +83,7 @@
                         <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Answer Review</h2>
                         <div class="space-y-4">
                             @php
-                                $questions = $assessment->questions()->with('options')->orderBy('order')->get();
+                                $questions = $this->getQuestions(); // Use cached shuffled questions
                             @endphp
                             @foreach($questions as $index => $question)
                                 @php
@@ -93,11 +93,17 @@
                                     if (in_array($question->question_type, ['multiple_choice', 'multiple_select', 'choice', 'true_false'])) {
                                         $correctOptions = $question->options->where('is_correct', true)->pluck('id')->toArray();
                                         if (is_array($userAnswer)) {
+                                            // Convert to integers for comparison
+                                            $userAnswer = array_map('intval', array_filter($userAnswer));
+                                            $correctOptions = array_map('intval', $correctOptions);
                                             sort($userAnswer);
                                             sort($correctOptions);
                                             $isCorrect = $userAnswer === $correctOptions;
                                         } else {
-                                            $isCorrect = in_array($userAnswer, $correctOptions);
+                                            // Convert to integer for comparison
+                                            $userAnswerInt = intval($userAnswer);
+                                            $correctOptions = array_map('intval', $correctOptions);
+                                            $isCorrect = in_array($userAnswerInt, $correctOptions);
                                         }
                                     }
                                 @endphp
@@ -127,6 +133,15 @@
                                         @endif
                                     </div>
                                     <p class="text-gray-700 dark:text-gray-300 mb-3">{{ $question->question_text }}</p>
+                                    
+                                    {{-- Question Image --}}
+                                    @if($question->image_url)
+                                        <div class="mt-3 mb-3">
+                                            <img src="{{ asset('storage/' . $question->image_url) }}" 
+                                                 alt="Question image" 
+                                                 class="max-w-md rounded-lg border border-gray-200 dark:border-gray-700">
+                                        </div>
+                                    @endif
                                     
                                     @if(in_array($question->question_type, ['multiple_choice', 'multiple_select', 'choice', 'true_false']))
                                         <div class="space-y-2">
@@ -158,6 +173,13 @@
                                                                 <span class="ml-2 text-xs text-green-600 dark:text-green-400 font-semibold">(Correct Answer)</span>
                                                             @elseif($isUserAnswer && !$isCorrectOption)
                                                                 <span class="ml-2 text-xs text-red-600 dark:text-red-400 font-semibold">(Your Answer)</span>
+                                                            @endif
+                                                            @if($option->image_url)
+                                                                <div class="mt-2">
+                                                                    <img src="{{ asset('storage/' . $option->image_url) }}" 
+                                                                         alt="Option image" 
+                                                                         class="max-w-xs rounded border border-gray-200 dark:border-gray-700">
+                                                                </div>
                                                             @endif
                                                             @if($option->explanation)
                                                                 <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ $option->explanation }}</p>
@@ -336,8 +358,9 @@
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    @if($assessment->questions && $assessment->questions->isNotEmpty())
-                    @foreach($assessment->questions as $index => $question)
+                    @php $questions = $this->getQuestions(); @endphp
+                    @if($questions && $questions->isNotEmpty())
+                    @foreach($questions as $index => $question)
                         @php
                             $isAnswered = isset($answers[$question->id]) && !empty($answers[$question->id]);
                             $isBookmarked = in_array($index, $bookmarkedQuestions);
@@ -383,8 +406,9 @@
                         </button>
                     </div>
                     <div class="p-6 space-y-4">
-                        @if($assessment->questions && $assessment->questions->isNotEmpty())
-                        @foreach($assessment->questions as $index => $question)
+                        @php $questions = $this->getQuestions(); @endphp
+                        @if($questions && $questions->isNotEmpty())
+                        @foreach($questions as $index => $question)
                             <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                                 <div class="flex items-start justify-between mb-2">
                                     <h3 class="font-semibold text-gray-900 dark:text-white">Question {{ $index + 1 }}</h3>
@@ -395,6 +419,16 @@
                                     </button>
                                 </div>
                                 <p class="text-gray-700 dark:text-gray-300 mb-3">{{ $question->question_text }}</p>
+                                
+                                {{-- Question Image --}}
+                                @if($question->image_url)
+                                    <div class="mt-3 mb-3">
+                                        <img src="{{ asset('storage/' . $question->image_url) }}" 
+                                             alt="Question image" 
+                                             class="max-w-md rounded-lg border border-gray-200 dark:border-gray-700">
+                                    </div>
+                                @endif
+                                
                                 <div class="bg-gray-50 dark:bg-gray-900/50 rounded p-3">
                                     @if(isset($answers[$question->id]) && !empty($answers[$question->id]))
                                         <p class="text-sm text-gray-600 dark:text-gray-400">Your answer:</p>
@@ -464,9 +498,11 @@
                     {{-- Question Image --}}
                     @if($currentQuestion->image_url)
                         <div class="mt-4">
-                            <img src="{{ Storage::disk('public')->url($currentQuestion->image_url) }}" 
+                            <img src="{{ asset('storage/' . $currentQuestion->image_url) }}" 
                                  alt="Question image" 
-                                 class="max-w-full rounded-lg border border-gray-200 dark:border-gray-700">
+                                 class="max-w-full rounded-lg border border-gray-200 dark:border-gray-700"
+                                 onerror="console.log('Image failed to load:', this.src); this.style.display='none';"
+                                 onload="console.log('Image loaded successfully:', this.src);">
                         </div>
                     @endif
                 </div>
@@ -492,9 +528,11 @@
                                     <p class="text-gray-900 dark:text-white font-medium">{{ $option->option_text }}</p>
                                     @if($option->image_url)
                                         <div class="mt-2">
-                                            <img src="{{ Storage::disk('public')->url($option->image_url) }}" 
+                                            <img src="{{ asset('storage/' . $option->image_url) }}" 
                                                  alt="Option image" 
-                                                 class="max-w-xs rounded border border-gray-200 dark:border-gray-700">
+                                                 class="max-w-xs rounded border border-gray-200 dark:border-gray-700"
+                                                 onerror="console.log('Option image failed to load:', this.src); this.style.display='none';"
+                                                 onload="console.log('Option image loaded successfully:', this.src);">
                                         </div>
                                     @endif
                                     @if($option->explanation)
@@ -702,23 +740,9 @@
                 @elseif($currentQuestion->question_type === 'matching')
                     {{-- Matching --}}
                     @php
-                        $settings = $currentQuestion->settings ?? [];
-                        $pairs = $settings['matching_pairs'] ?? [];
-                        
-                        // Fallback for legacy data stored in options
-                        if (empty($pairs) && $currentQuestion->options->isNotEmpty()) {
-                            foreach ($currentQuestion->options as $option) {
-                                $parts = explode('|', $option->option_text);
-                                if (count($parts) === 2) {
-                                    $pairs[] = [
-                                        'left_item' => $parts[0],
-                                        'right_item' => $parts[1]
-                                    ];
-                                }
-                            }
-                        }
-                        
-                        $rightItems = collect($pairs)->pluck('right_item')->shuffle();
+                        $matchingData = $this->getShuffledQuestionData($currentQuestion->id, 'matching');
+                        $pairs = $matchingData['pairs'] ?? [];
+                        $rightItems = $matchingData['rightItems'] ?? [];
                         $answers = $answers[$currentQuestion->id] ?? [];
                     @endphp
                     <div class="space-y-4">
@@ -735,26 +759,15 @@
                         @endforeach
                     </div>
                 @elseif($currentQuestion->question_type === 'ordering')
-                    {{-- Ordering with SortableJS --}}
+                    {{-- Ordering --}}
                     @php
-                        $settings = $currentQuestion->settings ?? [];
-                        $items = $settings['ordering_items'] ?? [];
-                        
-                        // Fallback for legacy data stored in options
-                        if (empty($items) && $currentQuestion->options->isNotEmpty()) {
-                            foreach ($currentQuestion->options as $option) {
-                                $items[] = [
-                                    'item_text' => $option->option_text,
-                                    'correct_order' => $option->order + 1
-                                ];
-                            }
-                        }
-                        
-                        $shuffledItems = collect($items)->shuffle();
+                        $orderingData = $this->getShuffledQuestionData($currentQuestion->id, 'ordering');
+                        $items = $orderingData['items'] ?? [];
+                        $shuffledItems = $orderingData['shuffledItems'] ?? [];
                     @endphp
                     <div class="space-y-3" 
                          x-data="{ 
-                             items: @js($shuffledItems->map(fn($item) => $item['item_text'])),
+                             items: @js(array_column($shuffledItems, 'item_text')),
                              init() {
                                  // Load SortableJS from CDN
                                  if (typeof Sortable === 'undefined') {
@@ -912,6 +925,18 @@
             </div>
         @endif
 
+        {{-- Error Message --}}
+        @if(session()->has('error'))
+            <div class="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p class="text-red-800 dark:text-red-200">
+                    <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {{ session('error') }}
+                </p>
+            </div>
+        @endif
+
         {{-- Navigation Buttons (only for non-assignment assessments) --}}
         <div class="flex items-center justify-between">
             <flux:button 
@@ -926,14 +951,31 @@
 
             <div class="flex items-center gap-3">
                 @if($currentQuestionIndex < $totalQuestions - 1)
-                    <flux:button 
-                        wire:click="nextQuestion"
-                        variant="primary">
-                        Next
-                        <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                        </svg>
-                    </flux:button>
+                    @php
+                        $isAnswered = $this->isQuestionAnswered($currentQuestion);
+                    @endphp
+                    
+                    @if($isAnswered)
+                        {{-- Next button when answered --}}
+                        <flux:button 
+                            wire:click="nextQuestion"
+                            variant="primary">
+                            Next
+                            <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </flux:button>
+                    @else
+                        {{-- Skip button when not answered --}}
+                        <flux:button 
+                            wire:click="nextQuestion"
+                            variant="ghost">
+                            Skip
+                            <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                            </svg>
+                        </flux:button>
+                    @endif
                 @else
                     <flux:button 
                         wire:click="submitAssessment"

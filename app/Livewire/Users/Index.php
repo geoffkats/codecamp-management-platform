@@ -96,7 +96,9 @@ class Index extends Component
 
     public function render()
     {
-        $query = User::with('roles');
+        // Optimize: Select only needed columns and eager load roles
+        $query = User::select('id', 'name', 'email', 'is_active', 'created_at', 'updated_at')
+            ->with('roles:id,name');
 
         if ($this->search) {
             $query->where(function ($q) {
@@ -125,13 +127,19 @@ class Index extends Component
 
         $users = $query->paginate(15);
 
-        $stats = [
-            'total' => User::count(),
-            'active' => User::where('is_active', true)->count(),
-            'inactive' => User::where('is_active', false)->count(),
-        ];
+        // Cache stats for 5 minutes to reduce database load
+        $stats = cache()->remember('user_stats', 300, function () {
+            return [
+                'total' => User::count(),
+                'active' => User::where('is_active', true)->count(),
+                'inactive' => User::where('is_active', false)->count(),
+            ];
+        });
 
-        $roles = \App\Models\Role::all();
+        // Cache roles for 10 minutes
+        $roles = cache()->remember('all_roles', 600, function () {
+            return \App\Models\Role::select('id', 'name')->get();
+        });
 
         return view('livewire.users.index', [
             'users' => $users,

@@ -25,7 +25,18 @@ class Show extends Component
         $this->assignment = $assignment->load(['course', 'lesson', 'creator', 'submissions' => fn($q) => $q->where('user_id', Auth::id())]);
         
         // Check access
-        if (Auth::user()->hasRole('student')) {
+        $user = Auth::user();
+        $isInstructor = $this->assignment->course->instructor_id === $user->id || 
+                       $user->hasRole('admin') || 
+                       $user->hasRole('supervisor');
+        
+        // Check if assignment is locked for students
+        if (!$isInstructor && $this->assignment->is_locked) {
+            // Assignment is locked - students cannot access
+            return; // Will show locked view
+        }
+        
+        if ($user->hasRole('student')) {
             $isEnrolled = $this->assignment->course->enrollments()
                 ->where('user_id', Auth::id())
                 ->exists();

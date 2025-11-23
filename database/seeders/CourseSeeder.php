@@ -123,7 +123,8 @@ class CourseSeeder extends Seeder
     private function getCoursesData(): array
     {
         return [
-            $this->getWebDevelopmentCourse(),
+            $this->getWebDevelopment1Course(), // 3-week structured course
+            $this->getWebDevelopmentCourse(), // Advanced web development
             $this->getMobileAppDevelopmentCourse(),
             $this->getICDLCertificationCourse(),
             $this->getRoboticsSTEMCourse(),
@@ -135,7 +136,217 @@ class CourseSeeder extends Seeder
     }
 
     /**
-     * Web Development Course
+     * Web Development 1 - 3-Week Camp Course (HTML, CSS, Bootstrap)
+     * Structured for code camps with weekly modules
+     */
+    private function getWebDevelopment1Course(): array
+    {
+        return [
+            'title' => 'Web Development 1',
+            'description' => 'A comprehensive 3-week course covering HTML, CSS, and Bootstrap. Perfect for beginners who want to build modern, responsive websites from scratch. This course is structured for code camps with hands-on projects and real-world applications.',
+            'short_description' => '3-week course: Master HTML, CSS, and Bootstrap to build responsive websites',
+            'difficulty_level' => 'Beginner',
+            'estimated_duration' => 90, // 3 weeks × 30 hours
+            'category' => 'Web Development',
+            'tags' => ['html', 'css', 'bootstrap', 'responsive', 'web', 'beginner', '3-weeks'],
+            'requirements' => ['No prior experience needed', 'Basic computer skills', 'Text editor (VS Code recommended)', 'Modern web browser'],
+            'what_you_learn' => [
+                'HTML5 semantic elements and structure',
+                'CSS styling, layout, and responsive design',
+                'Bootstrap framework for rapid development',
+                'Building complete responsive websites',
+                'Best practices for web development',
+                'Project-based learning with real examples',
+                'Deploying websites online'
+            ],
+            'modules' => [
+                // WEEK 1: HTML Foundations
+                [
+                    'title' => 'Week 1: HTML Foundations',
+                    'description' => 'Master HTML5 fundamentals and build your first web pages. Learn semantic HTML, forms, and proper document structure.',
+                    'lessons' => [
+                        [
+                            'title' => 'Introduction to HTML and Web Development',
+                            'content' => '<h2>Welcome to Web Development!</h2><p>HTML (HyperText Markup Language) is the foundation of every website. In this lesson, you\'ll learn what HTML is, how it works, and create your first web page.</p><h3>What You\'ll Learn:</h3><ul><li>What is HTML and why it matters</li><li>How websites work</li><li>Setting up your development environment</li><li>Creating your first HTML document</li><li>Understanding the basic structure</li></ul><h3>HTML Document Structure:</h3><pre>&lt;!DOCTYPE html&gt;\n&lt;html lang="en"&gt;\n&lt;head&gt;\n    &lt;meta charset="UTF-8"&gt;\n    &lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;\n    &lt;title&gt;My First Web Page&lt;/title&gt;\n&lt;/head&gt;\n&lt;body&gt;\n    &lt;h1&gt;Hello, World!&lt;/h1&gt;\n    &lt;p&gt;This is my first web page.&lt;/p&gt;\n&lt;/body&gt;\n&lt;/html&gt;</pre><h3>Key Concepts:</h3><ul><li><strong>DOCTYPE</strong>: Tells the browser this is an HTML5 document</li><li><strong>html</strong>: Root element of the page</li><li><strong>head</strong>: Contains metadata (not visible on page)</li><li><strong>body</strong>: Contains visible content</li></ul><h3>Practice Exercise:</h3><p>Create a simple HTML page with your name, a heading, and a paragraph about yourself.</p>',
+                            'summary' => 'Get started with HTML and create your first web page',
+                            'lesson_type' => 'text',
+                            'duration_minutes' => 45,
+                            'objectives' => 'Understand HTML basics, set up development environment, and create your first web page'
+                        ],
+                        [
+                            'title' => 'HTML Elements: Headings, Paragraphs, and Text Formatting',
+                            'content' => '<h2>Working with Text in HTML</h2><p>Learn how to structure text content using headings, paragraphs, and text formatting elements.</p><h3>Headings (h1 to h6):</h3><pre>&lt;h1&gt;Main Heading (Most Important)&lt;/h1&gt;\n&lt;h2&gt;Subheading&lt;/h2&gt;\n&lt;h3&gt;Section Heading&lt;/h3&gt;\n&lt;h4&gt;Subsection Heading&lt;/h4&gt;\n&lt;h5&gt;Minor Heading&lt;/h5&gt;\n&lt;h6&gt;Least Important Heading&lt;/h6&gt;</pre><h3>Text Formatting:</h3><ul><li><strong>&lt;strong&gt;</strong> - Bold, important text</li><li><strong>&lt;em&gt;</strong> - Italic, emphasized text</li><li><strong>&lt;mark&gt;</strong> - Highlighted text</li><li><strong>&lt;small&gt;</strong> - Smaller text</li><li><strong>&lt;del&gt;</strong> - Deleted text</li><li><strong>&lt;ins&gt;</strong> - Inserted text</li><li><strong>&lt;sub&gt;</strong> - Subscript</li><li><strong>&lt;sup&gt;</strong> - Superscript</li></ul><h3>Lists:</h3><pre>&lt;!-- Unordered List --&gt;\n&lt;ul&gt;\n    &lt;li&gt;Item 1&lt;/li&gt;\n    &lt;li&gt;Item 2&lt;/li&gt;\n&lt;/ul&gt;\n\n&lt;!-- Ordered List --&gt;\n&lt;ol&gt;\n    &lt;li&gt;First step&lt;/li&gt;\n    &lt;li&gt;Second step&lt;/li&gt;\n&lt;/ol&gt;</pre><h3>Practice Exercise:</h3><p>Create a page with different heading levels, formatted text, and both ordered and unordered lists.</p>',
+                            'summary' => 'Master text elements: headings, paragraphs, and formatting',
+                            'lesson_type' => 'interactive',
+                            'duration_minutes' => 50,
+                            'objectives' => 'Use headings, paragraphs, lists, and text formatting to structure content'
+                        ],
+                        [
+                            'title' => 'Links, Images, and Media',
+                            'content' => '<h2>Adding Links and Images</h2><p>Learn how to add links to other pages, images, and media to make your pages interactive and visually appealing.</p><h3>Links (Anchor Tags):</h3><pre>&lt;!-- External Link --&gt;\n&lt;a href="https://example.com"&gt;Visit Example&lt;/a&gt;\n\n&lt;!-- Internal Link --&gt;\n&lt;a href="about.html"&gt;About Us&lt;/a&gt;\n\n&lt;!-- Link with Target --&gt;\n&lt;a href="https://example.com" target="_blank"&gt;Open in New Tab&lt;/a&gt;\n\n&lt;!-- Email Link --&gt;\n&lt;a href="mailto:contact@example.com"&gt;Contact Us&lt;/a&gt;</pre><h3>Images:</h3><pre>&lt;!-- Basic Image --&gt;\n&lt;img src="image.jpg" alt="Description of image"&gt;\n\n&lt;!-- Image with Size --&gt;\n&lt;img src="photo.png" alt="Photo" width="300" height="200"&gt;\n\n&lt;!-- Responsive Image --&gt;\n&lt;img src="image.jpg" alt="Description" style="max-width: 100%; height: auto;"&gt;</pre><h3>Best Practices:</h3><ul><li>Always use <strong>alt</strong> attributes for images (accessibility)</li><li>Use descriptive link text</li><li>Optimize images for web (compression)</li><li>Use relative paths for internal resources</li></ul><h3>Practice Exercise:</h3><p>Create a page with multiple links (internal, external, email) and several images with proper alt text.</p>',
+                            'summary' => 'Add links, images, and media to your web pages',
+                            'lesson_type' => 'video',
+                            'duration_minutes' => 55,
+                            'objectives' => 'Create links, embed images, and understand best practices for media'
+                        ],
+                        [
+                            'title' => 'HTML Forms and Input Elements',
+                            'content' => '<h2>Creating Interactive Forms</h2><p>Forms allow users to input data. Learn how to create functional forms with various input types.</p><h3>Basic Form Structure:</h3><pre>&lt;form action="/submit" method="POST"&gt;\n    &lt;label for="name"&gt;Name:&lt;/label&gt;\n    &lt;input type="text" id="name" name="name" required&gt;\n    \n    &lt;label for="email"&gt;Email:&lt;/label&gt;\n    &lt;input type="email" id="email" name="email" required&gt;\n    \n    &lt;button type="submit"&gt;Submit&lt;/button&gt;\n&lt;/form&gt;</pre><h3>Input Types:</h3><ul><li><strong>text</strong> - Single-line text input</li><li><strong>email</strong> - Email validation</li><li><strong>password</strong> - Password field (hidden)</li><li><strong>number</strong> - Numeric input</li><li><strong>date</strong> - Date picker</li><li><strong>checkbox</strong> - Checkboxes</li><li><strong>radio</strong> - Radio buttons</li><li><strong>textarea</strong> - Multi-line text</li><li><strong>select</strong> - Dropdown menu</li></ul><h3>Form Attributes:</h3><ul><li><strong>required</strong> - Field must be filled</li><li><strong>placeholder</strong> - Hint text</li><li><strong>pattern</strong> - Validation pattern</li><li><strong>min/max</strong> - Value constraints</li></ul><h3>Practice Exercise:</h3><p>Create a contact form with name, email, message, and a submit button.</p>',
+                            'summary' => 'Build interactive forms with various input types',
+                            'lesson_type' => 'interactive',
+                            'duration_minutes' => 60,
+                            'objectives' => 'Create functional HTML forms with proper input types and validation'
+                        ],
+                        [
+                            'title' => 'HTML5 Semantic Elements',
+                            'content' => '<h2>Modern HTML5 Semantic Elements</h2><p>Semantic HTML uses elements that clearly describe their meaning, improving accessibility and SEO.</p><h3>Semantic Elements:</h3><pre>&lt;header&gt;\n    &lt;h1&gt;Website Title&lt;/h1&gt;\n    &lt;nav&gt;Navigation links&lt;/nav&gt;\n&lt;/header&gt;\n\n&lt;main&gt;\n    &lt;article&gt;\n        &lt;h2&gt;Article Title&lt;/h2&gt;\n        &lt;p&gt;Article content...&lt;/p&gt;\n    &lt;/article&gt;\n    \n    &lt;section&gt;\n        &lt;h2&gt;Section Title&lt;/h2&gt;\n        &lt;p&gt;Section content...&lt;/p&gt;\n    &lt;/section&gt;\n&lt;/main&gt;\n\n&lt;aside&gt;\n    &lt;h3&gt;Sidebar Content&lt;/h3&gt;\n&lt;/aside&gt;\n\n&lt;footer&gt;\n    &lt;p&gt;Copyright &copy; 2024&lt;/p&gt;\n&lt;/footer&gt;</pre><h3>Benefits:</h3><ul><li>Better accessibility for screen readers</li><li>Improved SEO (Search Engine Optimization)</li><li>Clearer code structure</li><li>Easier maintenance</li></ul><h3>Common Semantic Elements:</h3><ul><li><strong>&lt;header&gt;</strong> - Page or section header</li><li><strong>&lt;nav&gt;</strong> - Navigation links</li><li><strong>&lt;main&gt;</strong> - Main content</li><li><strong>&lt;article&gt;</strong> - Independent content</li><li><strong>&lt;section&gt;</strong> - Thematic grouping</li><li><strong>&lt;aside&gt;</strong> - Sidebar content</li><li><strong>&lt;footer&gt;</strong> - Page footer</li></ul><h3>Practice Exercise:</h3><p>Restructure a webpage using semantic HTML5 elements.</p>',
+                            'summary' => 'Use semantic HTML5 elements for better structure and accessibility',
+                            'lesson_type' => 'text',
+                            'duration_minutes' => 50,
+                            'objectives' => 'Implement semantic HTML5 elements to create well-structured, accessible pages'
+                        ],
+                        [
+                            'title' => 'Week 1 Project: Build a Personal Portfolio Page',
+                            'content' => '<h2>Your First Complete Website Project</h2><p>Combine everything you\'ve learned in Week 1 to build a complete personal portfolio page.</p><h3>Project Requirements:</h3><ul><li>Use semantic HTML5 structure (header, nav, main, footer)</li><li>Include an "About Me" section with headings and paragraphs</li><li>Add a photo of yourself</li><li>Create a contact form</li><li>Add links to social media or projects</li><li>Use proper headings hierarchy (h1, h2, h3)</li><li>Include lists (skills, hobbies, etc.)</li></ul><h3>Structure:</h3><pre>&lt;header&gt;\n    &lt;h1&gt;Your Name&lt;/h1&gt;\n    &lt;nav&gt;...&lt;/nav&gt;\n&lt;/header&gt;\n&lt;main&gt;\n    &lt;section id="about"&gt;...&lt;/section&gt;\n    &lt;section id="skills"&gt;...&lt;/section&gt;\n    &lt;section id="contact"&gt;...&lt;/section&gt;\n&lt;/main&gt;\n&lt;footer&gt;...&lt;/footer&gt;</pre><h3>Tips:</h3><ul><li>Plan your structure before coding</li><li>Use comments to organize sections</li><li>Test in different browsers</li><li>Validate your HTML</li></ul>',
+                            'summary' => 'Build a complete personal portfolio page using all HTML concepts',
+                            'lesson_type' => 'assignment',
+                            'duration_minutes' => 90,
+                            'objectives' => 'Create a complete, well-structured HTML portfolio page demonstrating all learned concepts'
+                        ],
+                    ]
+                ],
+                // WEEK 2: CSS Styling
+                [
+                    'title' => 'Week 2: CSS Styling and Layout',
+                    'description' => 'Master CSS to style your HTML pages. Learn colors, typography, layout techniques, and responsive design.',
+                    'lessons' => [
+                        [
+                            'title' => 'Introduction to CSS',
+                            'content' => '<h2>What is CSS?</h2><p>CSS (Cascading Style Sheets) controls the visual appearance of your HTML pages. Learn how to add styles and make your pages beautiful.</p><h3>Three Ways to Add CSS:</h3><pre>&lt;!-- 1. Inline CSS --&gt;\n&lt;p style="color: blue;"&gt;Blue text&lt;/p&gt;\n\n&lt;!-- 2. Internal CSS (in &lt;head&gt;) --&gt;\n&lt;style&gt;\n    p { color: blue; }\n&lt;/style&gt;\n\n&lt;!-- 3. External CSS (Recommended) --&gt;\n&lt;link rel="stylesheet" href="styles.css"&gt;</pre><h3>CSS Syntax:</h3><pre>selector {\n    property: value;\n    property: value;\n}\n\n/* Example */\nh1 {\n    color: blue;\n    font-size: 32px;\n    text-align: center;\n}</pre><h3>Selectors:</h3><ul><li><strong>Element</strong>: <code>p { }</code> - All paragraphs</li><li><strong>Class</strong>: <code>.my-class { }</code> - Elements with class</li><li><strong>ID</strong>: <code>#my-id { }</code> - Element with ID</li><li><strong>Descendant</strong>: <code>div p { }</code> - Paragraphs inside divs</li></ul><h3>Practice Exercise:</h3><p>Create an external CSS file and style your HTML page with colors, fonts, and spacing.</p>',
+                            'summary' => 'Learn CSS basics: syntax, selectors, and how to add styles',
+                            'lesson_type' => 'text',
+                            'duration_minutes' => 50,
+                            'objectives' => 'Understand CSS syntax, selectors, and how to apply styles to HTML elements'
+                        ],
+                        [
+                            'title' => 'Colors, Typography, and Text Styling',
+                            'content' => '<h2>Styling Text and Colors</h2><p>Learn how to use colors, fonts, and text properties to create visually appealing content.</p><h3>Colors in CSS:</h3><pre>/* Named Colors */\ncolor: red;\ncolor: blue;\n\n/* Hex Colors */\ncolor: #FF5733;\ncolor: #33FF57;\n\n/* RGB Colors */\ncolor: rgb(255, 87, 51);\ncolor: rgba(255, 87, 51, 0.5); /* with transparency */</pre><h3>Typography:</h3><pre>font-family: "Arial", sans-serif;\nfont-size: 16px;\nfont-weight: bold; /* normal, bold, 100-900 */\nfont-style: italic;\nline-height: 1.6;\ntext-align: center; /* left, right, center, justify */\ntext-decoration: underline; /* none, underline, line-through */</pre><h3>Text Properties:</h3><pre>text-transform: uppercase; /* lowercase, capitalize */\nletter-spacing: 2px;\nword-spacing: 5px;\ntext-shadow: 2px 2px 4px rgba(0,0,0,0.3);</pre><h3>Google Fonts:</h3><pre>&lt;!-- In HTML head --&gt;\n&lt;link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet"&gt;\n\n/* In CSS */\nfont-family: \'Roboto\', sans-serif;</pre><h3>Practice Exercise:</h3><p>Style a page with custom fonts, colors, and text effects.</p>',
+                            'summary' => 'Master colors, fonts, and text styling in CSS',
+                            'lesson_type' => 'interactive',
+                            'duration_minutes' => 55,
+                            'objectives' => 'Apply colors, typography, and text styling to create visually appealing content'
+                        ],
+                        [
+                            'title' => 'CSS Box Model: Margin, Padding, and Borders',
+                            'content' => '<h2>Understanding the Box Model</h2><p>Every HTML element is a box. Understanding margin, padding, and borders is crucial for layout.</p><h3>The Box Model:</h3><pre>┌─────────────────────────┐\n│      Margin             │\n│  ┌───────────────────┐ │\n│  │     Border          │ │\n│  │  ┌───────────────┐ │ │\n│  │  │   Padding     │ │ │\n│  │  │  ┌─────────┐  │ │ │\n│  │  │  │ Content │  │ │ │\n│  │  │  └─────────┘  │ │ │\n│  │  └───────────────┘ │ │\n│  └───────────────────┘ │\n└─────────────────────────┘</pre><h3>Properties:</h3><pre>/* Padding - Space inside element */\npadding: 20px; /* all sides */\npadding: 10px 20px; /* top/bottom left/right */\npadding: 10px 20px 15px 25px; /* top right bottom left */\n\n/* Margin - Space outside element */\nmargin: 20px;\nmargin: 10px auto; /* center horizontally */\n\n/* Border */\nborder: 2px solid black;\nborder-radius: 10px; /* rounded corners */</pre><h3>Box-Sizing:</h3><pre>/* Default - width includes padding and border */\nbox-sizing: content-box;\n\n/* Better - width is total width */\nbox-sizing: border-box;</pre><h3>Practice Exercise:</h3><p>Create cards with different padding, margins, and borders.</p>',
+                            'summary' => 'Master the CSS box model: margin, padding, and borders',
+                            'lesson_type' => 'video',
+                            'duration_minutes' => 60,
+                            'objectives' => 'Understand and apply the box model to control spacing and layout'
+                        ],
+                        [
+                            'title' => 'CSS Flexbox Layout',
+                            'content' => '<h2>Flexbox for Modern Layouts</h2><p>Flexbox makes it easy to create flexible, responsive layouts. It\'s perfect for navigation bars, cards, and centering content.</p><h3>Flexbox Container:</h3><pre>.container {\n    display: flex;\n    flex-direction: row; /* row, column, row-reverse, column-reverse */\n    justify-content: center; /* flex-start, flex-end, center, space-between, space-around */\n    align-items: center; /* flex-start, flex-end, center, stretch, baseline */\n    flex-wrap: wrap; /* nowrap, wrap, wrap-reverse */\n    gap: 20px; /* space between items */\n}</pre><h3>Flexbox Items:</h3><pre>.item {\n    flex: 1; /* grow, shrink, basis */\n    flex-grow: 1;\n    flex-shrink: 1;\n    flex-basis: 200px;\n    align-self: center; /* override container alignment */\n}</pre><h3>Common Patterns:</h3><pre>/* Centering Content */\n.container {\n    display: flex;\n    justify-content: center;\n    align-items: center;\n    height: 100vh;\n}\n\n/* Navigation Bar */\n.nav {\n    display: flex;\n    justify-content: space-between;\n    align-items: center;\n}\n\n/* Card Layout */\n.cards {\n    display: flex;\n    flex-wrap: wrap;\n    gap: 20px;\n}</pre><h3>Practice Exercise:</h3><p>Create a navigation bar, card layout, and centered content using Flexbox.</p>',
+                            'summary' => 'Master Flexbox for creating flexible, responsive layouts',
+                            'lesson_type' => 'interactive',
+                            'duration_minutes' => 65,
+                            'objectives' => 'Use Flexbox to create modern, responsive layouts'
+                        ],
+                        [
+                            'title' => 'CSS Grid Layout',
+                            'content' => '<h2>Grid for Complex Layouts</h2><p>CSS Grid is a powerful 2D layout system perfect for complex page layouts with rows and columns.</p><h3>Basic Grid:</h3><pre>.container {\n    display: grid;\n    grid-template-columns: 1fr 1fr 1fr; /* 3 equal columns */\n    grid-template-rows: auto;\n    gap: 20px;\n}</pre><h3>Grid Areas:</h3><pre>.container {\n    display: grid;\n    grid-template-areas:\n        "header header header"\n        "sidebar main main"\n        "footer footer footer";\n    grid-template-columns: 200px 1fr 1fr;\n    grid-template-rows: auto 1fr auto;\n    gap: 20px;\n}\n\n.header { grid-area: header; }\n.sidebar { grid-area: sidebar; }\n.main { grid-area: main; }\n.footer { grid-area: footer; }</pre><h3>Responsive Grid:</h3><pre>/* Auto-fit columns */\n.container {\n    display: grid;\n    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));\n    gap: 20px;\n}</pre><h3>Practice Exercise:</h3><p>Create a complete page layout using CSS Grid with header, sidebar, main content, and footer.</p>',
+                            'summary' => 'Create complex layouts with CSS Grid',
+                            'lesson_type' => 'video',
+                            'duration_minutes' => 70,
+                            'objectives' => 'Build complex, responsive layouts using CSS Grid'
+                        ],
+                        [
+                            'title' => 'Responsive Web Design with Media Queries',
+                            'content' => '<h2>Making Websites Work on All Devices</h2><p>Responsive design ensures your website looks great on phones, tablets, and desktops.</p><h3>Media Queries:</h3><pre>/* Mobile First Approach */\n.container {\n    width: 100%;\n    padding: 10px;\n}\n\n/* Tablet */\n@media (min-width: 768px) {\n    .container {\n        width: 750px;\n        margin: 0 auto;\n    }\n}\n\n/* Desktop */\n@media (min-width: 1024px) {\n    .container {\n        width: 1200px;\n    }\n}</pre><h3>Common Breakpoints:</h3><pre>/* Mobile: up to 767px */\n/* Tablet: 768px - 1023px */\n/* Desktop: 1024px and above */\n\n@media (max-width: 767px) { /* Mobile styles */ }\n@media (min-width: 768px) and (max-width: 1023px) { /* Tablet */ }\n@media (min-width: 1024px) { /* Desktop */ }</pre><h3>Responsive Images:</h3><pre>img {\n    max-width: 100%;\n    height: auto;\n}</pre><h3>Viewport Meta Tag:</h3><pre>&lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;</pre><h3>Practice Exercise:</h3><p>Make your portfolio page responsive for mobile, tablet, and desktop.</p>',
+                            'summary' => 'Create responsive websites that work on all devices',
+                            'lesson_type' => 'interactive',
+                            'duration_minutes' => 65,
+                            'objectives' => 'Implement responsive design using media queries'
+                        ],
+                        [
+                            'title' => 'Week 2 Project: Style Your Portfolio with CSS',
+                            'content' => '<h2>Transform Your Portfolio with CSS</h2><p>Apply all CSS concepts to style your Week 1 portfolio page beautifully.</p><h3>Project Requirements:</h3><ul><li>Create an external CSS file</li><li>Use a color scheme (choose 2-3 main colors)</li><li>Style typography with Google Fonts</li><li>Use Flexbox for navigation and card layouts</li><li>Use CSS Grid for main layout (optional)</li><li>Make it fully responsive (mobile, tablet, desktop)</li><li>Add hover effects on links and buttons</li><li>Use box model properly (margin, padding, borders)</li></ul><h3>Design Tips:</h3><ul><li>Keep it simple and clean</li><li>Use consistent spacing</li><li>Choose readable fonts</li><li>Ensure good contrast for text</li><li>Test on different screen sizes</li></ul><h3>Advanced Features (Optional):</h3><ul><li>CSS animations</li><li>Transitions on hover</li><li>Box shadows</li><li>Gradient backgrounds</li></ul>',
+                            'summary' => 'Style your portfolio page with CSS, making it responsive and beautiful',
+                            'lesson_type' => 'assignment',
+                            'duration_minutes' => 90,
+                            'objectives' => 'Apply all CSS concepts to create a fully styled, responsive portfolio'
+                        ],
+                    ]
+                ],
+                // WEEK 3: Bootstrap Framework
+                [
+                    'title' => 'Week 3: Bootstrap Framework',
+                    'description' => 'Learn Bootstrap to build professional, responsive websites quickly. Master components, utilities, and the grid system.',
+                    'lessons' => [
+                        [
+                            'title' => 'Getting Started with Bootstrap',
+                            'content' => '<h2>Introduction to Bootstrap</h2><p>Bootstrap is the most popular CSS framework. It provides pre-built components and utilities to build responsive websites faster.</p><h3>Why Bootstrap?</h3><ul><li>Responsive grid system</li><li>Pre-styled components</li><li>Utility classes</li><li>Cross-browser compatibility</li><li>Mobile-first approach</li></ul><h3>Installation:</h3><pre>&lt;!-- CDN Method (Recommended for learning) --&gt;\n&lt;link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"&gt;\n&lt;script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"&gt;&lt;/script&gt;</pre><h3>Bootstrap Grid System:</h3><pre>&lt;div class="container"&gt;\n    &lt;div class="row"&gt;\n        &lt;div class="col-md-6"&gt;Column 1&lt;/div&gt;\n        &lt;div class="col-md-6"&gt;Column 2&lt;/div&gt;\n    &lt;/div&gt;\n&lt;/div&gt;</pre><h3>Breakpoints:</h3><ul><li><strong>xs</strong>: &lt;576px (default, no prefix)</li><li><strong>sm</strong>: ≥576px</li><li><strong>md</strong>: ≥768px</li><li><strong>lg</strong>: ≥992px</li><li><strong>xl</strong>: ≥1200px</li><li><strong>xxl</strong>: ≥1400px</li></ul><h3>Practice Exercise:</h3><p>Set up Bootstrap and create a simple grid layout.</p>',
+                            'summary' => 'Get started with Bootstrap: installation and grid system',
+                            'lesson_type' => 'text',
+                            'duration_minutes' => 50,
+                            'objectives' => 'Install Bootstrap and understand the grid system'
+                        ],
+                        [
+                            'title' => 'Bootstrap Components: Buttons, Cards, and Forms',
+                            'content' => '<h2>Using Bootstrap Components</h2><p>Bootstrap provides ready-to-use components that look professional and are fully responsive.</p><h3>Buttons:</h3><pre>&lt;button class="btn btn-primary"&gt;Primary&lt;/button&gt;\n&lt;button class="btn btn-secondary"&gt;Secondary&lt;/button&gt;\n&lt;button class="btn btn-success"&gt;Success&lt;/button&gt;\n&lt;button class="btn btn-danger"&gt;Danger&lt;/button&gt;\n&lt;button class="btn btn-outline-primary"&gt;Outline&lt;/button&gt;\n&lt;button class="btn btn-lg"&gt;Large Button&lt;/button&gt;</pre><h3>Cards:</h3><pre>&lt;div class="card" style="width: 18rem;"&gt;\n    &lt;img src="image.jpg" class="card-img-top" alt="..."&gt;\n    &lt;div class="card-body"&gt;\n        &lt;h5 class="card-title"&gt;Card Title&lt;/h5&gt;\n        &lt;p class="card-text"&gt;Card content goes here.&lt;/p&gt;\n        &lt;a href="#" class="btn btn-primary"&gt;Go somewhere&lt;/a&gt;\n    &lt;/div&gt;\n&lt;/div&gt;</pre><h3>Forms:</h3><pre>&lt;form&gt;\n    &lt;div class="mb-3"&gt;\n        &lt;label for="email" class="form-label"&gt;Email&lt;/label&gt;\n        &lt;input type="email" class="form-control" id="email"&gt;\n    &lt;/div&gt;\n    &lt;div class="mb-3"&gt;\n        &lt;label for="password" class="form-label"&gt;Password&lt;/label&gt;\n        &lt;input type="password" class="form-control" id="password"&gt;\n    &lt;/div&gt;\n    &lt;button type="submit" class="btn btn-primary"&gt;Submit&lt;/button&gt;\n&lt;/form&gt;</pre><h3>Practice Exercise:</h3><p>Create a page with Bootstrap buttons, cards, and a styled form.</p>',
+                            'summary' => 'Use Bootstrap components: buttons, cards, and forms',
+                            'lesson_type' => 'interactive',
+                            'duration_minutes' => 60,
+                            'objectives' => 'Implement Bootstrap components to build professional interfaces'
+                        ],
+                        [
+                            'title' => 'Bootstrap Navigation and Navbar',
+                            'content' => '<h2>Creating Navigation with Bootstrap</h2><p>Learn how to create responsive navigation bars and navigation components.</p><h3>Basic Navbar:</h3><pre>&lt;nav class="navbar navbar-expand-lg navbar-light bg-light"&gt;\n    &lt;div class="container-fluid"&gt;\n        &lt;a class="navbar-brand" href="#"&gt;My Website&lt;/a&gt;\n        &lt;button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"&gt;\n            &lt;span class="navbar-toggler-icon"&gt;&lt;/span&gt;\n        &lt;/button&gt;\n        &lt;div class="collapse navbar-collapse" id="navbarNav"&gt;\n            &lt;ul class="navbar-nav"&gt;\n                &lt;li class="nav-item"&gt;\n                    &lt;a class="nav-link active" href="#"&gt;Home&lt;/a&gt;\n                &lt;/li&gt;\n                &lt;li class="nav-item"&gt;\n                    &lt;a class="nav-link" href="#"&gt;About&lt;/a&gt;\n                &lt;/li&gt;\n                &lt;li class="nav-item"&gt;\n                    &lt;a class="nav-link" href="#"&gt;Contact&lt;/a&gt;\n                &lt;/li&gt;\n            &lt;/ul&gt;\n        &lt;/div&gt;\n    &lt;/div&gt;\n&lt;/nav&gt;</pre><h3>Navbar Variants:</h3><pre>&lt;nav class="navbar navbar-dark bg-dark"&gt;...&lt;/nav&gt;\n&lt;nav class="navbar navbar-light bg-light"&gt;...&lt;/nav&gt;\n&lt;nav class="navbar navbar-dark bg-primary"&gt;...&lt;/nav&gt;</pre><h3>Nav Components:</h3><pre>&lt;!-- Tabs --&gt;\n&lt;ul class="nav nav-tabs"&gt;\n    &lt;li class="nav-item"&gt;\n        &lt;a class="nav-link active" href="#"&gt;Tab 1&lt;/a&gt;\n    &lt;/li&gt;\n    &lt;li class="nav-item"&gt;\n        &lt;a class="nav-link" href="#"&gt;Tab 2&lt;/a&gt;\n    &lt;/li&gt;\n&lt;/ul&gt;\n\n&lt;!-- Pills --&gt;\n&lt;ul class="nav nav-pills"&gt;...&lt;/ul&gt;</pre><h3>Practice Exercise:</h3><p>Create a responsive navbar with a logo, menu items, and a mobile hamburger menu.</p>',
+                            'summary' => 'Create responsive navigation bars with Bootstrap',
+                            'lesson_type' => 'video',
+                            'duration_minutes' => 55,
+                            'objectives' => 'Build responsive navigation components using Bootstrap'
+                        ],
+                        [
+                            'title' => 'Bootstrap Utilities and Helpers',
+                            'content' => '<h2>Bootstrap Utility Classes</h2><p>Bootstrap provides utility classes for spacing, colors, display, and more. These save time and keep your code clean.</p><h3>Spacing Utilities:</h3><pre>&lt;div class="m-3"&gt;Margin all sides&lt;/div&gt;\n&lt;div class="mt-2"&gt;Margin top&lt;/div&gt;\n&lt;div class="mb-4"&gt;Margin bottom&lt;/div&gt;\n&lt;div class="p-3"&gt;Padding all sides&lt;/div&gt;\n&lt;div class="px-4"&gt;Padding horizontal&lt;/div&gt;\n&lt;div class="py-2"&gt;Padding vertical&lt;/div&gt;\n\n/* Sizes: 0, 1, 2, 3, 4, 5 */</pre><h3>Text Utilities:</h3><pre>&lt;p class="text-center"&gt;Centered text&lt;/p&gt;\n&lt;p class="text-primary"&gt;Primary color text&lt;/p&gt;\n&lt;p class="fw-bold"&gt;Bold text&lt;/p&gt;\n&lt;p class="text-uppercase"&gt;Uppercase text&lt;/p&gt;\n&lt;p class="text-muted"&gt;Muted text&lt;/p&gt;</pre><h3>Display Utilities:</h3><pre>&lt;div class="d-none"&gt;Hidden&lt;/div&gt;\n&lt;div class="d-block"&gt;Block&lt;/div&gt;\n&lt;div class="d-flex"&gt;Flexbox&lt;/div&gt;\n&lt;div class="d-md-none"&gt;Hidden on medium+ screens&lt;/div&gt;</pre><h3>Color Utilities:</h3><pre>&lt;div class="bg-primary"&gt;Primary background&lt;/div&gt;\n&lt;div class="bg-light"&gt;Light background&lt;/div&gt;\n&lt;div class="border border-primary"&gt;Primary border&lt;/div&gt;</pre><h3>Practice Exercise:</h3><p>Use utility classes to quickly style a page without writing custom CSS.</p>',
+                            'summary' => 'Master Bootstrap utility classes for rapid development',
+                            'lesson_type' => 'interactive',
+                            'duration_minutes' => 50,
+                            'objectives' => 'Use Bootstrap utilities to style pages efficiently'
+                        ],
+                        [
+                            'title' => 'Bootstrap Modals, Alerts, and More Components',
+                            'content' => '<h2>Advanced Bootstrap Components</h2><p>Learn more Bootstrap components to create interactive and engaging websites.</p><h3>Modals (Pop-ups):</h3><pre>&lt;button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#myModal"&gt;\n    Open Modal\n&lt;/button&gt;\n\n&lt;div class="modal fade" id="myModal" tabindex="-1"&gt;\n    &lt;div class="modal-dialog"&gt;\n        &lt;div class="modal-content"&gt;\n            &lt;div class="modal-header"&gt;\n                &lt;h5 class="modal-title"&gt;Modal Title&lt;/h5&gt;\n                &lt;button type="button" class="btn-close" data-bs-dismiss="modal"&gt;&lt;/button&gt;\n            &lt;/div&gt;\n            &lt;div class="modal-body"&gt;\n                &lt;p&gt;Modal content...&lt;/p&gt;\n            &lt;/div&gt;\n            &lt;div class="modal-footer"&gt;\n                &lt;button type="button" class="btn btn-secondary" data-bs-dismiss="modal"&gt;Close&lt;/button&gt;\n                &lt;button type="button" class="btn btn-primary"&gt;Save&lt;/button&gt;\n            &lt;/div&gt;\n        &lt;/div&gt;\n    &lt;/div&gt;\n&lt;/div&gt;</pre><h3>Alerts:</h3><pre>&lt;div class="alert alert-success" role="alert"&gt;\n    Success! Your action was completed.\n&lt;/div&gt;\n&lt;div class="alert alert-danger" role="alert"&gt;\n    Error! Something went wrong.\n&lt;/div&gt;\n&lt;div class="alert alert-warning" role="alert"&gt;\n    Warning! Please check your input.\n&lt;/div&gt;</pre><h3>Badges:</h3><pre>&lt;span class="badge bg-primary"&gt;New&lt;/span&gt;\n&lt;span class="badge bg-success"&gt;Active&lt;/span&gt;\n&lt;span class="badge rounded-pill bg-danger"&gt;3&lt;/span&gt;</pre><h3>Progress Bars:</h3><pre>&lt;div class="progress"&gt;\n    &lt;div class="progress-bar" role="progressbar" style="width: 75%"&gt;75%&lt;/div&gt;\n&lt;/div&gt;</pre><h3>Practice Exercise:</h3><p>Add modals, alerts, and other components to your website.</p>',
+                            'summary' => 'Use advanced Bootstrap components: modals, alerts, badges, and more',
+                            'lesson_type' => 'video',
+                            'duration_minutes' => 60,
+                            'objectives' => 'Implement interactive Bootstrap components in your projects'
+                        ],
+                        [
+                            'title' => 'Customizing Bootstrap: Themes and Overrides',
+                            'content' => '<h2>Making Bootstrap Your Own</h2><p>Learn how to customize Bootstrap to match your brand while keeping its benefits.</p><h3>CSS Variables (Custom Properties):</h3><pre>:root {\n    --bs-primary: #0d6efd;\n    --bs-secondary: #6c757d;\n    --bs-success: #198754;\n    --bs-border-radius: 0.375rem;\n    --bs-font-family: \'Roboto\', sans-serif;\n}</pre><h3>Overriding Bootstrap Styles:</h3><pre>/* Method 1: More Specific Selector */\n.btn-primary {\n    background-color: #ff5733;\n    border-color: #ff5733;\n}\n\n/* Method 2: Using !important (use sparingly) */\n.btn-primary {\n    background-color: #ff5733 !important;\n}\n\n/* Method 3: Custom CSS after Bootstrap */\n&lt;link href="bootstrap.min.css" rel="stylesheet"&gt;\n&lt;link href="custom.css" rel="stylesheet"&gt; /* Load after Bootstrap */</pre><h3>Creating Custom Components:</h3><pre>.my-custom-card {\n    @extend .card;\n    border: 2px solid var(--bs-primary);\n    box-shadow: 0 4px 6px rgba(0,0,0,0.1);\n}</pre><h3>Best Practices:</h3><ul><li>Don\'t modify Bootstrap files directly</li><li>Create a separate custom CSS file</li><li>Use CSS variables when possible</li><li>Keep Bootstrap classes, add your own</li></ul><h3>Practice Exercise:</h3><p>Customize Bootstrap colors and create a custom theme for your website.</p>',
+                            'summary' => 'Customize Bootstrap to match your brand and design',
+                            'lesson_type' => 'text',
+                            'duration_minutes' => 55,
+                            'objectives' => 'Customize Bootstrap styles while maintaining its functionality'
+                        ],
+                        [
+                            'title' => 'Week 3 Final Project: Complete Responsive Website with Bootstrap',
+                            'content' => '<h2>Your Final Project: A Complete Website</h2><p>Combine HTML, CSS, and Bootstrap to build a complete, professional website.</p><h3>Project Requirements:</h3><ul><li>Use Bootstrap grid system for layout</li><li>Create a responsive navbar with mobile menu</li><li>Build a hero section (jumbotron)</li><li>Create a services/features section with cards</li><li>Add a contact form using Bootstrap forms</li><li>Include a footer with social links</li><li>Make it fully responsive (mobile, tablet, desktop)</li><li>Use Bootstrap components (buttons, cards, modals, alerts)</li><li>Customize Bootstrap colors to match your theme</li><li>Add smooth scrolling and hover effects</li></ul><h3>Suggested Project Ideas:</h3><ul><li>Business landing page</li><li>Portfolio website</li><li>Restaurant website</li><li>Event website</li><li>Product showcase</li></ul><h3>Structure:</h3><pre>&lt;nav&gt;...&lt;/nav&gt;\n&lt;section class="hero"&gt;...&lt;/section&gt;\n&lt;section class="about"&gt;...&lt;/section&gt;\n&lt;section class="services"&gt;...&lt;/section&gt;\n&lt;section class="contact"&gt;...&lt;/section&gt;\n&lt;footer&gt;...&lt;/footer&gt;</pre><h3>Tips for Success:</h3><ul><li>Plan your layout first</li><li>Start with mobile design (mobile-first)</li><li>Test on different devices</li><li>Keep it clean and professional</li><li>Use Bootstrap utilities efficiently</li></ul>',
+                            'summary' => 'Build a complete, professional website using HTML, CSS, and Bootstrap',
+                            'lesson_type' => 'assignment',
+                            'duration_minutes' => 120,
+                            'objectives' => 'Create a complete, responsive website demonstrating mastery of all concepts'
+                        ],
+                    ]
+                ],
+            ]
+        ];
+    }
+
+    /**
+     * Web Development Course (Advanced)
      */
     private function getWebDevelopmentCourse(): array
     {

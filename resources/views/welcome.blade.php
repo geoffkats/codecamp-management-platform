@@ -1,39 +1,61 @@
+@php
+    $appName = \App\Models\SystemSetting::get('app_name', config('app.name'));
+    $appTagline = \App\Models\SystemSetting::get('app_tagline', 'E-Learning Platform');
+    $logo = \App\Models\SystemSetting::get('logo');
+    $logoDark = \App\Models\SystemSetting::get('logo_dark');
+@endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="scroll-smooth">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Code Academy Uganda - Online Learning Platform for Code Camps</title>
-        <meta name="description" content="Code Academy Uganda's e-learning platform. Join our code camps, learn web development, mobile apps, and earn ICDL certifications. Empowering Ugandans with digital skills.">
-        <link rel="icon" href="/favicon.ico" sizes="any">
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+        <title>{{ $appName }} - {{ $appTagline }}</title>
+        <meta name="description" content="{{ $appName }}'s e-learning platform. Join our code camps, learn web development, mobile apps, and earn ICDL certifications. Empowering Ugandans with digital skills.">
+        @php
+            $favicon = \App\Models\SystemSetting::get('favicon');
+        @endphp
+        @if($favicon)
+            <link rel="icon" href="{{ asset('storage/' . $favicon) }}" type="image/x-icon">
+        @else
+            <link rel="icon" href="/favicon.ico" sizes="any">
+            <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+        @endif
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700" rel="stylesheet" />
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="bg-gray-50 dark:bg-gray-900 antialiased">
+    <body class="bg-white dark:bg-gray-900 antialiased">
         <!-- Navigation -->
-        <nav class="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800">
+        <nav class="fixed top-0 left-0 right-0 z-50 bg-white/90 dark:bg-gray-900/90 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 shadow-sm">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex justify-between items-center h-16">
-                    <div class="flex items-center">
-                        <a href="{{ route('home') }}" class="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                            Code Academy Uganda
+                    <div class="flex items-center gap-3">
+                        <a href="{{ route('home') }}" class="flex items-center gap-3 group">
+                            @if($logo || $logoDark)
+                                <img src="{{ asset('storage/' . ($logo ?: $logoDark)) }}" alt="{{ $appName }}" class="h-10 dark:hidden">
+                                <img src="{{ asset('storage/' . ($logoDark ?: $logo)) }}" alt="{{ $appName }}" class="h-10 hidden dark:block">
+                            @else
+                                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center">
+                                    <span class="text-white font-bold text-xl">{{ substr($appName, 0, 1) }}</span>
+                                </div>
+                            @endif
+                            <div>
+                                <span class="text-xl font-bold text-gray-900 dark:text-white">{{ $appName }}</span>
+                            </div>
                         </a>
-                        <span class="ml-3 text-sm text-gray-500 dark:text-gray-400">Code Camps Platform</span>
                     </div>
                     <div class="flex items-center gap-4">
                         @auth
-                            <a href="{{ route('dashboard') }}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+                            <a href="{{ route('dashboard') }}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors font-medium">
                                 Dashboard
                             </a>
                         @else
-                            <a href="{{ route('login') }}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+                            <a href="{{ route('login') }}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors font-medium">
                                 Log in
                             </a>
                             @if (Route::has('register'))
-                                <a href="{{ route('register') }}" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                                <a href="{{ route('register') }}" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg">
                                     Get Started
                                 </a>
                             @endif
@@ -43,38 +65,111 @@
             </div>
         </nav>
 
-        <!-- Hero Section -->
-        <section class="pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+        <!-- Modern Hero Section - Left Text + Right Image -->
+        <section class="pt-24 pb-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white to-gray-50 dark:from-gray-900 dark:to-gray-800">
             <div class="max-w-7xl mx-auto">
-                <div class="text-center">
-                    <div class="mb-4">
-                        <span class="inline-block px-4 py-2 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm font-semibold">
-                            Accredited ICDL Testing Center
-                        </span>
+                <div class="grid lg:grid-cols-2 gap-12 items-center min-h-[600px]">
+                    <!-- Left: Text Content -->
+                    <div class="space-y-8">
+                        <div>
+                            <span class="inline-block px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-sm font-semibold mb-6">
+                                ✨ Accredited ICDL Testing Center
+                            </span>
+                        </div>
+                        
+                        <h1 class="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 dark:text-white leading-tight">
+                            Bridge the Digital
+                            <span class="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent block">Divide Through Code</span>
+                        </h1>
+                        
+                        <p class="text-xl text-gray-600 dark:text-gray-300 leading-relaxed">
+                            Join {{ $appName }}'s comprehensive e-learning platform. Learn web development, mobile apps, robotics, and earn globally recognized ICDL certifications.
+                        </p>
+                        
+                        <div class="flex flex-col sm:flex-row gap-4 pt-4">
+                            @auth
+                                <a href="{{ route('dashboard') }}" class="inline-flex items-center justify-center px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-lg transition-all transform hover:scale-105 shadow-lg hover:shadow-xl">
+                                    Go to Dashboard
+                                    <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                                    </svg>
+                                </a>
+                            @else
+                                <a href="{{ route('register') }}" class="inline-flex items-center justify-center px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-lg transition-all transform hover:scale-105 shadow-lg hover:shadow-xl">
+                                    Start Learning Free
+                                    <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                                    </svg>
+                                </a>
+                                <a href="{{ route('login') }}" class="inline-flex items-center justify-center px-8 py-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white border-2 border-gray-300 dark:border-gray-700 rounded-xl font-semibold text-lg transition-all">
+                                    Sign In
+                                </a>
+                            @endauth
+                        </div>
+
+                        <!-- Trust Indicators -->
+                        <div class="flex items-center gap-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+                            <div>
+                                <div class="text-3xl font-bold text-gray-900 dark:text-white">500+</div>
+                                <div class="text-sm text-gray-600 dark:text-gray-400">Students</div>
+                            </div>
+                            <div>
+                                <div class="text-3xl font-bold text-gray-900 dark:text-white">50+</div>
+                                <div class="text-sm text-gray-600 dark:text-gray-400">Courses</div>
+                            </div>
+                            <div>
+                                <div class="text-3xl font-bold text-gray-900 dark:text-white">ICDL</div>
+                                <div class="text-sm text-gray-600 dark:text-gray-400">Certified</div>
+                            </div>
+                        </div>
                     </div>
-                    <h1 class="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 dark:text-white mb-6 leading-tight">
-                        Bridge the Digital Divide
-                        <span class="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent block mt-2">Through Code Camps</span>
-                    </h1>
-                    <p class="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto">
-                        Join Code Academy Uganda's comprehensive e-learning platform. Learn web development, mobile apps, robotics, STEM, 
-                        and earn globally recognized ICDL certifications. Empowering Ugandans with digital skills for the future.
-                    </p>
-                    <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                        @auth
-                            <a href="{{ route('dashboard') }}" class="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-lg transition-all transform hover:scale-105 shadow-lg">
-                                Go to Dashboard
-                            </a>
-                        @else
-                            <a href="{{ route('register') }}" class="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-lg transition-all transform hover:scale-105 shadow-lg">
-                                Start Learning Free
-                            </a>
-                            <a href="{{ route('login') }}" class="px-8 py-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white border-2 border-gray-300 dark:border-gray-700 rounded-lg font-semibold text-lg transition-all">
-                                Sign In
-                            </a>
-                        @endauth
+
+                    <!-- Right: Hero Image/Illustration -->
+                    <div class="relative">
+                        <div class="relative rounded-2xl overflow-hidden shadow-2xl">
+                            <!-- Placeholder for hero image - you can replace with actual image -->
+                            <div class="aspect-[4/3] bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center">
+                                <div class="text-center text-white p-8">
+                                    <svg class="w-32 h-32 mx-auto mb-4 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                                    </svg>
+                                    <p class="text-xl font-semibold">Empowering Future Developers</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Floating Cards -->
+                        <div class="absolute -bottom-6 -left-6 bg-white dark:bg-gray-800 rounded-xl shadow-xl p-4 border border-gray-200 dark:border-gray-700">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-semibold text-gray-900 dark:text-white">ICDL Certified</div>
+                                    <div class="text-xs text-gray-600 dark:text-gray-400">Globally Recognized</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="absolute -top-6 -right-6 bg-white dark:bg-gray-800 rounded-xl shadow-xl p-4 border border-gray-200 dark:border-gray-700">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-semibold text-gray-900 dark:text-white">Ages 7-19</div>
+                                    <div class="text-xs text-gray-600 dark:text-gray-400">Code Camps</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </div>
+        </section>
 
                 <!-- Stats -->
                 <div class="mt-20 grid grid-cols-1 md:grid-cols-4 gap-8">

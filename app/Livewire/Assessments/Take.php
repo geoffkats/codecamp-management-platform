@@ -36,10 +36,23 @@ class Take extends Component
     public $autoSaveEnabled = true;
     public $lastSavedAt = null;
     public $randomizedQuestions = null; // Store randomized questions for consistency
+    public $shuffledQuestionData = []; // Store shuffled question-specific data
+    public $shuffleSeed = null; // Seed for consistent shuffling
 
     public function mount(Assessment $assessment)
     {
         $this->assessment = $assessment->load(['questions.options', 'course', 'lesson']);
+        
+        // Check if assessment is locked for students
+        $user = Auth::user();
+        $isInstructor = $this->assessment->course->instructor_id === $user->id || 
+                       $user->hasRole('admin') || 
+                       $user->hasRole('supervisor');
+        
+        if (!$isInstructor && $this->assessment->is_locked) {
+            // Assessment is locked - will show locked view
+            return;
+        }
         
         // Check if user can take this assessment
         $this->checkAccess();
@@ -57,10 +70,16 @@ class Take extends Component
             $this->answers = $existingAttempt->answers ?? [];
             $this->startedAt = $existingAttempt->started_at;
             
+            // Use consistent seed based on attempt ID for reproducible shuffling
+            $this->shuffleSeed = $existingAttempt->id;
+            
             // Restore submission data for assignments
             if ($this->assessment->assessment_type === 'assignment' && isset($this->answers['submission_text'])) {
                 $this->submissionText = $this->answers['submission_text'];
             }
+            
+            // Restore randomized questions for consistency
+            $this->randomizedQuestions = $this->getQuestions();
         } else {
             // Check max attempts
             $attemptCount = AssessmentAttempt::where('user_id', Auth::id())
@@ -75,6 +94,9 @@ class Take extends Component
 
             // Start new attempt
             $this->startNewAttempt($attemptCount + 1);
+            
+            // Set seed for consistent shuffling based on attempt ID
+            $this->shuffleSeed = $this->attempt->id;
             
             // Randomize questions/options once at start of attempt
             $this->randomizedQuestions = $this->getQuestions();
@@ -128,6 +150,14 @@ class Take extends Component
         $this->startedAt = $this->attempt->started_at;
     }
 
+    public function updated($property)
+    {
+        // Auto-save whenever answers change
+        if (str_starts_with($property, 'answers.')) {
+            $this->saveProgress();
+        }
+    }
+
     public function updateAnswer($questionId, $value)
     {
         $this->answers[$questionId] = $value;
@@ -165,9 +195,35 @@ class Take extends Component
     public function nextQuestion()
     {
         $questions = $this->getQuestions();
+        
+        // Allow skipping questions - no validation required
         if ($this->currentQuestionIndex < $questions->count() - 1) {
             $this->currentQuestionIndex++;
         }
+        
+        // Auto-save progress when navigating
+        $this->saveProgress();
+    }
+
+    public function isQuestionAnswered($question)
+    {
+        $userAnswer = $this->answers[$question->id] ?? null;
+        
+        // Check if answer exists and is not empty
+        if ($userAnswer === null || $userAnswer === '') {
+            return false;
+        }
+        
+        // For array answers (multiple select, matching, ordering, fill_blank)
+        if (is_array($userAnswer)) {
+            // Filter out empty values
+            $filtered = array_filter($userAnswer, function($value) {
+                return $value !== null && $value !== '' && $value !== [];
+            });
+            return !empty($filtered);
+        }
+        
+        return true;
     }
 
     public function previousQuestion()
@@ -294,7 +350,39 @@ class Take extends Component
         }
 
         // Handle quiz-type assessments
-        $questions = $this->getQuestions();
+        // Use fresh questions for scoring to avoid shuffling issues
+        $questions = $this->assessment->questions()->with('options')->get();
+
+        // Validate short_answer and essay length constraints before scoring
+        foreach ($questions as $question) {
+            if (in_array($question->question_type, ['short_answer', 'essay'])) {
+                $answer = trim($this->answers[$question->id] ?? '');
+                $settings = $question->settings ?? [];
+
+                $charCount = mb_strlen($answer);
+                $wordCount = $answer === '' ? 0 : count(preg_split('/\s+/', $answer, -1, PREG_SPLIT_NO_EMPTY));
+
+                if (isset($settings['max_chars']) && $settings['max_chars'] !== null && $charCount > $settings['max_chars']) {
+                    session()->flash('error', "Your answer to question '{$question->question_text}' exceeds the maximum characters ({$settings['max_chars']}). Please shorten it before submitting.");
+                    return;
+                }
+
+                if (isset($settings['max_words']) && $settings['max_words'] !== null && $wordCount > $settings['max_words']) {
+                    session()->flash('error', "Your answer to question '{$question->question_text}' exceeds the maximum words ({$settings['max_words']}). Please shorten it before submitting.");
+                    return;
+                }
+
+                if (isset($settings['min_chars']) && $settings['min_chars'] !== null && $charCount < $settings['min_chars']) {
+                    session()->flash('error', "Your answer to question '{$question->question_text}' must be at least {$settings['min_chars']} characters.");
+                    return;
+                }
+
+                if (isset($settings['min_words']) && $settings['min_words'] !== null && $wordCount < $settings['min_words']) {
+                    session()->flash('error', "Your answer to question '{$question->question_text}' must be at least {$settings['min_words']} words.");
+                    return;
+                }
+            }
+        }
         $totalPoints = $questions->sum('points');
         $earnedPoints = 0;
 
@@ -357,12 +445,30 @@ class Take extends Component
         if (in_array($question->question_type, ['multiple_choice', 'multiple_select', 'choice', 'true_false'])) {
             $correctOptions = $question->options->where('is_correct', true)->pluck('id')->toArray();
             
+            // Debug logging
+            \Log::info("Scoring Question {$question->id}:", [
+                'question_type' => $question->question_type,
+                'user_answer' => $userAnswer,
+                'correct_options' => $correctOptions,
+                'question_points' => $question->points
+            ]);
+            
             if (is_array($userAnswer)) {
+                // Convert to integers for comparison
+                $userAnswer = array_map('intval', array_filter($userAnswer));
+                $correctOptions = array_map('intval', $correctOptions);
                 sort($userAnswer);
                 sort($correctOptions);
-                return $userAnswer === $correctOptions ? $question->points : 0;
+                $score = $userAnswer === $correctOptions ? $question->points : 0;
+                \Log::info("Array comparison result:", ['score' => $score, 'user' => $userAnswer, 'correct' => $correctOptions]);
+                return $score;
             } else {
-                return in_array($userAnswer, $correctOptions) ? $question->points : 0;
+                // Convert to integer for comparison
+                $userAnswerInt = intval($userAnswer);
+                $correctOptions = array_map('intval', $correctOptions);
+                $score = in_array($userAnswerInt, $correctOptions) ? $question->points : 0;
+                \Log::info("Single comparison result:", ['score' => $score, 'user' => $userAnswerInt, 'correct' => $correctOptions]);
+                return $score;
             }
         }
 
@@ -533,6 +639,11 @@ class Take extends Component
         
         $questions = $this->assessment->questions()->with('options')->orderBy('order')->get();
         
+        // Use seed for consistent shuffling if available
+        if ($this->shuffleSeed) {
+            mt_srand($this->shuffleSeed);
+        }
+        
         // Randomize questions if enabled
         if ($this->assessment->is_randomized) {
             $questions = $questions->shuffle();
@@ -547,7 +658,99 @@ class Take extends Component
             }
         }
         
+        // Reset random seed
+        if ($this->shuffleSeed) {
+            mt_srand();
+        }
+        
         return $questions;
+    }
+
+    public function getShuffledQuestionData($questionId, $questionType)
+    {
+        // Return cached data if available
+        if (isset($this->shuffledQuestionData[$questionId])) {
+            return $this->shuffledQuestionData[$questionId];
+        }
+
+        $question = $this->getQuestions()->firstWhere('id', $questionId);
+        if (!$question) {
+            return null;
+        }
+
+        $data = null;
+
+        if ($questionType === 'matching') {
+            $settings = $question->settings ?? [];
+            $pairs = $settings['matching_pairs'] ?? [];
+            
+            // Fallback for legacy data stored in options
+            if (empty($pairs) && $question->options->isNotEmpty()) {
+                foreach ($question->options as $option) {
+                    $parts = explode('|', $option->option_text);
+                    if (count($parts) === 2) {
+                        $pairs[] = [
+                            'left_item' => $parts[0],
+                            'right_item' => $parts[1]
+                        ];
+                    }
+                }
+            }
+            
+            $rightItems = collect($pairs)->pluck('right_item');
+            
+            // Shuffle only if assessment has shuffle_options enabled
+            if ($this->assessment->shuffle_options) {
+                if ($this->shuffleSeed) {
+                    mt_srand($this->shuffleSeed + $questionId); // Use question-specific seed
+                }
+                $rightItems = $rightItems->shuffle();
+                if ($this->shuffleSeed) {
+                    mt_srand();
+                }
+            }
+            
+            $data = [
+                'pairs' => $pairs,
+                'rightItems' => $rightItems->toArray()
+            ];
+        } elseif ($questionType === 'ordering') {
+            $settings = $question->settings ?? [];
+            $items = $settings['ordering_items'] ?? [];
+            
+            // Fallback for legacy data stored in options
+            if (empty($items) && $question->options->isNotEmpty()) {
+                foreach ($question->options as $option) {
+                    $items[] = [
+                        'item_text' => $option->option_text,
+                        'correct_order' => $option->order + 1
+                    ];
+                }
+            }
+            
+            $shuffledItems = collect($items);
+            
+            // Shuffle only if assessment has shuffle_options enabled
+            if ($this->assessment->shuffle_options) {
+                if ($this->shuffleSeed) {
+                    mt_srand($this->shuffleSeed + $questionId); // Use question-specific seed
+                }
+                $shuffledItems = $shuffledItems->shuffle();
+                if ($this->shuffleSeed) {
+                    mt_srand();
+                }
+            }
+            
+            $data = [
+                'items' => $items,
+                'shuffledItems' => $shuffledItems->toArray()
+            ];
+        }
+
+        // Cache the data
+        $this->shuffledQuestionData[$questionId] = $data;
+        
+        return $data;
     }
 
     public function render()

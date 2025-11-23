@@ -1,4 +1,51 @@
 <div class="flex flex-col gap-6 p-6">
+    @php
+        $user = auth()->user();
+        $isInstructor = $assignment->course->instructor_id === $user->id || $user->hasRole('admin') || $user->hasRole('supervisor');
+        $isLocked = $assignment->is_locked && !$isInstructor;
+    @endphp
+
+    @if($isLocked)
+        {{-- Locked Assignment View --}}
+        <div class="flex flex-col items-center justify-center min-h-[60vh]">
+            <div class="max-w-2xl w-full bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
+                <div class="mb-6">
+                    <svg class="w-24 h-24 mx-auto text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                </div>
+                
+                <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">Assignment Locked</h2>
+                <p class="text-lg text-gray-600 dark:text-gray-400 mb-6">
+                    This assignment is currently locked. Please wait for your instructor to unlock it before you can view or submit.
+                </p>
+                
+                <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+                    <p class="text-sm text-red-800 dark:text-red-200">
+                        <strong>{{ $assignment->title }}</strong><br>
+                        Course: {{ $assignment->course->title }}
+                    </p>
+                </div>
+                
+                <div class="space-y-3">
+                    @if($assignment->lesson)
+                        <a href="{{ route('lessons.view', $assignment->lesson) }}" 
+                           class="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                            </svg>
+                            Back to Lesson
+                        </a>
+                    @endif
+                    
+                    <a href="{{ route('courses.learn', $assignment->course) }}" 
+                       class="inline-flex items-center px-6 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors ml-3">
+                        Back to Course
+                    </a>
+                </div>
+            </div>
+        </div>
+    @else
     <!-- Header -->
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div class="flex-1">
@@ -311,5 +358,6 @@
             </svg>
             <p class="text-sm font-medium text-green-800 dark:text-green-200">{{ session('message') }}</p>
         </div>
+    @endif
     @endif
 </div>

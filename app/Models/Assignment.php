@@ -21,12 +21,14 @@ class Assignment extends Model
         'due_date',
         'max_points',
         'status',
+        'is_locked',
     ];
 
     protected function casts(): array
     {
         return [
             'due_date' => 'datetime',
+            'is_locked' => 'boolean',
         ];
     }
 

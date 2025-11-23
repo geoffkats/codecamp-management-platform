@@ -105,13 +105,66 @@
                                 </flux:button>
                             @endif
                         @elseif(!$enrolled && auth()->check())
-                            <flux:button wire:click="enroll" variant="primary" class="px-6 py-3 text-base font-medium">
-                                Enroll Now
-                            </flux:button>
+                            @php
+                                $enrollmentType = $course->enrollment_type ?? 'invite_only';
+                            @endphp
+                            
+                            @if($enrollmentType === 'invite_only')
+                                {{-- Check if user has an invitation --}}
+                                @php
+                                    $hasInvitation = \App\Models\CourseInvitation::where('course_id', $course->id)
+                                        ->where('user_id', auth()->id())
+                                        ->where('status', 'pending')
+                                        ->exists();
+                                @endphp
+                                
+                                @if($hasInvitation)
+                                    <flux:button wire:click="enroll" variant="primary" class="px-6 py-3 text-base font-medium">
+                                        Accept Invitation & Enroll
+                                    </flux:button>
+                                @else
+                                    <div class="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                        <svg class="w-8 h-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                        <p class="text-sm font-medium text-gray-900 dark:text-white">Invitation Required</p>
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">This course requires an invitation from the instructor to enroll</p>
+                                    </div>
+                                @endif
+                            @elseif($enrollmentType === 'approval_required')
+                                @php
+                                    $hasPendingRequest = \App\Models\EnrollmentRequest::where('course_id', $course->id)
+                                        ->where('user_id', auth()->id())
+                                        ->where('status', 'pending')
+                                        ->exists();
+                                @endphp
+                                
+                                @if($hasPendingRequest)
+                                    <div class="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                                        <svg class="w-8 h-8 text-yellow-600 dark:text-yellow-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <p class="text-sm font-medium text-gray-900 dark:text-white">Request Pending</p>
+                                        <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">Waiting for instructor approval</p>
+                                    </div>
+                                @else
+                                    <flux:button wire:click="enroll" variant="primary" class="px-6 py-3 text-base font-medium">
+                                        Request to Enroll
+                                    </flux:button>
+                                @endif
+                            @else
+                                <flux:button wire:click="enroll" variant="primary" class="px-6 py-3 text-base font-medium">
+                                    Enroll Now
+                                </flux:button>
+                            @endif
                         @elseif($enrolled)
-                            <span class="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Enrolled</span>
+                            <span class="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">✓ Enrolled</span>
                             <flux:button href="{{ route('courses.learn', $course) }}" variant="primary" class="px-6 py-3 text-base font-medium" wire:navigate>
                                 Continue Learning
+                            </flux:button>
+                        @elseif(!auth()->check())
+                            <flux:button href="{{ route('login') }}" variant="primary" class="px-6 py-3 text-base font-medium" wire:navigate>
+                                Sign In to Enroll
                             </flux:button>
                         @endif
                     </div>
@@ -164,26 +217,60 @@
                                 @foreach($modules as $module)
                                     <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
                                         <div class="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4">
-                                            <h3 class="font-semibold text-gray-900 dark:text-white">{{ $module->title }}</h3>
-                                            @if($module->description)
-                                                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ $module->description }}</p>
-                                            @endif
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex-1">
+                                                    <h3 class="font-semibold text-gray-900 dark:text-white">{{ $module->title }}</h3>
+                                                    @if($module->description)
+                                                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ $module->description }}</p>
+                                                    @endif
+                                                </div>
+                                                <span class="text-xs text-gray-500 dark:text-gray-400 ml-4">{{ $module->lessons->count() }} lessons</span>
+                                            </div>
                                         </div>
                                         @if($module->lessons->count() > 0)
-                                            <div class="p-4 space-y-2">
-                                                @foreach($module->lessons as $lesson)
-                                                    <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
-                                                        <div class="flex items-center gap-3">
-                                                            <svg class="h-5 w-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                            </svg>
-                                                            <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $lesson->title }}</span>
+                                            @if($enrolled)
+                                                {{-- Show full lesson details for enrolled students --}}
+                                                <div class="p-4 space-y-2">
+                                                    @foreach($module->lessons as $lesson)
+                                                        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                                                            <div class="flex items-center gap-3">
+                                                                <svg class="h-5 w-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                </svg>
+                                                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $lesson->title }}</span>
+                                                            </div>
+                                                            <span class="text-xs text-gray-500 dark:text-gray-400">{{ $lesson->duration_minutes }} min</span>
                                                         </div>
-                                                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ $lesson->duration_minutes }} min</span>
-                                                    </div>
-                                                @endforeach
-                                            </div>
+                                                    @endforeach
+                                                </div>
+                                            @else
+                                                {{-- Show preview for non-enrolled students (first 2 lessons only) --}}
+                                                <div class="p-4 space-y-2">
+                                                    @foreach($module->lessons->take(2) as $lesson)
+                                                        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                                                            <div class="flex items-center gap-3">
+                                                                <svg class="h-5 w-5 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                                </svg>
+                                                                <span class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ $lesson->title }}</span>
+                                                            </div>
+                                                            <span class="text-xs text-gray-400 dark:text-gray-600">{{ $lesson->duration_minutes }} min</span>
+                                                        </div>
+                                                    @endforeach
+                                                    @if($module->lessons->count() > 2)
+                                                        <div class="flex items-center justify-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-2 border-dashed border-blue-200 dark:border-blue-800">
+                                                            <div class="text-center">
+                                                                <svg class="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                                </svg>
+                                                                <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $module->lessons->count() - 2 }} more lessons</p>
+                                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Enroll to unlock all content</p>
+                                                            </div>
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            @endif
                                         @endif
                                     </div>
                                 @endforeach

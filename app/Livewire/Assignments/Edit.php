@@ -29,6 +29,15 @@ class Edit extends Component
         
         $this->assignment = $assignment->load('course');
     }
+    
+    public function toggleLock()
+    {
+        $this->assignment->is_locked = !$this->assignment->is_locked;
+        $this->assignment->save();
+        
+        $status = $this->assignment->is_locked ? 'locked' : 'unlocked';
+        session()->flash('message', "Assignment {$status} successfully!");
+    }
 
     public function render()
     {

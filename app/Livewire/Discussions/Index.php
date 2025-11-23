@@ -17,6 +17,7 @@ class Index extends Component
 
     public $search = '';
     public $filter = 'all'; // 'all', 'course', 'lesson', 'my_discussions'
+    public $subjectFilter = 'all'; // 'all', 'scratch', 'python', 'web', 'javascript'
     public $courseId = null;
     public $lessonId = null;
 
@@ -25,13 +26,28 @@ class Index extends Component
         $user = Auth::user();
         $isStaff = $user->hasAnyRole(['admin', 'teacher', 'supervisor']);
         
-        $query = Discussion::with(['user', 'course', 'lesson'])
+        $query = Discussion::with([
+                'user.studentProfile',
+                'course:id,title',
+                'lesson:id,title'
+            ])
             ->withCount('replies')
+            ->select([
+                'id', 'title', 'content', 'user_id', 'course_id', 'lesson_id',
+                'subject_tag', 'is_pinned', 'has_best_answer', 'upvotes',
+                'helpful_count', 'views_count', 'scratch_project_id',
+                'code_snippets', 'created_at'
+            ])
             ->latest('created_at');
 
         if ($this->search) {
             $query->where('title', 'like', '%' . $this->search . '%')
                   ->orWhere('content', 'like', '%' . $this->search . '%');
+        }
+
+        // Apply subject filter
+        if ($this->subjectFilter && $this->subjectFilter !== 'all') {
+            $query->where('subject_tag', $this->subjectFilter);
         }
 
         if ($this->filter === 'my_discussions') {
@@ -77,11 +93,14 @@ class Index extends Component
 
         $discussions = $query->paginate(15);
 
-        $stats = [
-            'total' => Discussion::count(),
-            'my_discussions' => Discussion::where('user_id', Auth::id())->count(),
-            'recent' => Discussion::where('created_at', '>=', now()->subDays(7))->count(),
-        ];
+        // Cache stats for 5 minutes to reduce database load
+        $stats = cache()->remember('discussion_stats_' . Auth::id(), 300, function () {
+            return [
+                'total' => Discussion::count(),
+                'my_discussions' => Discussion::where('user_id', Auth::id())->count(),
+                'recent' => Discussion::where('created_at', '>=', now()->subDays(7))->count(),
+            ];
+        });
 
         return view('livewire.discussions.index', [
             'discussions' => $discussions,

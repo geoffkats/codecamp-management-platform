@@ -53,6 +53,11 @@ class Course extends Model
         ];
     }
 
+    protected $attributes = [
+        'enrollment_type' => 'invite_only',
+        'approval_status' => 'draft',
+    ];
+
     protected static function boot(): void
     {
         parent::boot();
@@ -60,6 +65,10 @@ class Course extends Model
         static::creating(function ($course) {
             if (empty($course->slug)) {
                 $course->slug = Str::slug($course->title);
+            }
+            // Set default enrollment type if not specified
+            if (empty($course->enrollment_type)) {
+                $course->enrollment_type = 'invite_only';
             }
         });
     }
@@ -97,6 +106,33 @@ class Course extends Model
     public function enrollmentRequests(): HasMany
     {
         return $this->hasMany(EnrollmentRequest::class);
+    }
+
+    public function collaborators(): HasMany
+    {
+        return $this->hasMany(CourseCollaborator::class);
+    }
+
+    public function collaboratorUsers()
+    {
+        return $this->belongsToMany(User::class, 'course_collaborators')
+            ->withPivot('role', 'invited_at', 'invited_by')
+            ->withTimestamps();
+    }
+
+    public function isCollaborator(User $user): bool
+    {
+        return $this->collaborators()->where('user_id', $user->id)->exists();
+    }
+
+    public function canUserEdit(User $user): bool
+    {
+        if ($this->instructor_id === $user->id) {
+            return true;
+        }
+
+        $collaborator = $this->collaborators()->where('user_id', $user->id)->first();
+        return $collaborator && $collaborator->canEdit();
     }
 }
 

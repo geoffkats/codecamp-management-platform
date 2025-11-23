@@ -136,6 +136,11 @@ class AssessmentSeeder extends Seeder
         $courseTitle = $lesson->course->title;
         $questions = [];
 
+        // Check if this is Web Development 1 course and generate specific questions
+        if ($courseTitle === 'Web Development 1') {
+            return $this->generateWebDev1Questions($lesson);
+        }
+
         // Multiple Choice Question 1
         $questions[] = [
             'question_text' => 'What is the primary purpose of ' . $title . '?',
@@ -707,5 +712,234 @@ class AssessmentSeeder extends Seeder
                 ]
             );
         }
+    }
+
+    /**
+     * Generate Web Development 1 specific questions based on lesson title
+     */
+    private function generateWebDev1Questions(Lesson $lesson): array
+    {
+        $title = strtolower($lesson->title);
+        $questions = [];
+
+        // HTML Questions
+        if (strpos($title, 'html') !== false || strpos($title, 'introduction to html') !== false) {
+            $questions[] = [
+                'question_text' => 'What does HTML stand for?',
+                'question_type' => 'multiple_choice',
+                'points' => 10,
+                'explanation' => 'HTML stands for HyperText Markup Language, which is the standard markup language for creating web pages.',
+                'options' => [
+                    ['option_text' => 'HyperText Markup Language', 'is_correct' => true],
+                    ['option_text' => 'High Tech Modern Language', 'is_correct' => false],
+                    ['option_text' => 'Home Tool Markup Language', 'is_correct' => false],
+                    ['option_text' => 'Hyperlink and Text Markup Language', 'is_correct' => false],
+                ]
+            ];
+            $questions[] = [
+                'question_text' => 'Which HTML5 element is used to define the main content of a document?',
+                'question_type' => 'multiple_choice',
+                'points' => 10,
+                'explanation' => 'The <main> element represents the main content of the body of a document.',
+                'options' => [
+                    ['option_text' => '<main>', 'is_correct' => true],
+                    ['option_text' => '<content>', 'is_correct' => false],
+                    ['option_text' => '<body>', 'is_correct' => false],
+                    ['option_text' => '<section>', 'is_correct' => false],
+                ]
+            ];
+        }
+
+        if (strpos($title, 'semantic') !== false || strpos($title, 'html5 semantic') !== false) {
+            $questions[] = [
+                'question_text' => 'Which of the following are HTML5 semantic elements? (Select all that apply)',
+                'question_type' => 'multiple_choice',
+                'points' => 15,
+                'explanation' => 'Semantic elements clearly describe their meaning: <header>, <nav>, <article>, <section>, <aside>, and <footer>.',
+                'options' => [
+                    ['option_text' => '<header>', 'is_correct' => true],
+                    ['option_text' => '<nav>', 'is_correct' => true],
+                    ['option_text' => '<article>', 'is_correct' => true],
+                    ['option_text' => '<div>', 'is_correct' => false],
+                ]
+            ];
+        }
+
+        if (strpos($title, 'form') !== false || strpos($title, 'input') !== false) {
+            $questions[] = [
+                'question_text' => 'Which input type is used for email addresses with built-in validation?',
+                'question_type' => 'multiple_choice',
+                'points' => 10,
+                'explanation' => 'The type="email" input provides built-in email validation in modern browsers.',
+                'options' => [
+                    ['option_text' => 'type="email"', 'is_correct' => true],
+                    ['option_text' => 'type="text"', 'is_correct' => false],
+                    ['option_text' => 'type="mail"', 'is_correct' => false],
+                    ['option_text' => 'type="address"', 'is_correct' => false],
+                ]
+            ];
+        }
+
+        // CSS Questions
+        if (strpos($title, 'css') !== false || strpos($title, 'styling') !== false) {
+            $questions[] = [
+                'question_text' => 'What does CSS stand for?',
+                'question_type' => 'multiple_choice',
+                'points' => 10,
+                'explanation' => 'CSS stands for Cascading Style Sheets, used to style HTML elements.',
+                'options' => [
+                    ['option_text' => 'Cascading Style Sheets', 'is_correct' => true],
+                    ['option_text' => 'Computer Style Sheets', 'is_correct' => false],
+                    ['option_text' => 'Creative Style System', 'is_correct' => false],
+                    ['option_text' => 'Colorful Style Sheets', 'is_correct' => false],
+                ]
+            ];
+        }
+
+        if (strpos($title, 'box model') !== false || strpos($title, 'margin') !== false || strpos($title, 'padding') !== false) {
+            $questions[] = [
+                'question_text' => 'In the CSS box model, what is the correct order from outside to inside?',
+                'question_type' => 'ordering',
+                'points' => 15,
+                'explanation' => 'The box model order is: margin (outside) → border → padding → content (inside).',
+                'options' => [
+                    ['option_text' => 'Margin', 'is_correct' => true],
+                    ['option_text' => 'Border', 'is_correct' => true],
+                    ['option_text' => 'Padding', 'is_correct' => true],
+                    ['option_text' => 'Content', 'is_correct' => true],
+                ]
+            ];
+        }
+
+        if (strpos($title, 'flexbox') !== false) {
+            $questions[] = [
+                'question_text' => 'Which CSS property is used to create a flexbox container?',
+                'question_type' => 'multiple_choice',
+                'points' => 10,
+                'explanation' => 'display: flex; creates a flex container and enables flexbox layout.',
+                'options' => [
+                    ['option_text' => 'display: flex;', 'is_correct' => true],
+                    ['option_text' => 'display: grid;', 'is_correct' => false],
+                    ['option_text' => 'display: block;', 'is_correct' => false],
+                    ['option_text' => 'flex: 1;', 'is_correct' => false],
+                ]
+            ];
+        }
+
+        if (strpos($title, 'grid') !== false && strpos($title, 'bootstrap') === false) {
+            $questions[] = [
+                'question_text' => 'Which property is used to define grid columns in CSS Grid?',
+                'question_type' => 'multiple_choice',
+                'points' => 10,
+                'explanation' => 'grid-template-columns defines the number and size of columns in a grid.',
+                'options' => [
+                    ['option_text' => 'grid-template-columns', 'is_correct' => true],
+                    ['option_text' => 'grid-columns', 'is_correct' => false],
+                    ['option_text' => 'columns', 'is_correct' => false],
+                    ['option_text' => 'grid-col', 'is_correct' => false],
+                ]
+            ];
+        }
+
+        if (strpos($title, 'responsive') !== false || strpos($title, 'media query') !== false) {
+            $questions[] = [
+                'question_text' => 'What is the mobile-first approach in responsive design?',
+                'question_type' => 'multiple_choice',
+                'points' => 10,
+                'explanation' => 'Mobile-first means designing for mobile devices first, then adding styles for larger screens using min-width media queries.',
+                'options' => [
+                    ['option_text' => 'Designing for mobile devices first, then enhancing for larger screens', 'is_correct' => true],
+                    ['option_text' => 'Designing only for mobile devices', 'is_correct' => false],
+                    ['option_text' => 'Designing for desktop first', 'is_correct' => false],
+                    ['option_text' => 'Using only mobile-friendly fonts', 'is_correct' => false],
+                ]
+            ];
+        }
+
+        // Bootstrap Questions
+        if (strpos($title, 'bootstrap') !== false) {
+            $questions[] = [
+                'question_text' => 'What is Bootstrap?',
+                'question_type' => 'multiple_choice',
+                'points' => 10,
+                'explanation' => 'Bootstrap is a free and open-source CSS framework for developing responsive, mobile-first websites.',
+                'options' => [
+                    ['option_text' => 'A CSS framework for building responsive websites', 'is_correct' => true],
+                    ['option_text' => 'A JavaScript library', 'is_correct' => false],
+                    ['option_text' => 'A database system', 'is_correct' => false],
+                    ['option_text' => 'A programming language', 'is_correct' => false],
+                ]
+            ];
+            $questions[] = [
+                'question_text' => 'Which Bootstrap class creates a responsive container?',
+                'question_type' => 'multiple_choice',
+                'points' => 10,
+                'explanation' => 'The .container class creates a responsive fixed-width container.',
+                'options' => [
+                    ['option_text' => '.container', 'is_correct' => true],
+                    ['option_text' => '.wrapper', 'is_correct' => false],
+                    ['option_text' => '.box', 'is_correct' => false],
+                    ['option_text' => '.responsive', 'is_correct' => false],
+                ]
+            ];
+            $questions[] = [
+                'question_text' => 'True or False: Bootstrap uses a 12-column grid system.',
+                'question_type' => 'true_false',
+                'points' => 5,
+                'explanation' => 'Bootstrap uses a 12-column responsive grid system that can be divided into different column sizes.',
+                'options' => [
+                    ['option_text' => 'True', 'is_correct' => true],
+                    ['option_text' => 'False', 'is_correct' => false],
+                ]
+            ];
+        }
+
+        // Project-based questions
+        if (strpos($title, 'project') !== false) {
+            $questions[] = [
+                'question_text' => 'What are the key elements of a well-structured HTML page? (Select all that apply)',
+                'question_type' => 'multiple_choice',
+                'points' => 15,
+                'explanation' => 'A well-structured page includes semantic HTML, proper headings hierarchy, organized sections, and accessibility features.',
+                'options' => [
+                    ['option_text' => 'Semantic HTML5 elements', 'is_correct' => true],
+                    ['option_text' => 'Proper heading hierarchy (h1, h2, h3)', 'is_correct' => true],
+                    ['option_text' => 'Organized sections', 'is_correct' => true],
+                    ['option_text' => 'Inline styles only', 'is_correct' => false],
+                ]
+            ];
+        }
+
+        // If no specific questions matched, add general questions
+        if (empty($questions)) {
+            $questions[] = [
+                'question_text' => 'What is the main topic covered in this lesson?',
+                'question_type' => 'short_answer',
+                'points' => 15,
+                'explanation' => 'Review the lesson title and content to identify the main topic.',
+                'options' => []
+            ];
+            $questions[] = [
+                'question_text' => 'True or False: This lesson is important for building web development skills.',
+                'question_type' => 'true_false',
+                'points' => 5,
+                'explanation' => 'All lessons in Web Development 1 are important for building foundational skills.',
+                'options' => [
+                    ['option_text' => 'True', 'is_correct' => true],
+                    ['option_text' => 'False', 'is_correct' => false],
+                ]
+            ];
+        }
+
+        // Always add a practical application question
+        $questions[] = [
+            'question_text' => 'How would you apply the concepts from this lesson in a real-world project?',
+            'question_type' => 'essay',
+            'points' => 20,
+            'explanation' => 'Think about practical applications and provide specific examples of how you would use these concepts.',
+            'options' => []
+        ];
+
+        return $questions;
     }
 }

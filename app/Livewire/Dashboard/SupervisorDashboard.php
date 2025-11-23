@@ -125,6 +125,9 @@ class SupervisorDashboard extends Component
             'stats' => $dashboardData['stats'],
             'approvalBreakdown' => $dashboardData['approvalBreakdown'],
             'approvals' => $approvals,
+            'approvalTrends' => $this->getApprovalTrends(),
+            'quickStats' => $this->getQuickStats(),
+            'recentApprovals' => $this->getRecentApprovals(),
         ]);
     }
 
@@ -168,6 +171,62 @@ class SupervisorDashboard extends Component
 
         $approved = ContentApproval::where('status', 'approved')->count();
         return round(($approved / $total) * 100, 2);
+    }
+
+    private function getApprovalTrends(): array
+    {
+        return [
+            'this_week' => ContentApproval::whereNotNull('reviewed_at')
+                ->whereBetween('reviewed_at', [now()->startOfWeek(), now()->endOfWeek()])
+                ->count(),
+            'this_month' => ContentApproval::whereNotNull('reviewed_at')
+                ->whereBetween('reviewed_at', [now()->startOfMonth(), now()->endOfMonth()])
+                ->count(),
+        ];
+    }
+
+    private function getQuickStats(): array
+    {
+        return [
+            'week_approved' => ContentApproval::where('status', 'approved')
+                ->whereBetween('reviewed_at', [now()->startOfWeek(), now()->endOfWeek()])
+                ->count(),
+            'month_approved' => ContentApproval::where('status', 'approved')
+                ->whereBetween('reviewed_at', [now()->startOfMonth(), now()->endOfMonth()])
+                ->count(),
+        ];
+    }
+
+    private function getRecentApprovals(): array
+    {
+        $approvals = ContentApproval::with(['approvable', 'submitter'])
+            ->where('status', 'pending')
+            ->latest('submitted_at')
+            ->limit(5)
+            ->get();
+            
+        return $approvals->map(function ($approval) {
+            $approvable = $approval->approvable;
+            $title = 'Unknown';
+            
+            if ($approvable) {
+                $title = match(class_basename($approval->approvable_type)) {
+                    'Course' => $approvable->title ?? 'Unknown',
+                    'CourseModule' => $approvable->title ?? 'Unknown',
+                    'Lesson' => $approvable->title ?? 'Unknown',
+                    'Assessment' => $approvable->title ?? 'Unknown',
+                    default => 'Unknown Content',
+                };
+            }
+            
+            return [
+                'id' => $approval->id,
+                'title' => $title,
+                'type' => class_basename($approval->approvable_type),
+                'submitter' => $approval->submitter?->name ?? 'Unknown',
+                'submitted_at' => $approval->submitted_at,
+            ];
+        })->toArray();
     }
 
     public function getApprovableTitle($approval): string

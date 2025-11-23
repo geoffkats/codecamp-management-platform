@@ -557,7 +557,9 @@
                         </svg>
                     </div>
                 </div>
-                <canvas id="enrollmentTrendsChart" height="200"></canvas>
+                <div style="height: 200px;">
+                    <canvas id="enrollmentTrendsChart"></canvas>
+                </div>
             </div>
 
             {{-- User Growth Chart --}}
@@ -573,7 +575,9 @@
                         </svg>
                     </div>
                 </div>
-                <canvas id="userGrowthChart" height="200"></canvas>
+                <div style="height: 200px;">
+                    <canvas id="userGrowthChart"></canvas>
+                </div>
             </div>
 
             {{-- Completion Rate Chart --}}
@@ -589,7 +593,9 @@
                         </svg>
                     </div>
                 </div>
-                <canvas id="completionRateChart" height="200"></canvas>
+                <div style="height: 200px;">
+                    <canvas id="completionRateChart"></canvas>
+                </div>
             </div>
 
             {{-- Top Courses Chart --}}
@@ -605,7 +611,9 @@
                         </svg>
                     </div>
                 </div>
-                <canvas id="topCoursesChart" height="200"></canvas>
+                <div style="height: 200px;">
+                    <canvas id="topCoursesChart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -824,15 +832,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
-    }
-});
-
-// Reinitialize charts when Livewire updates
-Livewire.hook('morph.updated', ({ el, component }) => {
-    if (component.getName() === 'dashboard.admin-dashboard') {
-        setTimeout(() => {
-            window.location.reload(); // Simple reload for chart reinit
-        }, 100);
     }
 });
 </script>

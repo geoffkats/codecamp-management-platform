@@ -240,7 +240,6 @@
                                                         wire:confirm="Are you sure you want to delete this lesson?">
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                    </svg>
                                                 </button>
                                             @endif
                                         </div>
@@ -268,7 +267,7 @@
                                     </svg>
                                     Assessments
                                 </h2>
-                                @if(auth()->user()->isAdmin() || auth()->user()->hasPermission('create_assessments'))
+                                @if(auth()->user()->isAdmin() || auth()->user()->isTeacher())
                                     <flux:button wire:click="selectItem('assessment')" variant="ghost" class="text-white hover:bg-white/20 px-3 py-1 text-sm font-medium">
                                         + Add
                                     </flux:button>
@@ -298,7 +297,6 @@
                                                             wire:confirm="Are you sure you want to delete this assessment?">
                                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                        </svg>
                                                     </button>
                                                 @endif
                                             </div>
@@ -433,7 +431,10 @@
                                             
                                             <flux:field>
                                                 <flux:label class="text-base font-semibold">Content</flux:label>
-                                                <flux:textarea wire:model="formData.content" rows="8" placeholder="Lesson content, instructions, or description (supports HTML)" />
+                                                <div class="summernote-wrapper" wire:ignore>
+                                                    <textarea id="summernote-curriculum" class="w-full" rows="8"></textarea>
+                                                </div>
+                                                <p class="mt-1 text-sm text-gray-500">You can type formatted content. Students will see the HTML output.</p>
                                             </flux:field>
                                             
                                             <flux:field class="mt-4">
@@ -819,3 +820,128 @@
         @endif
     </div>
 </div>
+
+@push('styles')
+<style>
+    /* Summernote styling for dark mode and Flux UI */
+    .note-editor.note-frame {
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+    }
+    .dark .note-editor.note-frame {
+        border-color: #374151;
+        background-color: #1f2937;
+    }
+    .dark .note-editing-area .note-editable {
+        background-color: #1f2937;
+        color: #f3f4f6;
+    }
+    .dark .note-toolbar {
+        background-color: #111827;
+        border-bottom-color: #374151;
+    }
+    
+    /* Fix z-index for Summernote modals */
+    .note-modal-backdrop {
+        z-index: 9999 !important;
+    }
+    .note-modal {
+        z-index: 10000 !important;
+    }
+    .note-popover {
+        z-index: 10001 !important;
+    }
+</style>
+@endpush
+
+@push('scripts')
+<script>
+// Simplified Summernote initialization for Livewire modals
+(function() {
+    let summernoteInstance = null;
+    
+    function waitForDependencies(callback) {
+        // Wait for jQuery and Summernote to be loaded
+        if (typeof jQuery !== 'undefined' && jQuery.fn.summernote) {
+            callback();
+        } else {
+            setTimeout(() => waitForDependencies(callback), 50);
+        }
+    }
+    
+    function initSummernote() {
+        const textarea = document.getElementById('summernote-curriculum');
+        if (!textarea) return;
+        
+        // Check if already initialized
+        if ($(textarea).data('summernote')) {
+            return;
+        }
+        
+        const initialContent = @this.formData.content || '';
+        
+        $(textarea).summernote({
+            placeholder: 'Enter lesson content here...',
+            tabsize: 2,
+            height: 300,
+            dialogsInBody: true,
+            toolbar: [
+                ['style', ['style']],
+                ['font', ['bold', 'italic', 'underline', 'clear']],
+                ['color', ['color']],
+                ['para', ['ul', 'ol', 'paragraph']],
+                ['table', ['table']],
+                ['insert', ['link', 'picture', 'video']],
+                ['view', ['codeview']]
+            ],
+            callbacks: {
+                onInit: function() {
+                    $(textarea).summernote('code', initialContent);
+                },
+                onChange: function(contents) {
+                    @this.set('formData.content', contents, false);
+                },
+                onBlur: function() {
+                    @this.set('formData.content', $(textarea).summernote('code'), false);
+                }
+            }
+        });
+        
+        summernoteInstance = textarea;
+    }
+    
+    function destroySummernote() {
+        if (summernoteInstance && $(summernoteInstance).data('summernote')) {
+            try {
+                $(summernoteInstance).summernote('destroy');
+                summernoteInstance = null;
+            } catch (e) {
+                console.log('Cleanup error:', e);
+            }
+        }
+    }
+    
+    // Wait for dependencies before setting up listeners
+    waitForDependencies(() => {
+        // Watch for modal opening
+        const observer = new MutationObserver((mutations) => {
+            const wrapper = document.querySelector('.summernote-wrapper');
+            if (wrapper && !summernoteInstance) {
+                setTimeout(initSummernote, 100);
+            }
+        });
+        
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
+        // Cleanup on Livewire navigation
+        document.addEventListener('livewire:navigating', destroySummernote);
+        
+        // Cleanup when item is saved
+        Livewire.on('item-saved', destroySummernote);
+    });
+})();
+</script>
+@endpush

@@ -4,8 +4,8 @@
         <div class="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-xl shadow-lg p-6 text-white">
             <div class="flex items-center justify-between mb-4">
                 <div>
-                    <h1 class="text-3xl font-bold mb-2">{{ $quiz->title }}</h1>
-                    <p class="text-blue-100">{{ $quiz->description }}</p>
+                    <h1 class="text-3xl font-bold mb-2">{{ $assessment->title }}</h1>
+                    <p class="text-blue-100">{{ $assessment->description }}</p>
                 </div>
                 <div class="text-right">
                     @if($timeRemaining !== null)
@@ -23,10 +23,10 @@
                 </div>
             </div>
 
-            @if($quiz->instructions)
+            @if($assessment->instructions)
                 <div class="bg-white/10 backdrop-blur-sm rounded-lg p-4 mt-4">
                     <p class="text-sm font-medium mb-1">Instructions:</p>
-                    <p class="text-sm text-blue-50">{{ $quiz->instructions }}</p>
+                    <p class="text-sm text-blue-50">{{ $assessment->instructions }}</p>
                 </div>
             @endif
 
@@ -42,6 +42,25 @@
             </div>
         </div>
 
+        <!-- No Questions Message -->
+        @if($totalQuestions === 0)
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-12 text-center">
+                <div class="max-w-md mx-auto">
+                    <div class="w-20 h-20 mx-auto mb-6 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
+                        <svg class="w-10 h-10 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-3">No Questions Available</h3>
+                    <p class="text-gray-600 dark:text-gray-400 mb-6">
+                        This quiz doesn't have any questions yet. Please contact your instructor or check back later.
+                    </p>
+                    <flux:button href="{{ route('quizzes.show', $assessment) }}" variant="primary" wire:navigate>
+                        Back to Quiz Details
+                    </flux:button>
+                </div>
+            </div>
+        @else
         <!-- Question Navigation -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4">
             <div class="flex flex-wrap gap-2">
@@ -100,16 +119,15 @@
                                     @if($isMultiple)
                                         <input 
                                             type="checkbox" 
-                                            wire:change="updateMultipleAnswer({{ $currentQuestion->id }}, {{ $option->id }}, $event.target.checked)"
-                                            {{ $isSelected ? 'checked' : '' }}
+                                            wire:model.defer="answers.{{ $currentQuestion->id }}"
+                                            value="{{ $option->id }}"
                                             class="mt-1 h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
                                     @else
                                         <input 
                                             type="radio" 
-                                            wire:change="updateAnswer({{ $currentQuestion->id }}, {{ $option->id }})"
+                                            wire:model.defer="answers.{{ $currentQuestion->id }}"
                                             name="question_{{ $currentQuestion->id }}"
                                             value="{{ $option->id }}"
-                                            {{ $isSelected ? 'checked' : '' }}
                                             class="mt-1 h-5 w-5 text-blue-600 border-gray-300 focus:ring-blue-500">
                                     @endif
                                     <div class="flex-1">
@@ -122,12 +140,58 @@
                             @endforeach
                         </div>
                     @elseif($currentQuestion->question_type === 'short_answer')
-                        <flux:field>
-                            <flux:textarea 
-                                wire:model="answers.{{ $currentQuestion->id }}"
-                                rows="4"
-                                placeholder="Enter your answer..." />
-                        </flux:field>
+                        @php
+                            $settings = $currentQuestion->settings ?? [];
+                            $maxChars = $settings['max_chars'] ?? null;
+                            $minChars = $settings['min_chars'] ?? null;
+                            $maxWords = $settings['max_words'] ?? null;
+                            $minWords = $settings['min_words'] ?? null;
+                        @endphp
+
+                        <div x-data="{
+                                value: @entangle('answers.'.$currentQuestion->id),
+                                maxChars: {{ $maxChars ?? 'null' }},
+                                minChars: {{ $minChars ?? 'null' }},
+                                maxWords: {{ $maxWords ?? 'null' }},
+                                minWords: {{ $minWords ?? 'null' }},
+                                get charCount() { return (this.value || '').length },
+                                get wordCount() { return (this.value || '').toString().trim().length ? (this.value.toString().trim().split(/\s+/).filter(Boolean).length) : 0 },
+                                get charExceeded() { return this.maxChars !== null && this.charCount > this.maxChars },
+                                get wordExceeded() { return this.maxWords !== null && this.wordCount > this.maxWords },
+                                get charTooShort() { return this.minChars !== null && this.charCount < this.minChars },
+                                get wordTooShort() { return this.minWords !== null && this.wordCount < this.minWords }
+                            }">
+
+                            <flux:field>
+                                <textarea x-model="value" rows="6" placeholder="Enter your answer..." class="w-full p-3 border rounded-lg" />
+                            </flux:field>
+
+                            <div class="flex items-center justify-between mt-2 text-sm text-gray-600">
+                                <div>
+                                    <template x-if="maxChars !== null">
+                                        <span :class="{ 'text-red-600 font-semibold': charExceeded }">Chars: <span x-text="charCount"></span> / <span x-text="maxChars"></span></span>
+                                    </template>
+                                    <template x-if="maxChars === null">
+                                        <span>Chars: <span x-text="charCount"></span></span>
+                                    </template>
+                                    <span class="mx-2">•</span>
+                                    <template x-if="maxWords !== null">
+                                        <span :class="{ 'text-red-600 font-semibold': wordExceeded }">Words: <span x-text="wordCount"></span> / <span x-text="maxWords"></span></span>
+                                    </template>
+                                    <template x-if="maxWords === null">
+                                        <span>Words: <span x-text="wordCount"></span></span>
+                                    </template>
+                                </div>
+                                <div>
+                                    <template x-if="charExceeded || wordExceeded">
+                                        <span class="text-red-600">You have exceeded the maximum allowed length.</span>
+                                    </template>
+                                    <template x-if="charTooShort || wordTooShort">
+                                        <span class="text-yellow-600">You are below the minimum required length.</span>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
                     @elseif($currentQuestion->options && $currentQuestion->options->isNotEmpty())
                         @php
                             $isMultiple = $currentQuestion->question_type === 'multiple_choice';
@@ -144,16 +208,15 @@
                                     @if($isMultiple)
                                         <input 
                                             type="checkbox" 
-                                            wire:change="updateMultipleAnswer({{ $currentQuestion->id }}, {{ $option->id }}, $event.target.checked)"
-                                            {{ $isSelected ? 'checked' : '' }}
+                                            wire:model.defer="answers.{{ $currentQuestion->id }}"
+                                            value="{{ $option->id }}"
                                             class="mt-1 h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
                                     @else
                                         <input 
                                             type="radio" 
-                                            wire:change="updateAnswer({{ $currentQuestion->id }}, {{ $option->id }})"
+                                            wire:model.defer="answers.{{ $currentQuestion->id }}"
                                             name="question_{{ $currentQuestion->id }}"
                                             value="{{ $option->id }}"
-                                            {{ $isSelected ? 'checked' : '' }}
                                             class="mt-1 h-5 w-5 text-blue-600 border-gray-300 focus:ring-blue-500">
                                     @endif
                                     <div class="flex-1">
@@ -221,6 +284,7 @@
                 </div>
             </div>
         @endif
+        @endif {{-- End of totalQuestions check --}}
     @else
         <!-- Results View -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center">
@@ -240,7 +304,7 @@
                         </svg>
                     </div>
                     <h2 class="text-3xl font-bold text-red-600 dark:text-red-400 mb-2">Keep Studying! 📚</h2>
-                    <p class="text-xl text-gray-600 dark:text-gray-400">You scored {{ number_format($score, 1) }}%. Minimum passing score is {{ $quiz->passing_score }}%.</p>
+                    <p class="text-xl text-gray-600 dark:text-gray-400">You scored {{ number_format($score, 1) }}%. Minimum passing score is {{ $assessment->passing_score }}%.</p>
                 @endif
             </div>
 
@@ -252,7 +316,7 @@
                     </div>
                     <div>
                         <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">Passing Score</p>
-                        <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ number_format($quiz->passing_score, 1) }}%</p>
+                        <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ number_format($assessment->passing_score, 1) }}%</p>
                     </div>
                     <div>
                         <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">Status</p>
@@ -263,7 +327,7 @@
                 </div>
             </div>
 
-            @if($quiz->allow_review && $quiz->show_correct_answers)
+            @if($assessment->allow_review && $assessment->show_correct_answers)
                 <div class="mb-6">
                     <flux:button wire:click="$set('showResults', false)" variant="ghost">
                         Review Answers
@@ -275,7 +339,7 @@
                 <flux:button href="{{ route('quizzes.index') }}" variant="ghost" wire:navigate>
                     Back to Quizzes
                 </flux:button>
-                @if(!$isPassed && ($attempt->attempt_number ?? 0) < $quiz->max_attempts)
+                @if(!$isPassed && ($attempt->attempt_number ?? 0) < $assessment->max_attempts)
                     <flux:button wire:click="$refresh" variant="primary">
                         Retake Quiz
                     </flux:button>

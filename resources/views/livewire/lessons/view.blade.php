@@ -1,3 +1,138 @@
+<div>
+@php
+    $user = auth()->user();
+    $isInstructor = $course->instructor_id === $user->id || $user->hasRole('admin') || $user->hasRole('supervisor');
+    $isLocked = $lesson->is_locked && !$isInstructor;
+@endphp
+
+@if($isLocked)
+    {{-- Locked Lesson View for Students --}}
+    <div class="flex flex-col items-center justify-center min-h-screen p-6">
+        <div class="max-w-2xl w-full bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
+            <div class="mb-6">
+                <svg class="w-24 h-24 mx-auto text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+            </div>
+            
+            <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">Lesson Locked</h2>
+            <p class="text-lg text-gray-600 dark:text-gray-400 mb-6">
+                This lesson is currently locked. Please wait for your instructor to unlock it.
+            </p>
+            
+            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+                <p class="text-sm text-blue-800 dark:text-blue-200">
+                    <strong>{{ $lesson->title }}</strong><br>
+                    Module {{ $lesson->module->order_index }}: {{ $lesson->module->title }}
+                </p>
+            </div>
+            
+            {{-- Show available quizzes and assignments --}}
+            @if($lesson->assessments->count() > 0 || $lesson->assignments->count() > 0)
+                <div class="text-left mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Available Activities</h3>
+                    
+                    @if($lesson->assessments->count() > 0)
+                        <div class="mb-4">
+                            <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quizzes & Assessments</h4>
+                            <div class="space-y-2">
+                                @foreach($lesson->assessments as $assessment)
+                                    @if(!$assessment->is_locked)
+                                        {{-- Unlocked Assessment --}}
+                                        <a href="{{ route('assessments.take', $assessment) }}" 
+                                           class="block p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex items-center gap-2">
+                                                    <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
+                                                    </svg>
+                                                    <span class="font-medium text-gray-900 dark:text-white">{{ $assessment->title }}</span>
+                                                </div>
+                                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            </div>
+                                            <p class="text-xs text-green-700 dark:text-green-300 mt-1 ml-7">✓ Available - Click to start</p>
+                                        </a>
+                                    @else
+                                        {{-- Locked Assessment --}}
+                                        <div class="block p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg opacity-75">
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex items-center gap-2">
+                                                    <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                                                    </svg>
+                                                    <span class="font-medium text-gray-700 dark:text-gray-300">{{ $assessment->title }}</span>
+                                                </div>
+                                                <svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                                                </svg>
+                                            </div>
+                                            <p class="text-xs text-red-700 dark:text-red-300 mt-1 ml-7">🔒 Locked - Wait for instructor to unlock</p>
+                                        </div>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                    
+                    @if($lesson->assignments->count() > 0)
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Assignments</h4>
+                            <div class="space-y-2">
+                                @foreach($lesson->assignments as $assignment)
+                                    @if(!$assignment->is_locked)
+                                        {{-- Unlocked Assignment --}}
+                                        <a href="{{ route('assignments.show', $assignment) }}" 
+                                           class="block p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex items-center gap-2">
+                                                    <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
+                                                    </svg>
+                                                    <span class="font-medium text-gray-900 dark:text-white">{{ $assignment->title }}</span>
+                                                </div>
+                                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            </div>
+                                            <p class="text-xs text-green-700 dark:text-green-300 mt-1 ml-7">✓ Available - Click to view</p>
+                                        </a>
+                                    @else
+                                        {{-- Locked Assignment --}}
+                                        <div class="block p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg opacity-75">
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex items-center gap-2">
+                                                    <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                                                    </svg>
+                                                    <span class="font-medium text-gray-700 dark:text-gray-300">{{ $assignment->title }}</span>
+                                                </div>
+                                                <svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                                                </svg>
+                                            </div>
+                                            <p class="text-xs text-red-700 dark:text-red-300 mt-1 ml-7">🔒 Locked - Wait for instructor to unlock</p>
+                                        </div>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            @endif
+            
+            <a href="{{ route('courses.learn', $course) }}" 
+               class="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back to Course
+            </a>
+        </div>
+    </div>
+@else
+    {{-- Normal Lesson View --}}
 <div class="flex flex-col gap-6 p-6">
     {{-- Lesson Header --}}
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
@@ -23,6 +158,19 @@
                 @endif
             </div>
             <div class="flex items-center gap-2">
+                {{-- Discussion Button --}}
+                @if($lesson->id)
+                    <flux:button 
+                        href="{{ route('discussions.index', ['lesson' => $lesson->id]) }}"
+                        variant="ghost"
+                        wire:navigate>
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        Discuss This Lesson
+                    </flux:button>
+                @endif
+                
                 @if($isLessonCompleted)
                     <flux:badge variant="success">Completed</flux:badge>
                 @else
@@ -292,6 +440,66 @@
                 </div>
             @endif
 
+            {{-- Scratch Project Embed (Priority for Interactive Lessons) --}}
+            @if($lesson->scratch_project_id && $lesson->lesson_type === 'interactive')
+                <x-scratch-embed 
+                    :projectId="$lesson->scratch_project_id"
+                    :title="$lesson->title"
+                />
+            @endif
+
+            {{-- Interactive Steps (for Scratch/Interactive lessons) --}}
+            @if(!empty($lesson->lesson_steps) && is_array($lesson->lesson_steps))
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                        </svg>
+                        Step-by-Step Instructions
+                    </h2>
+                    <div class="space-y-4">
+                        @foreach($lesson->lesson_steps as $index => $step)
+                            <x-lesson-step 
+                                :number="$index + 1"
+                                :title="$step['title'] ?? 'Step ' . ($index + 1)"
+                                :image="$step['image'] ?? null"
+                                :tryItUrl="$step['try_it_url'] ?? null"
+                            >
+                                <p class="text-gray-700 dark:text-gray-300">
+                                    {{ $step['description'] ?? $step['content'] ?? '' }}
+                                </p>
+                                @if(!empty($step['code']))
+                                    <pre class="mt-3 p-4 bg-gray-100 dark:bg-gray-900 rounded-lg overflow-x-auto"><code>{{ $step['code'] }}</code></pre>
+                                @endif
+                            </x-lesson-step>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            {{-- Scratch Blocks Reference (for Scratch lessons) --}}
+            @if(!empty($lesson->scratch_blocks) && is_array($lesson->scratch_blocks))
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <svg class="w-6 h-6 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+                        </svg>
+                        Scratch Blocks You'll Use
+                    </h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Here are the Scratch blocks you'll need for this lesson:
+                    </p>
+                    <div class="flex flex-wrap gap-3">
+                        @foreach($lesson->scratch_blocks as $block)
+                            <x-scratch-block 
+                                :type="$block['category'] ?? 'motion'"
+                                :text="$block['text'] ?? $block['name'] ?? 'Block'"
+                            />
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
             {{-- Text Content --}}
             @if($lesson->content)
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
@@ -299,23 +507,7 @@
                     @php
                         $hasHtml = strip_tags($lesson->content) !== $lesson->content;
                     @endphp
-                    <div class="prose prose-lg dark:prose-invert max-w-none 
-                                prose-headings:font-bold prose-headings:text-gray-900 dark:prose-headings:text-white
-                                prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:leading-relaxed prose-p:mb-4
-                                prose-ul:text-gray-700 dark:prose-ul:text-gray-300 prose-ul:my-4
-                                prose-ol:text-gray-700 dark:prose-ol:text-gray-300 prose-ol:my-4
-                                prose-li:text-gray-700 dark:prose-li:text-gray-300 prose-li:my-2
-                                prose-strong:text-gray-900 dark:prose-strong:text-white prose-strong:font-semibold
-                                prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
-                                prose-code:text-pink-600 dark:prose-code:text-pink-400 prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
-                                prose-pre:bg-gray-900 dark:prose-pre:bg-gray-800 prose-pre:text-gray-100
-                                prose-blockquote:border-l-blue-500 prose-blockquote:pl-4 prose-blockquote:italic
-                                prose-img:rounded-lg prose-img:shadow-lg prose-img:my-4
-                                prose-table:w-full prose-table:border-collapse prose-table:my-4
-                                prose-th:bg-gray-100 dark:prose-th:bg-gray-700 prose-th:font-semibold prose-th:p-2
-                                prose-td:border prose-td:border-gray-200 dark:prose-td:border-gray-600 prose-td:p-2
-                                prose-hr:border-gray-200 dark:prose-hr:border-gray-700
-                                {{ $hasHtml ? '' : 'whitespace-pre-wrap' }} break-words">
+                    <div class="lesson-content prose prose-lg dark:prose-invert max-w-none {{ $hasHtml ? '' : 'whitespace-pre-wrap' }} break-words">
                         @if($hasHtml)
                             {{-- Display HTML content with proper styling --}}
                             {!! $lesson->content !!}
@@ -324,6 +516,118 @@
                             {!! nl2br(e($lesson->content)) !!}
                         @endif
                     </div>
+                </div>
+            @endif
+            
+            {{-- Python Code Editor (for Python lessons) --}}
+            @if(stripos($lesson->title, 'python') !== false || stripos($lesson->content ?? '', 'python') !== false || $lesson->lesson_type === 'code')
+                @php
+                    // Extract code from lesson content or use default
+                    $pythonCode = $lesson->code_example ?? "# Python Code Editor\nprint('Hello, World!')\n\n# Try writing your own code:\nname = 'Student'\nprint(f'Welcome, {name}!')";
+                @endphp
+                <x-code-editor 
+                    language="python"
+                    :code="$pythonCode"
+                    title="Python Practice"
+                />
+            @endif
+
+            {{-- Web Development Editor (for HTML/CSS/JS lessons) --}}
+            @if(stripos($lesson->title, 'web') !== false || stripos($lesson->title, 'html') !== false || stripos($lesson->title, 'css') !== false || stripos($lesson->title, 'javascript') !== false)
+                @php
+                    $htmlCode = $lesson->html_example ?? '<h1>Hello World!</h1>\n<p>Welcome to web development!</p>\n<button onclick="alert(\'Hello!\')">Click Me</button>';
+                    $cssCode = $lesson->css_example ?? 'body {\n  font-family: Arial, sans-serif;\n  padding: 20px;\n  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n  color: white;\n}\n\nh1 {\n  text-align: center;\n  font-size: 3em;\n}\n\nbutton {\n  background: white;\n  color: #667eea;\n  padding: 10px 20px;\n  border: none;\n  border-radius: 5px;\n  cursor: pointer;\n  font-size: 1.2em;\n}';
+                    $jsCode = $lesson->js_example ?? '// JavaScript code\nconsole.log("Page loaded!");\n\n// Add interactivity\ndocument.addEventListener("DOMContentLoaded", function() {\n  console.log("Ready to code!");\n});';
+                @endphp
+                <x-web-editor 
+                    :html="$htmlCode"
+                    :css="$cssCode"
+                    :javascript="$jsCode"
+                    title="Web Development Playground"
+                />
+            @endif
+
+            {{-- JavaScript Code Editor (for standalone JS lessons) --}}
+            @if(stripos($lesson->title, 'javascript') !== false && stripos($lesson->title, 'web') === false && stripos($lesson->title, 'html') === false)
+                @php
+                    $jsCode = $lesson->code_example ?? "// JavaScript Code Editor\nconsole.log('Hello, JavaScript!');\n\n// Try your own code:\nconst numbers = [1, 2, 3, 4, 5];\nconst sum = numbers.reduce((a, b) => a + b, 0);\nconsole.log('Sum:', sum);";
+                @endphp
+                <x-code-editor 
+                    language="javascript"
+                    :code="$jsCode"
+                    title="JavaScript Practice"
+                />
+            @endif
+
+            {{-- Learning Objectives --}}
+            @if($lesson->objectives)
+                <div class="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl shadow-lg border-2 border-blue-200 dark:border-blue-800 p-6">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+                        </svg>
+                        What You'll Learn
+                    </h2>
+                    <div class="prose dark:prose-invert max-w-none">
+                        {!! nl2br(e($lesson->objectives)) !!}
+                    </div>
+                </div>
+            @endif
+            
+            {{-- Visual Interactive Components for All Lesson Types --}}
+            @if($lesson->lesson_type === 'interactive')
+                <div class="space-y-6">
+                    {{-- Placeholder for future interactive components --}}
+                    @if(!$lesson->scratch_project_id && empty($lesson->lesson_steps))
+                        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl border-2 border-blue-200 dark:border-blue-800 p-6 text-center">
+                            <p class="text-gray-600 dark:text-gray-400">
+                                This is an interactive lesson. Add Scratch projects or interactive steps in the curriculum builder to enhance the learning experience!
+                            </p>
+                        </div>
+                    @endif
+                    
+                    {{-- Step-by-Step Instructions (for all interactive lessons) --}}
+                    @if($lesson->lesson_steps ?? false)
+                        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+                            <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6">
+                                <svg class="w-6 h-6 inline-block mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                                </svg>
+                                Step-by-Step Instructions
+                            </h2>
+                            <div class="space-y-4">
+                                @foreach($lesson->lesson_steps as $index => $step)
+                                    <x-lesson-step 
+                                        :number="$index + 1"
+                                        :title="$step['title'] ?? 'Step ' . ($index + 1)"
+                                        :description="$step['description'] ?? ''"
+                                        :image="$step['image'] ?? null"
+                                        :code="$step['code'] ?? null"
+                                    />
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                    
+                    {{-- Code Blocks/Syntax Examples (for Scratch, Python, Web Dev, etc.) --}}
+                    @if($lesson->scratch_blocks ?? false)
+                        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+                            <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6">
+                                <svg class="w-6 h-6 inline-block mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                                </svg>
+                                Code Examples
+                            </h2>
+                            <div class="space-y-3">
+                                @foreach($lesson->scratch_blocks as $block)
+                                    <x-scratch-block 
+                                        :category="$block['category'] ?? 'motion'"
+                                        :text="$block['text'] ?? ''"
+                                    />
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
                 </div>
             @endif
 
@@ -675,3 +979,170 @@
     </div>
 @endif
 
+
+<style>
+    /* Additional styling for Summernote-generated content */
+    .lesson-content-display {
+        line-height: 1.75;
+    }
+    
+    /* Ensure all text colors work in both light and dark mode */
+    .lesson-content-display * {
+        color: inherit;
+    }
+    
+    /* Handle font colors from Summernote */
+    .lesson-content-display [style*="color"] {
+        /* Preserve inline color styles from Summernote */
+    }
+    
+    /* Handle background colors from Summernote */
+    .lesson-content-display [style*="background-color"] {
+        /* Preserve inline background colors from Summernote */
+    }
+    
+    /* Ensure images are responsive */
+    .lesson-content-display img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    
+    /* Handle embedded videos */
+    .lesson-content-display iframe {
+        max-width: 100%;
+        border-radius: 0.5rem;
+        margin: 1.5rem auto;
+        display: block;
+    }
+    
+    /* Style tables nicely */
+    .lesson-content-display table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+    }
+    
+    .lesson-content-display table th,
+    .lesson-content-display table td {
+        padding: 0.75rem;
+        border: 1px solid #e5e7eb;
+    }
+    
+    .dark .lesson-content-display table th,
+    .dark .lesson-content-display table td {
+        border-color: #374151;
+    }
+    
+    .lesson-content-display table th {
+        background-color: #f3f4f6;
+        font-weight: 600;
+    }
+    
+    .dark .lesson-content-display table th {
+        background-color: #1f2937;
+    }
+    
+    /* Handle font sizes from Summernote */
+    .lesson-content-display [style*="font-size"] {
+        /* Preserve font sizes */
+    }
+    
+    /* Handle text alignment */
+    .lesson-content-display [style*="text-align: center"] {
+        text-align: center;
+    }
+    
+    .lesson-content-display [style*="text-align: right"] {
+        text-align: right;
+    }
+    
+    .lesson-content-display [style*="text-align: left"] {
+        text-align: left;
+    }
+    
+    .lesson-content-display [style*="text-align: justify"] {
+        text-align: justify;
+    }
+    
+    /* Handle line height */
+    .lesson-content-display [style*="line-height"] {
+        /* Preserve line height */
+    }
+    
+    /* Ensure code blocks are readable */
+    .lesson-content-display pre {
+        background-color: #1f2937;
+        color: #f3f4f6;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+        margin: 1.5rem 0;
+    }
+    
+    .lesson-content-display code {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 0.875rem;
+    }
+    
+    /* Handle blockquotes */
+    .lesson-content-display blockquote {
+        border-left: 4px solid #3b82f6;
+        padding-left: 1rem;
+        margin: 1.5rem 0;
+        font-style: italic;
+        color: #6b7280;
+    }
+    
+    .dark .lesson-content-display blockquote {
+        color: #9ca3af;
+    }
+    
+    /* Handle horizontal rules */
+    .lesson-content-display hr {
+        border: none;
+        border-top: 1px solid #e5e7eb;
+        margin: 2rem 0;
+    }
+    
+    .dark .lesson-content-display hr {
+        border-top-color: #374151;
+    }
+    
+    /* Ensure proper spacing for nested lists */
+    .lesson-content-display ul ul,
+    .lesson-content-display ol ol,
+    .lesson-content-display ul ol,
+    .lesson-content-display ol ul {
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Handle Summernote's default paragraph spacing */
+    .lesson-content-display p:empty {
+        min-height: 1.5rem;
+    }
+    
+    /* Ensure links are visible and clickable */
+    .lesson-content-display a {
+        color: #2563eb;
+        text-decoration: underline;
+        cursor: pointer;
+    }
+    
+    .dark .lesson-content-display a {
+        color: #60a5fa;
+    }
+    
+    .lesson-content-display a:hover {
+        color: #1d4ed8;
+    }
+    
+    .dark .lesson-content-display a:hover {
+        color: #93c5fd;
+    }
+</style>
+@endif
+</div>

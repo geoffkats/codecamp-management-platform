@@ -7,12 +7,19 @@
         "dev": "vite"
     },
     "dependencies": {
+        "@shopify/draggable": "^1.2.1",
         "@tailwindcss/vite": "^4.1.11",
+        "@tiptap/core": "^3.10.7",
+        "@tiptap/extension-code-block-lowlight": "^3.10.7",
+        "@tiptap/extension-image": "^3.10.7",
+        "@tiptap/extension-link": "^3.10.7",
+        "@tiptap/starter-kit": "^3.10.7",
         "autoprefixer": "^10.4.20",
         "axios": "^1.7.4",
         "chart.js": "^4.5.1",
         "concurrently": "^9.0.1",
         "laravel-vite-plugin": "^2.0",
+        "lowlight": "^3.3.0",
         "tailwindcss": "^4.0.7",
         "vite": "^7.0.4"
     },
@@ -20,5 +27,8 @@
         "@rollup/rollup-linux-x64-gnu": "4.9.5",
         "@tailwindcss/oxide-linux-x64-gnu": "^4.0.1",
         "lightningcss-linux-x64-gnu": "^1.29.1"
+    },
+    "devDependencies": {
+        "terser": "^5.44.1"
     }
 }

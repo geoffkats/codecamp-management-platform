@@ -21,16 +21,13 @@ class QuizAttempt extends Model
         'answers',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'score' => 'decimal:2',
-            'is_passed' => 'boolean',
-            'started_at' => 'datetime',
-            'completed_at' => 'datetime',
-            'answers' => 'array',
-        ];
-    }
+    protected $casts = [
+        'score' => 'decimal:2',
+        'is_passed' => 'boolean',
+        'started_at' => 'datetime',
+        'completed_at' => 'datetime',
+        'answers' => 'array',
+    ];
 
     public function user(): BelongsTo
     {

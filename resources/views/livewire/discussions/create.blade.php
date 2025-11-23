@@ -151,6 +151,87 @@
                         </div>
                     </div>
 
+                    {{-- Rich Content Options --}}
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-6 space-y-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Add Rich Content (Optional)
+                        </h3>
+
+                        {{-- Subject Tag --}}
+                        <div>
+                            <flux:label for="subjectTag" value="Subject Tag" />
+                            <flux:select id="subjectTag" wire:model="subjectTag">
+                                <option value="">No specific subject</option>
+                                <option value="scratch">🟦 Scratch</option>
+                                <option value="python">🐍 Python</option>
+                                <option value="web">🌐 Web Development</option>
+                                <option value="javascript">⚡ JavaScript</option>
+                            </flux:select>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Help others find your discussion by subject</p>
+                        </div>
+
+                        {{-- Scratch Project ID --}}
+                        <div>
+                            <flux:label for="scratchProjectId" value="Scratch Project ID" />
+                            <flux:input 
+                                id="scratchProjectId" 
+                                wire:model="scratchProjectId"
+                                placeholder="e.g., 987654321"
+                            />
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Get the ID from your Scratch project URL: scratch.mit.edu/projects/<strong>[ID]</strong>
+                            </p>
+                        </div>
+
+                        {{-- Code Snippet --}}
+                        <div class="space-y-3">
+                            <flux:label value="Add Code Snippet" />
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <flux:label for="codeLanguage" value="Language" />
+                                    <flux:select id="codeLanguage" wire:model="codeLanguage">
+                                        <option value="">Select Language</option>
+                                        <option value="python">Python</option>
+                                        <option value="javascript">JavaScript</option>
+                                        <option value="html">HTML</option>
+                                        <option value="css">CSS</option>
+                                        <option value="php">PHP</option>
+                                        <option value="sql">SQL</option>
+                                    </flux:select>
+                                </div>
+                                <div>
+                                    <flux:label for="codeTitle" value="Title (Optional)" />
+                                    <flux:input 
+                                        id="codeTitle" 
+                                        wire:model="codeTitle"
+                                        placeholder="e.g., My Loop Code"
+                                    />
+                                </div>
+                            </div>
+                            <flux:textarea 
+                                wire:model="codeContent"
+                                rows="8"
+                                placeholder="Paste your code here..."
+                                class="font-mono text-sm"
+                            />
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Share code to get help or show your work</p>
+                        </div>
+
+                        {{-- Image Upload --}}
+                        <div>
+                            <flux:label value="Upload Images" />
+                            <x-image-uploader 
+                                wireModel="images"
+                                :maxFiles="5"
+                                :maxSize="5120"
+                            />
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Upload up to 5 images (max 5MB each)</p>
+                        </div>
+                    </div>
+
                     {{-- Advanced Options --}}
                     <div class="border-t border-gray-200 dark:border-gray-700 pt-6 space-y-4">
                         <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -158,7 +239,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
-                            Advanced Options
+                            Discussion Settings
                         </h3>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

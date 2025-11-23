@@ -260,8 +260,12 @@
         </div>
 
         @if (session()->has('message'))
-            <div class="fixed bottom-4 right-4">
-                <flux:notification type="success" title="Success" description="{{ session('message') }}" />
+            <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)" 
+                 class="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                {{ session('message') }}
             </div>
         @endif
     </div>

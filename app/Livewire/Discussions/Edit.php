@@ -8,10 +8,13 @@ use App\Models\Lesson;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 #[Layout('components.layouts.app')]
 class Edit extends Component
 {
+    use WithFileUploads;
+
     public Discussion $discussion;
     public $title = '';
     public $content = '';
@@ -23,6 +26,15 @@ class Edit extends Component
     public $tags = [];
     public $tagInput = '';
     public $category = 'general';
+    
+    // Rich content fields
+    public $subjectTag = '';
+    public $scratchProjectId = '';
+    public $codeLanguage = '';
+    public $codeTitle = '';
+    public $codeContent = '';
+    public $newImages = [];
+    public $existingImages = [];
 
     public function mount(Discussion $discussion)
     {
@@ -40,6 +52,19 @@ class Edit extends Component
         $this->isPinned = $discussion->is_pinned;
         $this->isLocked = $discussion->is_locked;
         $this->status = $discussion->status;
+        
+        // Load rich content
+        $this->subjectTag = $discussion->subject_tag ?? '';
+        $this->scratchProjectId = $discussion->scratch_project_id ?? '';
+        $this->existingImages = $discussion->attachments ?? [];
+        
+        // Load first code snippet if exists
+        if (!empty($discussion->code_snippets) && is_array($discussion->code_snippets)) {
+            $firstSnippet = $discussion->code_snippets[0];
+            $this->codeLanguage = $firstSnippet['language'] ?? '';
+            $this->codeContent = $firstSnippet['code'] ?? '';
+            $this->codeTitle = $firstSnippet['title'] ?? '';
+        }
     }
 
     protected function rules(): array
@@ -54,6 +79,12 @@ class Edit extends Component
             'status' => ['required', 'string', 'in:active,closed,archived'],
             'tags' => ['array', 'max:5'],
             'category' => ['required', 'string', 'in:general,question,help,announcement,project,feedback'],
+            'subjectTag' => ['nullable', 'string', 'in:scratch,python,web,javascript'],
+            'scratchProjectId' => ['nullable', 'string', 'max:50'],
+            'codeLanguage' => ['nullable', 'string', 'in:python,javascript,html,css,php,sql'],
+            'codeTitle' => ['nullable', 'string', 'max:100'],
+            'codeContent' => ['nullable', 'string'],
+            'newImages' => ['nullable', 'array', 'max:5'],
         ];
 
         // Only staff can modify pin, lock, and status
@@ -86,6 +117,14 @@ class Edit extends Component
     {
         unset($this->tags[$index]);
         $this->tags = array_values($this->tags);
+    }
+
+    public function removeExistingImage($index)
+    {
+        if (isset($this->existingImages[$index])) {
+            unset($this->existingImages[$index]);
+            $this->existingImages = array_values($this->existingImages);
+        }
     }
 
     public function update()
@@ -121,12 +160,35 @@ class Edit extends Component
             return;
         }
 
+        // Prepare code snippets array
+        $codeSnippets = [];
+        if (!empty($this->codeContent) && !empty($this->codeLanguage)) {
+            $codeSnippets[] = [
+                'language' => $this->codeLanguage,
+                'code' => $this->codeContent,
+                'title' => $this->codeTitle ?? null,
+            ];
+        }
+
+        // Handle image uploads
+        $attachments = $this->existingImages;
+        if (!empty($this->newImages)) {
+            foreach ($this->newImages as $image) {
+                $path = $image->store('discussion-images', 'public');
+                $attachments[] = $path;
+            }
+        }
+
         // Update discussion
         $updateData = [
             'title' => $validated['title'],
             'content' => $validated['content'],
             'course_id' => $this->courseId,
             'lesson_id' => $this->lessonId,
+            'subject_tag' => $this->subjectTag ?: null,
+            'scratch_project_id' => $this->scratchProjectId ?: null,
+            'code_snippets' => !empty($codeSnippets) ? $codeSnippets : null,
+            'attachments' => !empty($attachments) ? $attachments : null,
         ];
 
         // Only staff can modify these fields

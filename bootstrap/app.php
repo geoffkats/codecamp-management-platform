@@ -12,7 +12,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Add performance optimization middleware
+        $middleware->append(\App\Http\Middleware\OptimizeResponse::class);
+        $middleware->append(\App\Http\Middleware\PerformanceHeaders::class);
+        
+        // Register middleware aliases
+        $middleware->alias([
+            'student.profile' => \App\Http\Middleware\EnsureUserHasStudentProfile::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

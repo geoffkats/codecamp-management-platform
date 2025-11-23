@@ -36,19 +36,18 @@ class Builder extends Component
 
     public function mount($course = null)
     {
-        // Check authorization - teachers can only manage their own courses, admins can manage all
+        // If course parameter is provided, load that course
         if ($course) {
             $courseModel = is_object($course) ? $course : Course::find($course);
             
             if ($courseModel) {
-                // Teachers can only edit their own courses
+                // Check authorization
                 if (Auth::user()->isTeacher() && $courseModel->instructor_id !== Auth::id()) {
                     abort(403, 'You can only edit your own courses.');
                 }
                 
-                // Admins can edit any course
-                if (!Auth::user()->isAdmin() && !Auth::user()->isTeacher()) {
-                    abort(403, 'Only teachers and admins can access the curriculum builder.');
+                if (!Auth::user()->isAdmin() && !Auth::user()->isTeacher() && !Auth::user()->isSupervisor()) {
+                    abort(403, 'Only teachers, supervisors and admins can access the curriculum builder.');
                 }
                 
                 $this->courseId = $courseModel->id;
@@ -59,16 +58,25 @@ class Builder extends Component
 
     public function loadCourse()
     {
-        if ($this->courseId) {
-            // Admins can load any course, teachers only their own
-            $query = Course::with(['modules.lessons.assessments'])
-                ->where('id', $this->courseId);
-                
-            if (!Auth::user()->isAdmin()) {
-                $query->where('instructor_id', Auth::id());
-            }
+        if (!$this->courseId) {
+            return;
+        }
+        
+        // Load course with modules, lessons, and assessments
+        $query = Course::with(['modules.lessons.assessments'])
+            ->where('id', $this->courseId);
             
-            $this->course = $query->firstOrFail();
+        // Teachers can only view their own courses
+        if (!Auth::user()->isAdmin() && !Auth::user()->isSupervisor()) {
+            $query->where('instructor_id', Auth::id());
+        }
+        
+        $this->course = $query->first();
+        
+        if (!$this->course) {
+            session()->flash('error', 'Course not found.');
+            return;
+        }
 
             $this->modules = $this->course->modules->map(function ($module) {
                 return [
@@ -93,7 +101,6 @@ class Builder extends Component
                     })->toArray(),
                 ];
             })->toArray();
-        }
     }
 
     public function selectItem($type, $id = null)
@@ -562,13 +569,15 @@ class Builder extends Component
 
     public function render()
     {
-        // Admins can see all courses, teachers only their own
-        if (Auth::user()->isAdmin()) {
-            $courses = Course::where('approval_status', '!=', 'deleted')
+        // Admins and Supervisors can see all courses, teachers only their own
+        if (Auth::user()->isAdmin() || Auth::user()->isSupervisor()) {
+            $courses = Course::with(['modules.lessons'])
+                ->where('approval_status', '!=', 'deleted')
                 ->orderBy('title')
                 ->get();
         } else {
-            $courses = Course::where('instructor_id', Auth::id())
+            $courses = Course::with(['modules.lessons'])
+                ->where('instructor_id', Auth::id())
                 ->where('approval_status', '!=', 'deleted')
                 ->orderBy('title')
                 ->get();

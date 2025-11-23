@@ -39,25 +39,15 @@ class View extends Component
 
     public function mount(Lesson $lesson)
     {
-        // Cache lesson data for 5 minutes to reduce database load
-        $cacheKey = "lesson.{$lesson->id}.user." . Auth::id();
-        
-        $this->lesson = Cache::remember($cacheKey, now()->addMinutes(5), function () use ($lesson) {
-            return $lesson->load([
-                'module.course.modules.lessons',
-                'module.course.instructor',
-                'quizzes.questions',
-                'assignments' => function($q) {
-                    $q->with(['submissions' => function($sq) {
-                        $sq->where('user_id', Auth::id());
-                    }]);
-                },
-                'assessments.questions.options',
-                'assessments.attempts' => function($aq) {
-                    $aq->where('user_id', Auth::id())->orderBy('completed_at', 'desc');
-                },
-            ]);
-        });
+        // Optimize: Load only necessary relationships with select to reduce payload
+        $this->lesson = $lesson->load([
+            'module:id,course_id,title,order_index',
+            'module.course:id,title,instructor_id,enrollment_type',
+            'module.course.instructor:id,name',
+            'quizzes:id,lesson_id,title,time_limit',
+            'assignments:id,lesson_id,title,due_date',
+            'assessments:id,lesson_id,title,time_limit,passing_score',
+        ]);
 
         $this->course = $this->lesson->module->course;
 
@@ -68,6 +58,17 @@ class View extends Component
 
         if (!$this->enrollment) {
             abort(403, 'You must be enrolled in this course to view lessons.');
+        }
+        
+        // Check if lesson is locked for students (instructors and admins can always view)
+        $user = Auth::user();
+        $isInstructor = $this->course->instructor_id === $user->id || 
+                       $user->hasRole('admin') || 
+                       $user->hasRole('supervisor');
+        
+        if (!$isInstructor && $this->lesson->is_locked) {
+            // Lesson is locked for students - they can only see quizzes/assignments
+            return;
         }
 
         // Load video progress if it's a video lesson
@@ -130,19 +131,50 @@ class View extends Component
 
     private function findAdjacentLessons()
     {
-        $allLessons = collect($this->course->modules)
-            ->flatMap(fn($module) => $module->lessons->map(fn($l) => (object)['module' => $module, 'lesson' => $l]))
-            ->sortBy([['module.order_index', 'asc'], ['lesson.order_index', 'asc']])
-            ->values();
-
-        $currentIndex = $allLessons->search(fn($item) => $item->lesson->id === $this->lesson->id);
-
-        if ($currentIndex !== false) {
-            if ($currentIndex > 0) {
-                $this->previousLesson = $allLessons[$currentIndex - 1]->lesson;
+        // Optimize: Use database query instead of loading all lessons
+        $currentModule = $this->lesson->module;
+        
+        // Try to find previous lesson in same module
+        $this->previousLesson = Lesson::where('module_id', $currentModule->id)
+            ->where('order_index', '<', $this->lesson->order_index)
+            ->orderBy('order_index', 'desc')
+            ->select('id', 'title', 'module_id', 'order_index')
+            ->first();
+        
+        // If no previous in same module, check previous module
+        if (!$this->previousLesson) {
+            $previousModule = \App\Models\Module::where('course_id', $this->course->id)
+                ->where('order_index', '<', $currentModule->order_index)
+                ->orderBy('order_index', 'desc')
+                ->first();
+            
+            if ($previousModule) {
+                $this->previousLesson = Lesson::where('module_id', $previousModule->id)
+                    ->orderBy('order_index', 'desc')
+                    ->select('id', 'title', 'module_id', 'order_index')
+                    ->first();
             }
-            if ($currentIndex < $allLessons->count() - 1) {
-                $this->nextLesson = $allLessons[$currentIndex + 1]->lesson;
+        }
+        
+        // Try to find next lesson in same module
+        $this->nextLesson = Lesson::where('module_id', $currentModule->id)
+            ->where('order_index', '>', $this->lesson->order_index)
+            ->orderBy('order_index', 'asc')
+            ->select('id', 'title', 'module_id', 'order_index')
+            ->first();
+        
+        // If no next in same module, check next module
+        if (!$this->nextLesson) {
+            $nextModule = \App\Models\Module::where('course_id', $this->course->id)
+                ->where('order_index', '>', $currentModule->order_index)
+                ->orderBy('order_index', 'asc')
+                ->first();
+            
+            if ($nextModule) {
+                $this->nextLesson = Lesson::where('module_id', $nextModule->id)
+                    ->orderBy('order_index', 'asc')
+                    ->select('id', 'title', 'module_id', 'order_index')
+                    ->first();
             }
         }
     }
@@ -387,17 +419,18 @@ class View extends Component
 
     private function updateCourseProgress()
     {
-        // Optimize: Get all lesson IDs at once
-        $allLessonIds = collect($this->course->modules)
-            ->flatMap(fn($module) => $module->lessons)
-            ->pluck('id')
-            ->toArray();
+        // Optimize: Use database query instead of loading all lessons
+        $totalLessons = Lesson::whereHas('module', function($q) {
+            $q->where('course_id', $this->course->id);
+        })->count();
 
-        if (empty($allLessonIds)) {
+        if ($totalLessons === 0) {
             return;
         }
 
-        $totalLessons = count($allLessonIds);
+        $allLessonIds = Lesson::whereHas('module', function($q) {
+            $q->where('course_id', $this->course->id);
+        })->pluck('id')->toArray();
 
         // Single query for all completed lessons from student_lesson_progress
         $completedLessonIds1 = StudentLessonProgress::where('user_id', Auth::id())

@@ -2,8 +2,8 @@
 
 namespace App\Livewire\Quizzes;
 
-use App\Models\Quiz;
-use App\Models\QuizAttempt;
+use App\Models\Assessment;
+use App\Models\AssessmentAttempt;
 use App\Models\Question;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -12,7 +12,7 @@ use Livewire\Component;
 #[Layout('components.layouts.app')]
 class Take extends Component
 {
-    public Quiz $quiz;
+    public Assessment $assessment;
     public $currentQuestionIndex = 0;
     public $answers = [];
     public $startedAt;
@@ -22,17 +22,22 @@ class Take extends Component
     public $score = 0;
     public $isPassed = false;
 
-    public function mount(Quiz $quiz)
+    public function mount(Assessment $assessment)
     {
-        $this->quiz = $quiz->load(['questions.options', 'lesson.course']);
+        // Ensure this is a quiz type assessment
+        if ($assessment->assessment_type !== 'quiz') {
+            abort(404, 'Assessment not found.');
+        }
+
+        $this->assessment = $assessment->load(['questions', 'lesson.course', 'course']);
         
         // Check if user can take this quiz
         $this->checkAccess();
         
         // Check existing attempts
-        $existingAttempt = QuizAttempt::where('user_id', Auth::id())
-            ->where('quiz_id', $this->quiz->id)
-            ->latest('attempt_number')
+        $existingAttempt = AssessmentAttempt::where('user_id', Auth::id())
+            ->where('assessment_id', $this->assessment->id)
+            ->latest('created_at')
             ->first();
 
         if ($existingAttempt && !$existingAttempt->completed_at) {
@@ -42,11 +47,11 @@ class Take extends Component
             $this->startedAt = $existingAttempt->started_at;
         } else {
             // Check max attempts
-            $attemptCount = QuizAttempt::where('user_id', Auth::id())
-                ->where('quiz_id', $this->quiz->id)
+            $attemptCount = AssessmentAttempt::where('user_id', Auth::id())
+                ->where('assessment_id', $this->assessment->id)
                 ->count();
             
-            if ($this->quiz->max_attempts && $attemptCount >= $this->quiz->max_attempts) {
+            if ($this->assessment->max_attempts && $attemptCount >= $this->assessment->max_attempts) {
                 session()->flash('error', 'You have reached the maximum number of attempts for this quiz.');
                 return redirect()->route('quizzes.index');
             }
@@ -55,35 +60,50 @@ class Take extends Component
             $this->startNewAttempt($attemptCount + 1);
         }
 
-        if ($this->quiz->time_limit) {
-            $this->timeRemaining = $this->quiz->time_limit * 60; // Convert to seconds
+        if ($this->assessment->time_limit_minutes) {
+            $this->timeRemaining = $this->assessment->time_limit_minutes * 60; // Convert to seconds
         }
     }
 
     protected function checkAccess()
     {
-        // Check if student is enrolled
-        $isEnrolled = $this->quiz->lesson->course->enrollments()
-            ->where('user_id', Auth::id())
-            ->exists();
-
-        if (!$isEnrolled && !Auth::user()->hasRole('admin')) {
-            abort(403, 'You must be enrolled in this course to take the quiz.');
+        $user = Auth::user();
+        
+        // Check if quiz is locked
+        if ($this->assessment->is_locked && !$user->hasAnyRole(['admin', 'supervisor'])) {
+            abort(403, 'This quiz is currently locked.');
         }
 
-        if (!$this->quiz->is_published && !Auth::user()->hasAnyRole(['admin', 'teacher'])) {
-            abort(403, 'This quiz is not yet published.');
+        // Check if quiz is approved
+        if ($this->assessment->approval_status !== 'approved' && !$user->hasAnyRole(['admin', 'supervisor'])) {
+            abort(403, 'This quiz is not yet available.');
+        }
+
+        // Get the course
+        $course = $this->assessment->course ?? $this->assessment->lesson->course ?? null;
+        
+        if ($course && !$user->hasAnyRole(['admin', 'supervisor'])) {
+            // Check if student is enrolled OR course is open
+            $isEnrolled = $course->enrollments()
+                ->where('user_id', $user->id)
+                ->exists();
+            
+            $isOpen = $course->enrollment_type === 'open';
+
+            if (!$isEnrolled && !$isOpen) {
+                abort(403, 'You must be enrolled in this course to take the quiz.');
+            }
         }
     }
 
     protected function startNewAttempt($attemptNumber)
     {
-        $this->attempt = QuizAttempt::create([
+        $this->attempt = AssessmentAttempt::create([
             'user_id' => Auth::id(),
-            'quiz_id' => $this->quiz->id,
-            'attempt_number' => $attemptNumber,
+            'assessment_id' => $this->assessment->id,
             'started_at' => now(),
             'answers' => [],
+            'status' => 'in_progress',
         ]);
 
         $this->startedAt = $this->attempt->started_at;
@@ -114,6 +134,17 @@ class Take extends Component
         
         $this->answers[$questionId] = array_values($this->answers[$questionId]);
         
+        if ($this->attempt) {
+            $this->attempt->update(['answers' => $this->answers]);
+        }
+    }
+
+    /**
+     * Livewire hook called when the answers property is updated.
+     * Auto-save the answers to the QuizAttempt so selections persist.
+     */
+    public function updatedAnswers($value)
+    {
         if ($this->attempt) {
             $this->attempt->update(['answers' => $this->answers]);
         }
@@ -155,7 +186,7 @@ class Take extends Component
         }
 
         $this->score = $totalPoints > 0 ? round(($earnedPoints / $totalPoints) * 100, 2) : 0;
-        $this->isPassed = $this->score >= $this->quiz->passing_score;
+        $this->isPassed = $this->score >= $this->assessment->passing_score;
 
         $timeSpent = $this->startedAt ? now()->diffInMinutes($this->startedAt) : 0;
 
@@ -167,7 +198,7 @@ class Take extends Component
         ]);
 
         // Award XP if passed
-        if ($this->isPassed && $this->quiz->lesson->xp_reward) {
+        if ($this->isPassed && $this->assessment->lesson->xp_reward) {
             $user = Auth::user();
             if (!$user->points) {
                 \App\Models\UserPoint::create([
@@ -176,7 +207,7 @@ class Take extends Component
                     'level' => 1,
                 ]);
             }
-            $user->points->increment('total_points', $this->quiz->lesson->xp_reward);
+            $user->points->increment('total_points', $this->assessment->lesson->xp_reward);
         }
 
         // Check and award badges for perfect quiz scores
@@ -217,9 +248,14 @@ class Take extends Component
 
     protected function getQuestions()
     {
-        $questions = $this->quiz->questions;
+        $questions = $this->assessment->questions;
         
-        if ($this->quiz->is_randomized) {
+        // If no questions loaded, return empty collection
+        if (!$questions || $questions->isEmpty()) {
+            return collect([]);
+        }
+        
+        if ($this->assessment->is_randomized) {
             return $questions->shuffle();
         }
         
@@ -242,3 +278,4 @@ class Take extends Component
         ]);
     }
 }
+

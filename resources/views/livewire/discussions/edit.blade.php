@@ -160,6 +160,117 @@
                         </div>
                     </div>
 
+                    {{-- Rich Content Options --}}
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-6 space-y-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Rich Content
+                        </h3>
+
+                        {{-- Subject Tag --}}
+                        <div>
+                            <flux:label for="subjectTag" value="Subject Tag" />
+                            <flux:select id="subjectTag" wire:model="subjectTag">
+                                <option value="">No specific subject</option>
+                                <option value="scratch">🟦 Scratch</option>
+                                <option value="python">🐍 Python</option>
+                                <option value="web">🌐 Web Development</option>
+                                <option value="javascript">⚡ JavaScript</option>
+                            </flux:select>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Help others find your discussion by subject</p>
+                        </div>
+
+                        {{-- Scratch Project ID --}}
+                        <div>
+                            <flux:label for="scratchProjectId" value="Scratch Project ID" />
+                            <flux:input 
+                                id="scratchProjectId" 
+                                wire:model="scratchProjectId"
+                                placeholder="e.g., 987654321"
+                            />
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Get the ID from your Scratch project URL: scratch.mit.edu/projects/<strong>[ID]</strong>
+                            </p>
+                        </div>
+
+                        {{-- Code Snippet --}}
+                        <div class="space-y-3">
+                            <flux:label value="Code Snippet" />
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <flux:label for="codeLanguage" value="Language" />
+                                    <flux:select id="codeLanguage" wire:model="codeLanguage">
+                                        <option value="">Select Language</option>
+                                        <option value="python">Python</option>
+                                        <option value="javascript">JavaScript</option>
+                                        <option value="html">HTML</option>
+                                        <option value="css">CSS</option>
+                                        <option value="php">PHP</option>
+                                        <option value="sql">SQL</option>
+                                    </flux:select>
+                                </div>
+                                <div>
+                                    <flux:label for="codeTitle" value="Title (Optional)" />
+                                    <flux:input 
+                                        id="codeTitle" 
+                                        wire:model="codeTitle"
+                                        placeholder="e.g., My Loop Code"
+                                    />
+                                </div>
+                            </div>
+                            <flux:textarea 
+                                wire:model="codeContent"
+                                rows="8"
+                                placeholder="Paste your code here..."
+                                class="font-mono text-sm"
+                            />
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Share code to get help or show your work</p>
+                        </div>
+
+                        {{-- Existing Attachments --}}
+                        @if(!empty($discussion->attachments) && is_array($discussion->attachments))
+                            <div>
+                                <flux:label value="Current Images" />
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
+                                    @foreach($discussion->attachments as $index => $image)
+                                        @php
+                                            $imagePath = is_string($image) ? $image : (is_array($image) && isset($image['path']) ? $image['path'] : null);
+                                            $imageUrl = $imagePath ? (str_starts_with($imagePath, 'http') ? $imagePath : asset('storage/' . $imagePath)) : null;
+                                        @endphp
+                                        @if($imageUrl)
+                                            <div class="relative group">
+                                                <img src="{{ $imageUrl }}" alt="Attachment" class="w-full h-24 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700">
+                                                <button 
+                                                    type="button"
+                                                    wire:click="removeExistingImage({{ $index }})"
+                                                    class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    title="Remove image"
+                                                >
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        @endif
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+
+                        {{-- Image Upload --}}
+                        <div>
+                            <flux:label value="Add New Images" />
+                            <x-image-uploader 
+                                wireModel="newImages"
+                                :maxFiles="5"
+                                :maxSize="5120"
+                            />
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Upload up to 5 new images (max 5MB each)</p>
+                        </div>
+                    </div>
+
                     {{-- Staff-only Advanced Options --}}
                     @if($isStaff)
                         <div class="border-t border-gray-200 dark:border-gray-700 pt-6 space-y-4">

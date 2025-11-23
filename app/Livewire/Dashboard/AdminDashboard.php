@@ -176,7 +176,7 @@ class AdminDashboard extends Component
                     'name' => $point->user->name ?? 'Unknown',
                     'points' => number_format($point->total_points),
                     'level' => $point->level,
-                    'badges_count' => $point->user->badges()->count() ?? 0,
+                    'badges_count' => $point->user ? $point->user->badges()->count() : 0,
                 ];
             })
             ->toArray();

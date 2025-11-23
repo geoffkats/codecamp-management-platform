@@ -1,6 +1,7 @@
 <div class="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
-    <div class="flex flex-col gap-6 p-6">
-        {{-- Header --}}
+    <div class="flex flex-col gap-6 {{ request()->get('embedded') ? 'p-4' : 'p-6' }}">
+        {{-- Header (hidden in embedded mode) --}}
+        @if(!request()->get('embedded'))
         <div class="flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
             <div>
                 <div class="flex items-center gap-3 mb-2">
@@ -19,6 +20,7 @@
                 </flux:button>
             </div>
         </div>
+        @endif
 
         @if(session()->has('message'))
             <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center gap-3">
@@ -252,12 +254,21 @@
                                                     <h3 class="font-bold text-lg text-gray-900 dark:text-white">
                                                         {{ $attempt->user->name }}
                                                     </h3>
-                                                    <span class="px-3 py-1 rounded-full text-xs font-medium {{ $attempt->is_passed ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' }}">
-                                                        {{ $attempt->is_passed ? 'Passed' : 'Failed' }}
-                                                    </span>
-                                                    <span class="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                                                        Score: {{ number_format($attempt->score ?? 0, 1) }}%
-                                                    </span>
+                                                    @if($assessment->assessment_type === 'assignment' && $attempt->score === null)
+                                                        <span class="px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                                            Awaiting Grade
+                                                        </span>
+                                                        <span class="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                                            Score: Not Graded
+                                                        </span>
+                                                    @else
+                                                        <span class="px-3 py-1 rounded-full text-xs font-medium {{ $attempt->is_passed ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' }}">
+                                                            {{ $attempt->is_passed ? 'Passed' : 'Failed' }}
+                                                        </span>
+                                                        <span class="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                                            Score: {{ number_format($attempt->score ?? 0, 1) }}%
+                                                        </span>
+                                                    @endif
                                                 </div>
                                                 <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
                                                     <span>Completed: {{ $attempt->completed_at ? $attempt->completed_at->format('M d, Y H:i') : 'N/A' }}</span>
@@ -269,8 +280,12 @@
                                                     View Details
                                                 </flux:button>
                                                 @if($assessment->assessment_type === 'assignment' && $attempt->score === null)
-                                                    <flux:button wire:click="startGrading({{ $attempt->id }})" variant="success" class="text-sm">
+                                                    <flux:button wire:click="startGrading({{ $attempt->id }})" variant="primary" class="text-sm">
                                                         Grade
+                                                    </flux:button>
+                                                @elseif($assessment->assessment_type === 'assignment' && $attempt->score !== null)
+                                                    <flux:button wire:click="startGrading({{ $attempt->id }})" variant="outline" class="text-sm">
+                                                        Edit Grade
                                                     </flux:button>
                                                 @endif
                                             </div>
@@ -817,11 +832,15 @@
                                     Submission by {{ $selectedAttempt->user->name }}
                                 </h3>
                                 <p class="text-white/80 text-sm mt-1">
-                                    Score: {{ number_format($selectedAttempt->score ?? 0, 1) }}% 
-                                    @if($selectedAttempt->is_passed ?? false)
-                                        • Passed ✓
+                                    @if($assessment->assessment_type === 'assignment' && $selectedAttempt->score === null)
+                                        Score: Not Graded • Awaiting Grade
                                     @else
-                                        • Failed
+                                        Score: {{ number_format($selectedAttempt->score ?? 0, 1) }}% 
+                                        @if($selectedAttempt->is_passed ?? false)
+                                            • Passed ✓
+                                        @else
+                                            • Failed
+                                        @endif
                                     @endif
                                 </p>
                             </div>
@@ -838,7 +857,11 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                             <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
                                 <p class="text-sm text-gray-600 dark:text-gray-400">Score</p>
-                                <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ number_format($selectedAttempt->score ?? 0, 1) }}%</p>
+                                @if($assessment->assessment_type === 'assignment' && $selectedAttempt->score === null)
+                                    <p class="text-lg font-bold text-gray-900 dark:text-white">Not Graded</p>
+                                @else
+                                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ number_format($selectedAttempt->score ?? 0, 1) }}%</p>
+                                @endif
                             </div>
                             <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
                                 <p class="text-sm text-gray-600 dark:text-gray-400">Time Spent</p>
@@ -958,6 +981,11 @@
                                                 class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
                                             Start Grading
                                         </button>
+                                    @elseif(!$gradingAttempt && $selectedAttempt->score !== null)
+                                        <button wire:click="startGrading({{ $selectedAttempt->id }})" 
+                                                class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-colors">
+                                            Edit Grade
+                                        </button>
                                     @endif
                                 </div>
 
@@ -1042,7 +1070,7 @@
                                                         </label>
                                                         <div class="px-4 py-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
                                                             <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                                                                {{ $attemptMaxScore > 0 ? number_format(($attemptScore / $attemptMaxScore) * 100, 1) : 0 }}%
+                                                                {{ $attemptMaxScore > 0 ? number_format(((float)$attemptScore / (float)$attemptMaxScore) * 100, 1) : 0 }}%
                                                             </p>
                                                         </div>
                                                     </div>

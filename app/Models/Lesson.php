@@ -24,6 +24,9 @@ class Lesson extends Model
         'duration_minutes',
         'video_url',
         'video_duration',
+        'scratch_project_id',
+        'lesson_steps',
+        'scratch_blocks',
         'question_of_day',
         'objectives',
         'implementation_guidance',
@@ -53,6 +56,8 @@ class Lesson extends Model
             'is_locked' => 'boolean',
             'is_active' => 'boolean',
             'attachments' => 'array',
+            'lesson_steps' => 'array',
+            'scratch_blocks' => 'array',
             'submitted_for_approval_at' => 'datetime',
             'approved_at' => 'datetime',
         ];

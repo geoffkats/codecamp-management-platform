@@ -8,17 +8,25 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
+// Visual Components Test Page
+Route::get('/test-visual-components', function () {
+    return view('test-visual-components');
+})->name('test-visual-components');
+
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
 Route::middleware(['auth'])->group(function () {
+    // Image upload API for TipTap editor
+    Route::post('/api/upload-image', [App\Http\Controllers\Api\ImageUploadController::class, 'upload'])
+        ->name('api.upload-image');
+
     Route::redirect('settings', 'settings/profile');
 
     Volt::route('settings/profile', 'settings.profile')->name('profile.edit');
     Volt::route('settings/password', 'settings.password')->name('user-password.edit');
     Volt::route('settings/appearance', 'settings.appearance')->name('appearance.edit');
-
     Volt::route('settings/two-factor', 'settings.two-factor')
         ->middleware(
             when(
@@ -31,7 +39,7 @@ Route::middleware(['auth'])->group(function () {
         ->name('two-factor.show');
 
     // Courses Routes
-    Route::prefix('courses')->name('courses.')->group(function () {
+    Route::prefix('courses')->name('courses.')->middleware('student.profile')->group(function () {
         Route::get('/', \App\Livewire\Courses\Index::class)->name('index');
         Route::get('/create', \App\Livewire\Courses\Create::class)->name('create');
         Route::get('/{course}/learn', \App\Livewire\Courses\Learn::class)->name('learn');
@@ -66,14 +74,14 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/{assessment}/take', \App\Livewire\Assessments\Take::class)->name('take');
     });
 
-    // Quizzes Routes
-    Route::prefix('quizzes')->name('quizzes.')->group(function () {
-        Route::get('/', \App\Livewire\Quizzes\Index::class)->name('index');
-        Route::get('/create', \App\Livewire\Quizzes\Create::class)->name('create');
-        Route::get('/{quiz}', \App\Livewire\Quizzes\Show::class)->name('show');
-        Route::get('/{quiz}/edit', \App\Livewire\Quizzes\Edit::class)->name('edit');
-        Route::get('/{quiz}/take', \App\Livewire\Quizzes\Take::class)->name('take');
-    });
+    // Quizzes Routes - DISABLED (Using Assessments instead)
+    // Route::prefix('quizzes')->name('quizzes.')->group(function () {
+    //     Route::get('/', \App\Livewire\Quizzes\Index::class)->name('index');
+    //     Route::get('/create', \App\Livewire\Quizzes\Create::class)->name('create');
+    //     Route::get('/{assessment}', \App\Livewire\Quizzes\Show::class)->name('show');
+    //     Route::get('/{assessment}/edit', \App\Livewire\Quizzes\Edit::class)->name('edit');
+    //     Route::get('/{assessment}/take', \App\Livewire\Quizzes\Take::class)->name('take');
+    // });
 
     // Questions Routes
     Route::prefix('questions')->name('questions.')->group(function () {
@@ -164,7 +172,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Curriculum Builder Routes - Teacher/Admin only
     Route::middleware(['can:edit_courses'])->prefix('curriculum')->name('curriculum.')->group(function () {
-        Route::get('/builder/{course?}', \App\Livewire\Curriculum\Builder::class)->name('builder');
+        Route::get('/builder/{course?}', \App\Livewire\Curriculum\NewBuilder::class)->name('builder');
     });
 
     // Progress Routes
@@ -203,17 +211,46 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/{attempt}', \App\Livewire\Attempts\Show::class)->name('show');
     });
 
-    // Admin Routes
+    // Admin Routes - User Management
     Route::middleware(['can:manage_users'])->prefix('admin')->name('admin.')->group(function () {
-        // Users Management Routes
         Route::prefix('users')->name('users.')->group(function () {
             Route::get('/', \App\Livewire\Users\Index::class)->name('index');
             Route::get('/create', \App\Livewire\Users\Create::class)->name('create');
             Route::get('/{user}', \App\Livewire\Users\Show::class)->name('show');
             Route::get('/{user}/edit', \App\Livewire\Users\Edit::class)->name('edit');
         });
+    });
 
-        // Global Enrollment Management
+    // Admin Routes - Enrollment Management (Admin/Supervisor)
+    Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/enrollments', \App\Livewire\Admin\EnrollmentManagement::class)->name('enrollments');
+        Route::get('/settings', \App\Livewire\Admin\SystemSettings::class)->name('settings');
+        Route::get('/feedback', \App\Livewire\Admin\ManageTeacherFeedback::class)->name('feedback');
+    });
+
+    // Student Feedback Routes
+    Route::middleware(['student.profile'])->prefix('feedback')->name('feedback.')->group(function () {
+        Route::get('/teacher', \App\Livewire\Feedback\SubmitTeacherFeedback::class)->name('teacher');
+    });
+
+    // Student Management Routes - Teachers/Admin/Operations
+    Route::prefix('students')->name('students.')->group(function () {
+        Route::get('/', \App\Livewire\Students\ManageStudents::class)->name('index');
+        Route::get('/create', \App\Livewire\Students\StudentForm::class)->name('create');
+        Route::get('/{student}', \App\Livewire\Students\StudentProfile::class)->name('show');
+        Route::get('/{student}/edit', \App\Livewire\Students\StudentForm::class)->name('edit');
+        Route::get('/{student}/teacher-update', \App\Livewire\Students\TeacherStudentUpdate::class)->name('teacher-update');
+    });
+
+    // Attendance Routes - Operations Manager/Admin
+    Route::prefix('attendance')->name('attendance.')->group(function () {
+        Route::get('/students', \App\Livewire\Attendance\StudentAttendance::class)->name('student');
+        Route::get('/instructors', \App\Livewire\Attendance\InstructorAttendance::class)->name('instructor');
+        Route::get('/records', \App\Livewire\Attendance\AttendanceRecords::class)->name('records');
+        
+        // New daily code system routes
+        Route::get('/code', \App\Livewire\Attendance\TeacherCodeDisplay::class)->name('code');
+        Route::get('/check-in', \App\Livewire\Attendance\StudentCheckIn::class)->name('check-in');
+        Route::get('/dashboard', \App\Livewire\Attendance\AttendanceDashboard::class)->name('dashboard');
     });
 });
