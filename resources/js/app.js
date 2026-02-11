@@ -26,19 +26,45 @@ window.setupTipTapEditor = function (content) {
     return {
         content: content,
         loading: true,
+        error: null,
         
         async init(element, courseId) {
-            // Lazy load TipTap
-            const { initTipTapEditor, createToolbar } = await window.loadTipTap();
-            
-            // Initialize editor
-            editor = initTipTapEditor(element, this.content, (html) => {
-                // Update Alpine data (which syncs to Livewire via entangle)
-                this.content = html;
-            });
-            
-            if (editor) {
-                createToolbar(editor, element.parentElement);
+            try {
+                if (editor) {
+                    this.loading = false;
+                    return;
+                }
+
+                const resolveElement = () => element || (this.$refs ? this.$refs.editor : null);
+                let editorElement = resolveElement();
+
+                if (!editorElement || !editorElement.isConnected) {
+                    await new Promise((resolve) => requestAnimationFrame(resolve));
+                    editorElement = resolveElement();
+                }
+
+                if (!editorElement || !editorElement.isConnected) {
+                    this.error = 'Editor failed to initialize (missing element).';
+                    this.loading = false;
+                    return;
+                }
+
+                // Lazy load TipTap
+                const { initTipTapEditor, createToolbar } = await window.loadTipTap();
+                
+                // Initialize editor
+                editor = initTipTapEditor(editorElement, this.content, (html) => {
+                    // Update Alpine data (which syncs to Livewire via entangle)
+                    this.content = html;
+                });
+                
+                if (!editor) {
+                    this.error = 'Editor failed to initialize.';
+                    this.loading = false;
+                    return;
+                }
+
+                createToolbar(editor, editorElement.parentElement);
                 this.loading = false;
                 
                 // Watch for external content changes (from Livewire)
@@ -73,6 +99,11 @@ window.setupTipTapEditor = function (content) {
                 window.addEventListener('lesson-saved', () => {
                     localStorage.removeItem(`lesson_content_draft_${courseId}`);
                 });
+            } catch (error) {
+                console.error('TipTap load error:', error);
+                const message = error && error.message ? ` (${error.message})` : '';
+                this.error = `Editor failed to load${message}. Using plain text editor.`;
+                this.loading = false;
             }
         }
     };

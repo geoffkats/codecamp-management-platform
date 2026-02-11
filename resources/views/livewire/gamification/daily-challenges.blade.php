@@ -47,7 +47,10 @@
                                 @endif
                             </div>
                         </div>
-                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">{{ $challenge->description }}</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">{{ $challenge->description }}</p>
+                        @if($challenge->course)
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Course: {{ $challenge->course->title }}</p>
+                        @endif
                         
                         <div class="flex items-center gap-2 mb-4 flex-wrap">
                             <span class="px-2 py-1 text-xs font-medium rounded-full {{ $challenge->difficulty_level === 'easy' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300' : ($challenge->difficulty_level === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300' : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300') }}">

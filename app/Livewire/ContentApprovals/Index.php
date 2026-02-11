@@ -124,6 +124,17 @@ class Index extends Component
         }
     }
 
+    public function approveAll()
+    {
+        $pending = ContentApproval::where('status', 'pending')->get();
+        
+        foreach ($pending as $approval) {
+            $this->approveContent($approval->id);
+        }
+        
+        session()->flash('message', "Approved {$pending->count()} pending items.");
+    }
+
     public function render()
     {
         $query = ContentApproval::with(['submitter', 'approvable']);

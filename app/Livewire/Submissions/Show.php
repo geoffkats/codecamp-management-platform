@@ -36,9 +36,22 @@ class Show extends Component
             if ($this->submission->user_id !== $user->id) {
                 abort(403, 'You can only view your own submissions.');
             }
-        } elseif ($user->hasRole('teacher')) {
+        } elseif ($user->isIctTeacher()) {
+            if ($type === 'assessment') {
+                $schoolId = $user->ictSchoolId();
+                if (!$schoolId || $this->submission->student_type !== 'ict' || (int) $this->submission->school_id !== (int) $schoolId) {
+                    abort(403, 'You can only view submissions from your school.');
+                }
+            } else {
+                abort(403, 'You can only view submissions from your school.');
+            }
+        } elseif ($user->isTeacher()) {
             // Teachers can only view submissions from their courses
             if ($type === 'assessment') {
+                if ($this->submission->student_type !== 'codecamp') {
+                    abort(403, 'You can only view submissions from your own courses.');
+                }
+
                 $course = $this->submission->assessment->course ?? null;
                 if (!$course || $course->instructor_id !== $user->id) {
                     abort(403, 'You can only view submissions from your own courses.');

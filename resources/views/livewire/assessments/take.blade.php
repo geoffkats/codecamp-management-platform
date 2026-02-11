@@ -39,44 +39,6 @@
                     </div>
                 @endif
 
-                <div class="flex items-center justify-center gap-3 mt-6">
-                    <flux:button href="{{ route('assessments.show', $assessment) }}" wire:navigate variant="primary">
-                        View Assignment Details
-                    </flux:button>
-                </div>
-            @else
-                {{-- Standard Assessment Results --}}
-                <div class="text-center mb-6">
-                    <div class="w-24 h-24 mx-auto mb-4 rounded-full flex items-center justify-center {{ $passed ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30' }}">
-                        @if($passed)
-                            <svg class="w-12 h-12 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                            </svg>
-                        @else
-                            <svg class="w-12 h-12 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        @endif
-                    </div>
-                    <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                        {{ $passed ? 'Congratulations!' : 'Assessment Completed' }}
-                    </h1>
-                    <p class="text-xl font-semibold {{ $passed ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                        Score: {{ number_format($percentage, 1) }}%
-                    </p>
-                    <p class="text-gray-600 dark:text-gray-400 mt-2">
-                        Passing Score: {{ $assessment->passing_score }}%
-                    </p>
-                </div>
-
-                @if($passed)
-                    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
-                        <p class="text-green-800 dark:text-green-200 font-semibold">
-                            You earned {{ $assessment->xp_reward }} XP for passing this assessment!
-                        </p>
-                    </div>
-                @endif
-
                 @if($assessment->show_correct_answers && $assessment->allow_review)
                     {{-- Detailed Answer Review --}}
                     <div class="mb-6 border-t border-gray-200 dark:border-gray-700 pt-6">
@@ -92,18 +54,24 @@
                                     
                                     if (in_array($question->question_type, ['multiple_choice', 'multiple_select', 'choice', 'true_false'])) {
                                         $correctOptions = $question->options->where('is_correct', true)->pluck('id')->toArray();
+                                        
+                                        // Ensure correct options are converted to proper type
+                                        $correctOptions = array_map(function($opt) {
+                                            return is_numeric($opt) ? (int)$opt : $opt;
+                                        }, $correctOptions);
+                                        sort($correctOptions);
+                                        
                                         if (is_array($userAnswer)) {
-                                            // Convert to integers for comparison
-                                            $userAnswer = array_map('intval', array_filter($userAnswer));
-                                            $correctOptions = array_map('intval', $correctOptions);
+                                            // Convert array answers to proper type
+                                            $userAnswer = array_map(function($val) {
+                                                return is_numeric($val) ? (int)$val : $val;
+                                            }, array_filter($userAnswer));
                                             sort($userAnswer);
-                                            sort($correctOptions);
                                             $isCorrect = $userAnswer === $correctOptions;
                                         } else {
-                                            // Convert to integer for comparison
-                                            $userAnswerInt = intval($userAnswer);
-                                            $correctOptions = array_map('intval', $correctOptions);
-                                            $isCorrect = in_array($userAnswerInt, $correctOptions);
+                                            // Convert to proper type for comparison
+                                            $userAnswerInt = is_numeric($userAnswer) ? (int)$userAnswer : $userAnswer;
+                                            $isCorrect = in_array($userAnswerInt, $correctOptions, true);
                                         }
                                     }
                                 @endphp
@@ -243,13 +211,19 @@
             @if($assessment->assessment_type !== 'assignment')
                 {{-- Progress Bar --}}
                 <div class="mt-4">
+                    @php
+                        $safeTotalQuestions = max($totalQuestions, 1);
+                        $progressPercent = $totalQuestions > 0
+                            ? round((($currentQuestionIndex + 1) / $safeTotalQuestions) * 100)
+                            : 0;
+                    @endphp
                     <div class="flex items-center justify-between text-sm mb-2">
                         <span>Question {{ $currentQuestionIndex + 1 }} of {{ $totalQuestions }}</span>
-                        <span>{{ round((($currentQuestionIndex + 1) / $totalQuestions) * 100) }}%</span>
+                        <span>{{ $progressPercent }}%</span>
                     </div>
                     <div class="w-full bg-white/20 rounded-full h-2">
                         <div class="h-2 bg-white rounded-full transition-all duration-300" 
-                             style="width: {{ (($currentQuestionIndex + 1) / $totalQuestions) * 100 }}%"></div>
+                             style="width: {{ $progressPercent }}%"></div>
                     </div>
                 </div>
             @endif
@@ -515,13 +489,13 @@
                     @endphp
                     <div class="space-y-3">
                         @foreach($currentQuestion->options as $option)
-                            <label class="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors
+                            <label wire:key="option-{{ $currentQuestion->id }}-{{ $option->id }}" class="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors
                                 {{ ($isMultiple ? in_array($option->id, (array)$userAnswer) : ($userAnswer == $option->id))
                                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
                                     : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600' }}">
                                 <input 
                                     type="{{ $currentQuestion->question_type === 'multiple_choice' || $currentQuestion->question_type === 'choice' ? 'radio' : 'checkbox' }}"
-                                    wire:model="answers.{{ $currentQuestion->id }}"
+                                    wire:model.live="answers.{{ $currentQuestion->id }}"
                                     value="{{ $option->id }}"
                                     class="mt-1 w-5 h-5 text-blue-600 focus:ring-blue-500" />
                                 <div class="flex-1">
@@ -545,19 +519,30 @@
                 @elseif($currentQuestion->question_type === 'true_false')
                     {{-- True/False --}}
                     @php
-                        $trueOption = $currentQuestion->options->where('option_text', 'True')->first();
-                        $falseOption = $currentQuestion->options->where('option_text', 'False')->first();
+                        // Robustly detect true/false options even if text casing/spacing differs
+                        $normalize = fn($text) => strtolower(trim($text ?? ''));
+                        $trueOption = $currentQuestion->options->first(fn($opt) => in_array($normalize($opt->option_text), ['true', 't', 'yes', '1'], true));
+                        $falseOption = $currentQuestion->options->first(fn($opt) => in_array($normalize($opt->option_text), ['false', 'f', 'no', '0'], true));
+
+                        // Fallback: if not found by text, use first two options by order
+                        if (!$trueOption && $currentQuestion->options->count() > 0) {
+                            $trueOption = $currentQuestion->options->first();
+                        }
+                        if (!$falseOption && $currentQuestion->options->count() > 1) {
+                            $falseOption = $currentQuestion->options->skip(1)->first();
+                        }
+
                         $userAnswer = $answers[$currentQuestion->id] ?? null;
                     @endphp
                     <div class="space-y-3">
                         @if($trueOption)
-                            <label class="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors
+                            <label wire:key="true-option-{{ $currentQuestion->id }}" class="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors
                                 {{ $userAnswer == $trueOption->id
                                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
                                     : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600' }}">
                                 <input 
                                     type="radio"
-                                    wire:model="answers.{{ $currentQuestion->id }}"
+                                    wire:model.live="answers.{{ $currentQuestion->id }}"
                                     value="{{ $trueOption->id }}"
                                     class="mt-1 w-5 h-5 text-blue-600 focus:ring-blue-500" />
                                 <div class="flex-1">
@@ -571,13 +556,13 @@
                             </label>
                         @endif
                         @if($falseOption)
-                            <label class="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors
+                            <label wire:key="false-option-{{ $currentQuestion->id }}" class="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors
                                 {{ $userAnswer == $falseOption->id
                                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
                                     : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600' }}">
                                 <input 
                                     type="radio"
-                                    wire:model="answers.{{ $currentQuestion->id }}"
+                                    wire:model.live="answers.{{ $currentQuestion->id }}"
                                     value="{{ $falseOption->id }}"
                                     class="mt-1 w-5 h-5 text-blue-600 focus:ring-blue-500" />
                                 <div class="flex-1">
@@ -936,6 +921,23 @@
                 </p>
             </div>
         @endif
+        
+        {{-- Validation Errors --}}
+        @if($errors->any())
+            <div class="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p class="text-red-800 dark:text-red-200 font-semibold mb-2">
+                    <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Please fix the following errors:
+                </p>
+                <ul class="list-disc list-inside text-red-700 dark:text-red-300 space-y-1">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
 
         {{-- Navigation Buttons (only for non-assignment assessments) --}}
         <div class="flex items-center justify-between">
@@ -977,15 +979,26 @@
                         </flux:button>
                     @endif
                 @else
-                    <flux:button 
+                    <button 
                         wire:click="submitAssessment"
-                        variant="primary"
-                        class="bg-green-600 hover:bg-green-700">
-                        Submit Assessment
-                        <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                    </flux:button>
+                        type="button"
+                        wire:loading.attr="disabled"
+                        onclick="console.log('Submit clicked', @js($answers)); console.log('Questions:', @js($totalQuestions));"
+                        class="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2">
+                        <span wire:loading.remove wire:target="submitAssessment" class="flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Submit Assessment
+                        </span>
+                        <span wire:loading wire:target="submitAssessment" class="flex items-center gap-2">
+                            <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Submitting...
+                        </span>
+                    </button>
                 @endif
             </div>
         </div>

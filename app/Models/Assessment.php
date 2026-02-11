@@ -6,11 +6,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-
+use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Traits\Auditable;
 class Assessment extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes, Auditable;
 
     protected $fillable = [
         'course_id',
@@ -84,6 +86,11 @@ class Assessment extends Model
     public function questions(): HasMany
     {
         return $this->hasMany(Question::class);
+    }
+
+    public function approvals(): MorphMany
+    {
+        return $this->morphMany(ContentApproval::class, 'approvable');
     }
 }
 

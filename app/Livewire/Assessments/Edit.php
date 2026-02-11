@@ -80,7 +80,10 @@ class Edit extends Component
             abort(404);
         }
         
-        if (Auth::user()->isTeacher() && $assessment->course->instructor_id !== Auth::id()) {
+        $user = Auth::user();
+        $hasGlobalEdit = $user->hasPermission('edit_courses') || $user->isAdmin();
+
+        if ($user->isTeacher() && !$hasGlobalEdit && $assessment->course->instructor_id !== $user->id) {
             abort(403, 'You can only edit assessments for your own courses.');
         }
 
@@ -123,9 +126,12 @@ class Edit extends Component
             'shuffle_options' => $this->shuffle_options,
             'show_correct_answers' => $this->show_correct_answers,
             'allow_review' => $this->allow_review,
+            'approval_status' => 'approved',
+            'approved_at' => now(),
+            'approved_by' => Auth::id(),
         ]);
 
-        session()->flash('message', 'Assessment updated successfully!');
+        session()->flash('message', 'Assessment updated and approved successfully!');
     }
 
     public function openQuestionModal($questionId = null)
@@ -640,8 +646,17 @@ class Edit extends Component
         $attempt = AssessmentAttempt::with(['user', 'assessment.questions.options'])
             ->find($attemptId);
         
-        // Verify authorization - teacher can only view attempts from their courses
-        if ($attempt && Auth::user()->isTeacher()) {
+        // Verify authorization - teacher can only view attempts from their scope
+        if ($attempt && Auth::user()->isIctTeacher()) {
+            $schoolId = Auth::user()->ictSchoolId();
+            if (!$schoolId || $attempt->student_type !== 'ict' || (int) $attempt->school_id !== (int) $schoolId) {
+                abort(403, 'You can only view attempts from your school.');
+            }
+        } elseif ($attempt && Auth::user()->isTeacher()) {
+            if ($attempt->student_type !== 'codecamp') {
+                abort(403, 'You can only view attempts from your own courses.');
+            }
+
             if (!$attempt->assessment->course || $attempt->assessment->course->instructor_id !== Auth::id()) {
                 abort(403, 'You can only view attempts from your own courses.');
             }
@@ -700,6 +715,9 @@ class Edit extends Component
             'score' => round($percentage, 2),
             'is_passed' => $passed,
             'answers' => $answers,
+            'auto_scored' => false,
+            'is_locked' => true,
+            'teacher_id' => Auth::id(),
         ]);
 
         // Create Grade record
@@ -775,24 +793,13 @@ class Edit extends Component
         $questions = $this->assessment->questions()->orderBy('order')->get();
         $totalPoints = $questions->sum('points');
         
-        // Get all attempts for teachers/admins - filtered by course ownership
-        $attempts = null;
-        if (Auth::user()->isAdmin()) {
-            // Admins can see all attempts
-            $attempts = AssessmentAttempt::with('user')
-                ->where('assessment_id', $this->assessment->id)
-                ->where('status', 'completed')
-                ->orderBy('completed_at', 'desc')
-                ->paginate(10);
-        } elseif (Auth::user()->isTeacher()) {
-            // Teachers can only see attempts from their own courses
-            $attempts = AssessmentAttempt::with('user')
-                ->where('assessment_id', $this->assessment->id)
-                ->whereHas('assessment.course', fn($q) => $q->where('instructor_id', Auth::id()))
-                ->where('status', 'completed')
-                ->orderBy('completed_at', 'desc')
-                ->paginate(10);
-        }
+        // Get all attempts for teachers/admins - scoped by visibility
+        $attempts = AssessmentAttempt::with('user')
+            ->visibleTo(Auth::user())
+            ->where('assessment_id', $this->assessment->id)
+            ->where('status', 'completed')
+            ->orderBy('completed_at', 'desc')
+            ->paginate(10);
         
         return view('livewire.assessments.edit', [
             'questions' => $questions,

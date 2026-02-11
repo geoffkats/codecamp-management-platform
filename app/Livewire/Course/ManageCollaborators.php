@@ -103,7 +103,7 @@ class ManageCollaborators extends Component
     {
         // Get available users (teachers who aren't already collaborators)
         $availableUsers = User::whereHas('roles', function($q) {
-                $q->where('name', 'teacher');
+                $q->whereIn('name', ['teacher', 'ict_teacher']);
             })
             ->where('id', '!=', $this->course->instructor_id)
             ->whereNotIn('id', $this->course->collaborators->pluck('user_id'))

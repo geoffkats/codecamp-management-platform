@@ -92,6 +92,30 @@
                     </flux:field>
                 </div>
 
+                {{-- Project Platform (for pre/post project tests) --}}
+                @if(in_array($assessment_type, ['pre_project_test', 'post_project_test']))
+                    <div>
+                        <flux:field>
+                            <flux:label>Project Platform</flux:label>
+                            <flux:select wire:model="project_platform">
+                                <option value="">Select platform...</option>
+                                <option value="scratch">Scratch 3</option>
+                                <option value="other">Other/Custom Platform</option>
+                            </flux:select>
+                            <flux:error name="project_platform" />
+                            <flux:description>
+                                @if($project_platform === 'scratch')
+                                    Scratch 3 projects with coordinate-based movement and block programming
+                                @elseif($project_platform === 'other')
+                                    Custom or other programming platform
+                                @else
+                                    Choose the platform for this project test
+                                @endif
+                            </flux:description>
+                        </flux:field>
+                    </div>
+                @endif
+
                 {{-- Description --}}
                 <div>
                     <flux:field>

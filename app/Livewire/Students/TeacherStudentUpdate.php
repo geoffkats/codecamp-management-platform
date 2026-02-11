@@ -4,12 +4,15 @@ namespace App\Livewire\Students;
 
 use App\Models\StudentProfile;
 use App\Models\Course;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
 #[Layout('components.layouts.app')]
 class TeacherStudentUpdate extends Component
 {
+    use AuthorizesRequests;
+
     public $student;
     public $scratch_account = '';
     public $scratch_password = '';
@@ -29,11 +32,12 @@ class TeacherStudentUpdate extends Component
     {
         // Check authorization - only teachers, admins, and supervisors
         $user = auth()->user();
-        if (!$user->hasRole('teacher') && !$user->hasRole('admin') && !$user->hasRole('supervisor')) {
+        if (!$user->isTeacher() && !$user->hasRole('admin') && !$user->hasRole('supervisor')) {
             abort(403, 'Only teachers, admins, and supervisors can update student learning profiles.');
         }
 
         $this->student = StudentProfile::with(['user', 'user.enrollments', 'user.invitations'])->findOrFail($student);
+        $this->authorize('view', $this->student);
         
         $this->scratch_account = $this->student->scratch_account;
         $this->scratch_password = $this->student->scratch_password;
@@ -116,7 +120,20 @@ class TeacherStudentUpdate extends Component
 
     public function render()
     {
-        $courses = Course::orderBy('title')->get();
+        $courses = Course::query()
+            ->when(auth()->user()->isIctTeacher(), function ($query) {
+                $schoolId = auth()->user()->ictSchoolId();
+
+                if ($schoolId) {
+                    $query->whereHas('schools', function ($q) use ($schoolId) {
+                        $q->where('school_id', $schoolId)->where('is_active', true);
+                    });
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+            })
+            ->orderBy('title')
+            ->get();
         
         return view('livewire.students.teacher-student-update', [
             'courses' => $courses,

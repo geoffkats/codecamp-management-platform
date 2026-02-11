@@ -17,6 +17,17 @@ class Show extends Component
     public $showResetModal = false;
     public $newPassword = null;
 
+    // Points override modal
+    public $showPointsModal = false;
+    public $pointsForm = [
+        'total_points' => 0,
+        'level' => 1,
+        'points_to_next_level' => null,
+        'xp_multiplier' => null,
+        'multiplier_expires_at' => null,
+        'multiplier_reason' => null,
+    ];
+
     public function mount(User $user)
     {
         $this->user = $user->load(['roles', 'points', 'badges', 'courses', 'enrollments.course']);
@@ -66,10 +77,35 @@ class Show extends Component
         $this->newPassword = null;
     }
 
+    public function openPointsModal()
+    {
+        if (!Auth::user()->hasAnyRole(['admin'])) {
+            abort(403);
+        }
+
+        $points = $this->user->points;
+
+        $this->pointsForm = [
+            'total_points' => $points->total_points ?? 0,
+            'level' => $points->level ?? 1,
+            'points_to_next_level' => $points->points_to_next_level,
+            'xp_multiplier' => $points->xp_multiplier,
+            'multiplier_expires_at' => $points?->multiplier_expires_at?->format('Y-m-d\TH:i'),
+            'multiplier_reason' => $points->multiplier_reason,
+        ];
+
+        $this->showPointsModal = true;
+    }
+
     public function closeResetModal()
     {
         $this->showResetModal = false;
         $this->newPassword = null;
+    }
+
+    public function closePointsModal()
+    {
+        $this->showPointsModal = false;
     }
 
     public function confirmResetPassword()
@@ -91,5 +127,39 @@ class Show extends Component
         
         // Refresh user data
         $this->user->refresh();
+    }
+
+    public function updatePoints()
+    {
+        if (!Auth::user()->hasAnyRole(['admin'])) {
+            abort(403);
+        }
+
+        $data = $this->validate([
+            'pointsForm.total_points' => 'required|integer|min:0',
+            'pointsForm.level' => 'required|integer|min:1',
+            'pointsForm.points_to_next_level' => 'nullable|integer|min:0',
+            'pointsForm.xp_multiplier' => 'nullable|numeric|min:0',
+            'pointsForm.multiplier_expires_at' => 'nullable|date',
+            'pointsForm.multiplier_reason' => 'nullable|string|max:255',
+        ])['pointsForm'];
+
+        $points = $this->user->points()->firstOrNew([]);
+
+        $points->fill([
+            'total_points' => $data['total_points'],
+            'level' => $data['level'],
+            'points_to_next_level' => $data['points_to_next_level'],
+            'xp_multiplier' => $data['xp_multiplier'],
+            'multiplier_expires_at' => $data['multiplier_expires_at'],
+            'multiplier_reason' => $data['multiplier_reason'],
+        ]);
+
+        $points->save();
+
+        $this->user->setRelation('points', $points);
+        $this->showPointsModal = false;
+
+        session()->flash('success', 'XP and level updated.');
     }
 }

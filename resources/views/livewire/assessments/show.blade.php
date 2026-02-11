@@ -4,7 +4,7 @@
         <div class="flex items-start justify-between mb-4">
             <div class="flex-1">
                 <div class="flex items-center gap-3 mb-2">
-                    <a href="{{ route('courses.show', $assessment->course) }}" class="text-white/80 hover:text-white">
+                    <a href="{{ auth()->user()->isIctTeacher() ? route('modules.index') : route('courses.show', $assessment->course) }}" class="text-white/80 hover:text-white">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                         </svg>
@@ -233,23 +233,25 @@
     @endif
 
     {{-- Actions --}}
-    <div class="flex items-center justify-end gap-3">
-        @if(Auth::user()->hasAnyRole(['teacher', 'admin']))
-            <flux:button href="{{ route('assessments.edit', $assessment) }}" wire:navigate variant="ghost">
-                Edit Assessment
-            </flux:button>
-        @endif
-        
-        @if($attemptsRemaining === 'unlimited' || $attemptsRemaining > 0)
-            <flux:button href="{{ route('assessments.take', $assessment) }}" wire:navigate variant="primary">
-                @if($hasTaken)
-                    Take Again
-                @else
-                    Start Assessment
-                @endif
-            </flux:button>
-        @else
-            <flux:badge variant="danger" size="lg">No Attempts Remaining</flux:badge>
-        @endif
-    </div>
+    @unless(Auth::user()->isIctTeacher())
+        <div class="flex items-center justify-end gap-3">
+            @if(Auth::user()->hasAnyRole(['teacher', 'admin']))
+                <flux:button href="{{ route('assessments.edit', $assessment) }}" wire:navigate variant="ghost">
+                    Edit Assessment
+                </flux:button>
+            @endif
+            
+            @if($attemptsRemaining === 'unlimited' || $attemptsRemaining > 0)
+                <flux:button href="{{ route('assessments.take', $assessment) }}" wire:navigate variant="primary">
+                    @if($hasTaken)
+                        Take Again
+                    @else
+                        Start Assessment
+                    @endif
+                </flux:button>
+            @else
+                <flux:badge variant="danger" size="lg">No Attempts Remaining</flux:badge>
+            @endif
+        </div>
+    @endunless
 </div>

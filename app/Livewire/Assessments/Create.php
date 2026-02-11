@@ -12,6 +12,11 @@ use Livewire\Component;
 #[Layout('components.layouts.app')]
 class Create extends Component
 {
+    protected $queryString = [
+        'course_id',
+        'lesson_id',
+    ];
+
     public $course_id;
     public $lesson_id = null;
     public $title = '';
@@ -28,6 +33,9 @@ class Create extends Component
     public $show_correct_answers = true;
     public $allow_review = true;
     public $is_locked = false;
+    
+    // Project platform for pre/post project tests
+    public $project_platform = null; // 'scratch', 'other', or null
     
     // Type-specific fields
     public $rubric_criteria = [];
@@ -62,6 +70,10 @@ class Create extends Component
         if ($lessonId) {
             $this->lesson_id = $lessonId;
         }
+
+        // Fallback to query string values when component is mounted via a plain URL
+        $this->course_id = $this->course_id ?? request()->query('course_id');
+        $this->lesson_id = $this->lesson_id ?? request()->query('lesson_id');
     }
 
     public function updatedAssessmentType()
@@ -71,6 +83,7 @@ class Create extends Component
         $this->survey_data = [];
         $this->peer_review_data = [];
         $this->self_assessment_data = [];
+        $this->project_platform = null;
     }
 
     public function addRubricCriterion()
@@ -110,7 +123,9 @@ class Create extends Component
             'show_correct_answers' => $this->show_correct_answers,
             'allow_review' => $this->allow_review,
             'is_locked' => $this->is_locked,
-            'approval_status' => 'draft',
+            'approval_status' => 'approved',
+            'approved_at' => now(),
+            'approved_by' => Auth::id(),
         ];
 
         // Add type-specific data
@@ -122,6 +137,11 @@ class Create extends Component
             $data['peer_review_data'] = $this->peer_review_data;
         } elseif ($this->assessment_type === 'self_assessment') {
             $data['self_assessment_data'] = $this->self_assessment_data;
+        } elseif (in_array($this->assessment_type, ['pre_project_test', 'post_project_test'])) {
+            // Store project platform
+            $data['project_test_data'] = [
+                'platform' => $this->project_platform,
+            ];
         }
 
         $assessment = Assessment::create($data);
@@ -133,11 +153,18 @@ class Create extends Component
 
     public function render()
     {
-        $courses = Course::where('instructor_id', Auth::id())
-            ->orWhereHas('enrollments', function ($q) {
-                $q->where('user_id', Auth::id());
-            })
-            ->get();
+        // If the user can edit courses (teacher/admin), show all courses so they can
+        // create assessments across any course. Otherwise show only courses they
+        // teach or are enrolled in.
+        if (Auth::user() && Auth::user()->can('edit_courses')) {
+            $courses = Course::all();
+        } else {
+            $courses = Course::where('instructor_id', Auth::id())
+                ->orWhereHas('enrollments', function ($q) {
+                    $q->where('user_id', Auth::id());
+                })
+                ->get();
+        }
 
         $lessons = $this->course_id 
             ? Lesson::where('course_id', $this->course_id)->get()

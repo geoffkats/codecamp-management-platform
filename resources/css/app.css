@@ -39,6 +39,10 @@
 
 @layer base {
 
+    html {
+        font-size: 80%;
+    }
+
     *,
     ::after,
     ::before,

@@ -400,14 +400,16 @@
                                     <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer">
                                         <div class="flex-1 min-w-0">
                                             <div class="flex items-center gap-2 mb-1">
-                                                <flux:badge size="xs" :color="$approval['priority'] === 'high' ? 'red' : ($approval['priority'] === 'medium' ? 'orange' : 'yellow')">
-                                                    {{ ucfirst($approval['priority']) }}
-                                                </flux:badge>
-                                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ $approval['type'] }}</span>
+                                                @if(!empty($approval['priority'] ?? null))
+                                                    <flux:badge size="xs" :color="($approval['priority'] ?? null) === 'high' ? 'red' : ((($approval['priority'] ?? null) === 'medium') ? 'orange' : 'yellow')">
+                                                        {{ ucfirst($approval['priority'] ?? 'normal') }}
+                                                    </flux:badge>
+                                                @endif
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ $approval['type'] ?? 'Content' }}</span>
                                             </div>
-                                            <p class="font-semibold text-gray-900 dark:text-white text-sm truncate">{{ $approval['title'] }}</p>
+                                            <p class="font-semibold text-gray-900 dark:text-white text-sm truncate">{{ $approval['title'] ?? 'Untitled' }}</p>
                                             <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                                by {{ $approval['submitted_by'] }} {{ $approval['submitted_at'] }}
+                                                by {{ $approval['submitted_by'] ?? 'Unknown' }} {{ $approval['submitted_at'] ?? '' }}
                                             </p>
                                         </div>
                                         <svg class="w-5 h-5 text-gray-400 ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

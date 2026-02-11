@@ -6,6 +6,7 @@ use App\Models\Assessment;
 use App\Models\AssessmentAttempt;
 use App\Models\Question;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -27,6 +28,7 @@ class Take extends Component
     public $showResults = false;
     public $showReviewScreen = false;
     public $attempt = null;
+    public $attemptId = null;
     public $score = 0;
     public $passed = false;
     public $percentage = 0;
@@ -45,6 +47,22 @@ class Take extends Component
         
         // Check if assessment is locked for students
         $user = Auth::user();
+
+        if ($user->isIctTeacher()) {
+            $schoolId = $user->ictSchoolId();
+            $hasAccess = $schoolId
+                && $this->assessment->course
+                && $this->assessment->course->schools
+                    ->where('id', (int) $schoolId)
+                    ->where('pivot.is_active', true)
+                    ->isNotEmpty();
+
+            if ($hasAccess) {
+                return redirect()->route('assessments.show', $this->assessment);
+            }
+
+            abort(403, 'Unauthorized assessment access.');
+        }
         $isInstructor = $this->assessment->course->instructor_id === $user->id || 
                        $user->hasRole('admin') || 
                        $user->hasRole('supervisor');
@@ -67,6 +85,7 @@ class Take extends Component
         if ($existingAttempt && !$existingAttempt->completed_at) {
             // Resume existing attempt
             $this->attempt = $existingAttempt;
+            $this->attemptId = $existingAttempt->id;
             $this->answers = $existingAttempt->answers ?? [];
             $this->startedAt = $existingAttempt->started_at;
             
@@ -94,6 +113,7 @@ class Take extends Component
 
             // Start new attempt
             $this->startNewAttempt($attemptCount + 1);
+            $this->attemptId = $this->attempt->id;
             
             // Set seed for consistent shuffling based on attempt ID
             $this->shuffleSeed = $this->attempt->id;
@@ -115,39 +135,87 @@ class Take extends Component
             $this->assessment = Assessment::with(['questions.options', 'course', 'lesson'])
                 ->findOrFail($this->assessment->id);
         }
+        
+        // Reload attempt if we have an attemptId
+        if ($this->attemptId && !$this->attempt) {
+            $this->attempt = AssessmentAttempt::find($this->attemptId);
+        }
     }
 
     protected function checkAccess()
     {
+        $user = Auth::user();
+        $userId = Auth::id();
+
         // Check if student is enrolled
         $isEnrolled = $this->assessment->course->enrollments()
-            ->where('user_id', Auth::id())
+            ->where('user_id', $userId)
             ->exists();
 
-        if (!$isEnrolled && !Auth::user()->hasRole('admin')) {
-            abort(403, 'You must be enrolled in this course to take the assessment.');
+        if (!$isEnrolled && !$user->hasRole('admin')) {
+            Log::warning('Assessment access denied: User not enrolled', [
+                'user_id' => $userId,
+                'assessment_id' => $this->assessment->id,
+                'course_id' => $this->assessment->course_id,
+                'reason' => 'not_enrolled'
+            ]);
+            abort(403, 'You must be enrolled in the course "' . $this->assessment->course->title . '" to take this assessment.');
         }
 
-        if ($this->assessment->is_locked && !Auth::user()->hasAnyRole(['admin', 'teacher'])) {
-            abort(403, 'This assessment is locked.');
-        }
-
-        if ($this->assessment->approval_status !== 'approved' && !Auth::user()->hasAnyRole(['admin', 'teacher'])) {
-            abort(403, 'This assessment is not yet approved.');
+        // Only enforce lock; do NOT enforce approval status for student access
+        if ($this->assessment->is_locked && !$user->hasAnyRole(['admin', 'teacher'])) {
+            Log::warning('Assessment access denied: Assessment locked', [
+                'user_id' => $userId,
+                'assessment_id' => $this->assessment->id,
+                'reason' => 'locked'
+            ]);
+            abort(403, 'This assessment is currently locked and unavailable.');
         }
     }
 
     protected function startNewAttempt($attemptNumber)
     {
+        $studentType = $this->getStudentTypeForAttempt();
+        $schoolId = $this->getSchoolIdForAttempt();
+        $teacherId = $this->getTeacherIdForAttempt();
+        $autoScored = $this->assessment->assessment_type !== 'assignment';
+
         $this->attempt = AssessmentAttempt::create([
             'user_id' => Auth::id(),
             'assessment_id' => $this->assessment->id,
+            'school_id' => $schoolId,
+            'teacher_id' => $teacherId,
+            'student_type' => $studentType,
+            'auto_scored' => $autoScored,
+            'is_locked' => false,
             'started_at' => now(),
             'status' => 'in_progress',
             'answers' => [],
         ]);
 
         $this->startedAt = $this->attempt->started_at;
+    }
+
+    protected function getStudentTypeForAttempt(): string
+    {
+        $user = Auth::user();
+
+        return $user?->student_type ?? 'codecamp';
+    }
+
+    protected function getSchoolIdForAttempt(): ?int
+    {
+        $user = Auth::user();
+        $schoolId = $user?->studentProfile?->school_id;
+
+        return $schoolId ? (int) $schoolId : null;
+    }
+
+    protected function getTeacherIdForAttempt(): ?int
+    {
+        $course = $this->assessment->course ?? $this->assessment->lesson?->course;
+
+        return $course?->instructor_id ? (int) $course->instructor_id : null;
     }
 
     public function updated($property)
@@ -163,8 +231,9 @@ class Take extends Component
         $this->answers[$questionId] = $value;
         
         // Auto-save to attempt
-        if ($this->attempt) {
-            $this->attempt->update(['answers' => $this->answers]);
+        $attempt = $this->getAttempt();
+        if ($attempt) {
+            $attempt->update(['answers' => $this->answers]);
             $this->lastSavedAt = now();
             $this->dispatch('progress-saved');
         }
@@ -185,8 +254,9 @@ class Take extends Component
         
         $this->answers[$questionId] = array_values($this->answers[$questionId]);
         
-        if ($this->attempt) {
-            $this->attempt->update(['answers' => $this->answers]);
+        $attempt = $this->getAttempt();
+        if ($attempt) {
+            $attempt->update(['answers' => $this->answers]);
             $this->lastSavedAt = now();
             $this->dispatch('progress-saved');
         }
@@ -289,11 +359,20 @@ class Take extends Component
 
     public function saveProgress()
     {
-        if ($this->attempt) {
-            $this->attempt->update(['answers' => $this->answers]);
+        $attempt = $this->getAttempt();
+        if ($attempt) {
+            $attempt->update(['answers' => $this->answers]);
             $this->lastSavedAt = now();
             $this->dispatch('progress-saved');
         }
+    }
+    
+    protected function getAttempt()
+    {
+        if (!$this->attempt && $this->attemptId) {
+            $this->attempt = AssessmentAttempt::find($this->attemptId);
+        }
+        return $this->attempt;
     }
 
     public function updateTimer()
@@ -310,12 +389,28 @@ class Take extends Component
 
     public function submitAssessment()
     {
-        if (!$this->attempt) {
-            return;
-        }
+        try {
+            \Log::info('Submit assessment started', ['assessment_id' => $this->assessment->id, 'attemptId' => $this->attemptId]);
+            
+            // Get the attempt reliably
+            $attempt = $this->getAttempt();
+            
+            if (!$attempt) {
+                \Log::error('No attempt found', ['attemptId' => $this->attemptId]);
+                session()->flash('error', 'No active attempt found. Please refresh the page.');
+                return;
+            }
+            
+            // Check if attempt is still in progress
+            if ($attempt->status !== 'in_progress') {
+                \Log::error('Attempt already completed', ['status' => $attempt->status]);
+                session()->flash('error', 'This assessment has already been submitted.');
+                $this->showResults = true;
+                return;
+            }
 
-        // Handle assignment submission
-        if ($this->assessment->assessment_type === 'assignment') {
+            // Handle assignment submission
+            if ($this->assessment->assessment_type === 'assignment') {
             $this->validate([
                 'submissionText' => 'required|min:10',
                 'submissionFiles.*' => 'nullable|file|max:10240', // 10MB max
@@ -335,23 +430,32 @@ class Take extends Component
             ];
 
             // For assignments, score is null until graded
-            $this->attempt->update([
+            $attempt->update([
                 'answers' => $this->answers,
                 'completed_at' => now(),
                 'status' => 'completed',
                 'score' => null,
+                'auto_scored' => false,
+                'is_locked' => false,
                 'time_spent' => $this->startedAt ? now()->diffInMinutes($this->startedAt) : 0,
             ]);
 
             $this->showResults = true;
             $this->dispatch('assessment-completed');
             session()->flash('message', 'Assignment submitted successfully! Waiting for instructor review.');
-            return;
+
+            return $this->redirect(
+                route('assessments.results', ['assessment' => $this->assessment->id, 'attempt' => $attempt->id]),
+                navigate: true
+            );
         }
 
         // Handle quiz-type assessments
         // Use fresh questions for scoring to avoid shuffling issues
         $questions = $this->assessment->questions()->with('options')->get();
+
+        // Log all answers before scoring
+        \Log::info('All answers at submission:', ['answers' => $this->answers]);
 
         // Validate short_answer and essay length constraints before scoring
         foreach ($questions as $question) {
@@ -390,6 +494,14 @@ class Take extends Component
             $earnedPoints += $this->calculateQuestionScore($question);
         }
 
+        \Log::info('Final scoring summary', [
+            'total_questions' => $questions->count(),
+            'total_points' => $totalPoints,
+            'earned_points' => $earnedPoints,
+            'percentage' => $this->percentage,
+            'passed' => $this->isPassed
+        ]);
+
         $this->score = $earnedPoints;
         $this->percentage = $totalPoints > 0 ? round(($earnedPoints / $totalPoints) * 100, 2) : 0;
         $this->isPassed = $this->percentage >= $this->assessment->passing_score;
@@ -397,26 +509,28 @@ class Take extends Component
 
         $timeSpent = $this->startedAt ? now()->diffInMinutes($this->startedAt) : 0;
 
-        $this->attempt->update([
+        $attempt->update([
             'answers' => $this->answers,
             'score' => $this->score,
             'is_passed' => $this->isPassed,
             'completed_at' => now(),
             'status' => 'completed',
             'time_spent' => $timeSpent,
+            'auto_scored' => true,
+            'is_locked' => true,
         ]);
 
         // Award XP if passed
         if ($this->isPassed && $this->assessment->xp_reward) {
             $user = Auth::user();
-            if (!$user->points) {
-                \App\Models\UserPoint::create([
-                    'user_id' => $user->id,
-                    'total_points' => 0,
-                    'level' => 1,
-                ]);
-            }
-            $user->points->increment('total_points', $this->assessment->xp_reward);
+            $points = $user->points()->firstOrCreate([
+                'user_id' => $user->id,
+            ], [
+                'total_points' => 0,
+                'level' => 1,
+            ]);
+
+            $points->increment('total_points', $this->assessment->xp_reward);
         }
 
         // Check and award badges for perfect scores
@@ -425,19 +539,39 @@ class Take extends Component
             $badgeService->checkPerfectQuizBadges(Auth::user());
         }
 
+        \Log::info('Assessment completed successfully', [
+            'score' => $this->score,
+            'percentage' => $this->percentage,
+            'passed' => $this->isPassed
+        ]);
+
         $this->showResults = true;
         $this->dispatch('assessment-completed');
 
         session()->flash('message', $this->isPassed 
             ? 'Congratulations! You passed the assessment.' 
             : 'You did not pass. Keep studying!');
+
+        return $this->redirect(
+            route('assessments.results', ['assessment' => $this->assessment->id, 'attempt' => $attempt->id]),
+            navigate: true
+        );
+            
+        } catch (\Exception $e) {
+            \Log::error('Assessment submission failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            session()->flash('error', 'An error occurred while submitting: ' . $e->getMessage());
+        }
     }
 
     protected function calculateQuestionScore($question)
     {
         $userAnswer = $this->answers[$question->id] ?? null;
         
-        if (!$userAnswer) {
+        // Check if answer exists and is not empty/null
+        if ($userAnswer === null || $userAnswer === '' || (is_array($userAnswer) && empty(array_filter($userAnswer)))) {
             return 0;
         }
 
@@ -445,29 +579,50 @@ class Take extends Component
         if (in_array($question->question_type, ['multiple_choice', 'multiple_select', 'choice', 'true_false'])) {
             $correctOptions = $question->options->where('is_correct', true)->pluck('id')->toArray();
             
+            // Ensure all correct options are integers
+            $correctOptions = array_map(function($opt) {
+                return is_numeric($opt) ? (int)$opt : $opt;
+            }, $correctOptions);
+            sort($correctOptions);
+            
             // Debug logging
             \Log::info("Scoring Question {$question->id}:", [
                 'question_type' => $question->question_type,
                 'user_answer' => $userAnswer,
+                'user_answer_type' => gettype($userAnswer),
                 'correct_options' => $correctOptions,
                 'question_points' => $question->points
             ]);
             
             if (is_array($userAnswer)) {
-                // Convert to integers for comparison
-                $userAnswer = array_map('intval', array_filter($userAnswer));
-                $correctOptions = array_map('intval', $correctOptions);
-                sort($userAnswer);
-                sort($correctOptions);
-                $score = $userAnswer === $correctOptions ? $question->points : 0;
-                \Log::info("Array comparison result:", ['score' => $score, 'user' => $userAnswer, 'correct' => $correctOptions]);
+                // Multiple select - compare arrays
+                $userAnswerArray = array_map(function($val) {
+                    return is_numeric($val) ? (int)$val : $val;
+                }, array_filter($userAnswer));
+                sort($userAnswerArray);
+                
+                $score = $userAnswerArray === $correctOptions ? $question->points : 0;
+                \Log::info("Array comparison result:", [
+                    'question_id' => $question->id,
+                    'score' => $score,
+                    'user' => $userAnswerArray,
+                    'correct' => $correctOptions,
+                    'user_count' => count($userAnswerArray),
+                    'correct_count' => count($correctOptions),
+                    'arrays_match' => $userAnswerArray === $correctOptions
+                ]);
                 return $score;
             } else {
-                // Convert to integer for comparison
-                $userAnswerInt = intval($userAnswer);
-                $correctOptions = array_map('intval', $correctOptions);
-                $score = in_array($userAnswerInt, $correctOptions) ? $question->points : 0;
-                \Log::info("Single comparison result:", ['score' => $score, 'user' => $userAnswerInt, 'correct' => $correctOptions]);
+                // Single choice - convert to int and check
+                $userAnswerInt = is_numeric($userAnswer) ? (int)$userAnswer : $userAnswer;
+                $score = in_array($userAnswerInt, $correctOptions, true) ? $question->points : 0;
+                \Log::info("Single comparison result:", [
+                    'question_id' => $question->id,
+                    'score' => $score,
+                    'user' => $userAnswerInt,
+                    'correct' => $correctOptions,
+                    'found' => in_array($userAnswerInt, $correctOptions, true)
+                ]);
                 return $score;
             }
         }

@@ -206,6 +206,7 @@
                             <tr class="bg-gray-50 dark:bg-gray-700/50">
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Student Name</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Student ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Category</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Status</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Time Recorded</th>
                             </tr>
@@ -218,6 +219,18 @@
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="text-sm text-gray-600 dark:text-gray-400">{{ $attendance->studentProfile->student_id }}</div>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        @php
+                                            $categoryLabel = match($attendance->studentProfile->student_category ?? 'codecamp') {
+                                                'school_club' => 'School Club',
+                                                'ict_school' => 'ICT School',
+                                                default => 'Codecamp',
+                                            };
+                                        @endphp
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300">
+                                            {{ $categoryLabel }}
+                                        </span>
                                     </td>
                                     <td class="px-6 py-4">
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium

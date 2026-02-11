@@ -24,12 +24,14 @@
                         Track your learning progress and achievements across all courses
                     </p>
                 </div>
-                <flux:button href="{{ route('courses.index') }}" variant="primary" wire:navigate class="shadow-lg hover:shadow-xl transition-all duration-300">
-                    <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                    Browse More Courses
-                </flux:button>
+                @if(!auth()->user()?->isIctStudent())
+                    <flux:button href="{{ route('courses.index') }}" variant="primary" wire:navigate class="shadow-lg hover:shadow-xl transition-all duration-300">
+                        <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        Browse More Courses
+                    </flux:button>
+                @endif
             </div>
         </div>
 

@@ -7,6 +7,8 @@
         <livewire:dashboard.admin-dashboard />
     @elseif($user->hasRole('operations_manager'))
         <livewire:dashboard.operations-manager-dashboard />
+    @elseif($user->isIctTeacher())
+        <livewire:dashboard.ict-teacher-dashboard />
     @elseif($user->isTeacher())
         <livewire:dashboard.instructor-dashboard />
     @elseif($user->isSupervisor())
@@ -61,7 +63,7 @@
                             </div>
                             <div class="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700">
                                 <span class="text-sm text-gray-600 dark:text-gray-400">Email:</span>
-                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $user->email }}</span>
+                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $user->email ?: $user->student_id }}</span>
                             </div>
                             <div class="flex items-center justify-between py-2">
                                 <span class="text-sm text-gray-600 dark:text-gray-400">Status:</span>

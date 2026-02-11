@@ -11,7 +11,8 @@ trait HasRoles
      */
     public function hasRole(string $roleName): bool
     {
-        return $this->roles()->where('name', $roleName)->exists();
+        $roleNames = $this->expandRoleAliases([$roleName]);
+        return $this->roles()->whereIn('name', $roleNames)->exists();
     }
 
     /**
@@ -19,6 +20,7 @@ trait HasRoles
      */
     public function hasAnyRole(array $roleNames): bool
     {
+        $roleNames = $this->expandRoleAliases($roleNames);
         return $this->roles()->whereIn('name', $roleNames)->exists();
     }
 
@@ -67,7 +69,17 @@ trait HasRoles
      */
     public function isTeacher(): bool
     {
-        return $this->hasRole('teacher');
+        return $this->hasAnyRole(['teacher', 'ict_teacher', 'codecamp_trainer']);
+    }
+
+    public function isIctTeacher(): bool
+    {
+        return $this->hasRole('ict_teacher');
+    }
+
+    public function isCodecampTrainer(): bool
+    {
+        return $this->hasRole('codecamp_trainer') || $this->hasRole('teacher');
     }
 
     /**
@@ -84,6 +96,35 @@ trait HasRoles
     public function isSupervisor(): bool
     {
         return $this->hasRole('supervisor');
+    }
+
+    /**
+     * Check if user is operations manager
+     */
+    public function isOperationsManager(): bool
+    {
+        return $this->hasRole('operations_manager');
+    }
+
+    /**
+     * Expand role aliases for compatibility checks.
+     */
+    protected function expandRoleAliases(array $roleNames): array
+    {
+        $expanded = [];
+
+        foreach ($roleNames as $roleName) {
+            if ($roleName === 'teacher') {
+                $expanded[] = 'teacher';
+                $expanded[] = 'ict_teacher';
+                $expanded[] = 'codecamp_trainer';
+                continue;
+            }
+
+            $expanded[] = $roleName;
+        }
+
+        return array_values(array_unique($expanded));
     }
 }
 

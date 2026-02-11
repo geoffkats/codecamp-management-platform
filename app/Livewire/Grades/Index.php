@@ -19,6 +19,13 @@ class Index extends Component
     public $filter = 'all'; // 'all', 'assignment', 'quiz', 'assessment'
     public $courseId = null;
 
+    public function mount(): void
+    {
+        if (Auth::user()->isIctTeacher()) {
+            redirect()->route('test-marks.index');
+        }
+    }
+
     public function render()
     {
         $query = Grade::query();

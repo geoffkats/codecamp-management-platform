@@ -304,6 +304,52 @@
                             </script>
                         @endif
 
+                        @php
+                            $decodedAttachments = json_decode($lesson->attachments ?? '[]', true) ?? [];
+                            $pdfAttachments = collect($decodedAttachments)
+                                ->filter(function ($item) {
+                                    if (!is_array($item)) {
+                                        return false;
+                                    }
+                                    $ext = pathinfo($item['path'] ?? '', PATHINFO_EXTENSION);
+                                    return ($item['type'] ?? '') === 'pdf' || strtolower($ext) === 'pdf';
+                                })
+                                ->values()
+                                ->all();
+                        @endphp
+
+                        @if(count($pdfAttachments) > 0)
+                            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">Lesson PDF</h2>
+                                </div>
+                                <div class="space-y-6">
+                                    @foreach($pdfAttachments as $pdf)
+                                        <div class="space-y-3">
+                                            <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
+                                                @if(!empty($pdf['path']))
+                                                    <iframe
+                                                        src="{{ asset('storage/' . $pdf['path']) }}#toolbar=1&navpanes=0"
+                                                        class="w-full h-[480px]"
+                                                        loading="lazy"
+                                                        title="Lesson PDF">
+                                                    </iframe>
+                                                @else
+                                                    <p class="p-4 text-sm text-gray-600 dark:text-gray-300">PDF file missing.</p>
+                                                @endif
+                                            </div>
+                                            <div class="flex items-center justify-between text-sm">
+                                                <span class="text-gray-700 dark:text-gray-200">{{ $pdf['name'] ?? 'PDF Attachment' }}</span>
+                                                @if(!empty($pdf['path']))
+                                                    <a href="{{ asset('storage/' . $pdf['path']) }}" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Download</a>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+
                         {{-- Text Content with Table of Contents --}}
                         @if($lesson->content)
                             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
@@ -356,9 +402,9 @@
                         @endif
 
                         {{-- Enhanced Attachments Section --}}
-                        @if($lesson->attachments && count(json_decode($lesson->attachments, true) ?? []) > 0)
+                        @if($lesson->attachments && count($decodedAttachments) > 0)
                             @php
-                                $attachments = json_decode($lesson->attachments, true);
+                                $attachments = $decodedAttachments;
                                 $grouped = collect($attachments)->groupBy(function($item) {
                                     $ext = pathinfo($item['path'] ?? '', PATHINFO_EXTENSION);
                                     if (in_array($ext, ['pdf'])) return 'pdf';

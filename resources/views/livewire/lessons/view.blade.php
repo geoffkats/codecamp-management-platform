@@ -158,46 +158,48 @@
                 @endif
             </div>
             <div class="flex items-center gap-2">
-                {{-- Discussion Button --}}
-                @if($lesson->id)
-                    <flux:button 
-                        href="{{ route('discussions.index', ['lesson' => $lesson->id]) }}"
-                        variant="ghost"
-                        wire:navigate>
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                        </svg>
-                        Discuss This Lesson
-                    </flux:button>
-                @endif
-                
-                @if($isLessonCompleted)
-                    <flux:badge variant="success">Completed</flux:badge>
-                @else
-                    <flux:button 
-                        wire:click="openCompletionModal" 
-                        variant="primary"
-                        wire:loading.attr="disabled"
-                        wire:loading.class="opacity-50 cursor-not-allowed"
-                        :disabled="!$canComplete">
-                        <span wire:loading.remove wire:target="completeLesson,openCompletionModal">
-                            @if($canComplete)
-                                Mark as Complete
-                            @else
-                                Complete Required Items First
-                            @endif
-                        </span>
-                        <span wire:loading wire:target="completeLesson">
-                            <span class="inline-flex items-center">
-                                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Processing...
+                @unless(auth()->user()->isIctTeacher())
+                    {{-- Discussion Button --}}
+                    @if($lesson->id)
+                        <flux:button 
+                            href="{{ route('discussions.index', ['lesson' => $lesson->id]) }}"
+                            variant="ghost"
+                            wire:navigate>
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            </svg>
+                            Discuss This Lesson
+                        </flux:button>
+                    @endif
+                    
+                    @if($isLessonCompleted)
+                        <flux:badge variant="success">Completed</flux:badge>
+                    @else
+                        <flux:button 
+                            wire:click="openCompletionModal" 
+                            variant="primary"
+                            wire:loading.attr="disabled"
+                            wire:loading.class="opacity-50 cursor-not-allowed"
+                            :disabled="!$canComplete">
+                            <span wire:loading.remove wire:target="completeLesson,openCompletionModal">
+                                @if($canComplete)
+                                    Mark as Complete
+                                @else
+                                    Complete Required Items First
+                                @endif
                             </span>
-                        </span>
-                    </flux:button>
-                @endif
+                            <span wire:loading wire:target="completeLesson">
+                                <span class="inline-flex items-center">
+                                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Processing...
+                                </span>
+                            </span>
+                        </flux:button>
+                    @endif
+                @endunless
             </div>
         </div>
 
@@ -448,16 +450,21 @@
                 />
             @endif
 
-            {{-- Interactive Steps (for Scratch/Interactive lessons) --}}
-            @if(!empty($lesson->lesson_steps) && is_array($lesson->lesson_steps))
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-                    <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
-                        </svg>
-                        Step-by-Step Instructions
-                    </h2>
-                    <div class="space-y-4">
+            {{-- Interactive Steps (only for lessons with steps) --}}
+            @if(!empty($lesson->lesson_steps) && is_array($lesson->lesson_steps) && ($lesson->lesson_type === 'interactive' || $lesson->scratch_project_id))
+                <div class="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl shadow-lg border-2 border-purple-200 dark:border-purple-800 p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                            </svg>
+                            Step-by-Step Guide
+                        </h2>
+                        <span class="text-xs text-purple-600 dark:text-purple-400 font-semibold bg-purple-100 dark:bg-purple-900/40 px-2 py-1 rounded">
+                            {{ count($lesson->lesson_steps) }} Steps
+                        </span>
+                    </div>
+                    <div class="space-y-2">
                         @foreach($lesson->lesson_steps as $index => $step)
                             <x-lesson-step 
                                 :number="$index + 1"
@@ -465,11 +472,11 @@
                                 :image="$step['image'] ?? null"
                                 :tryItUrl="$step['try_it_url'] ?? null"
                             >
-                                <p class="text-gray-700 dark:text-gray-300">
+                                <p class="text-sm text-gray-700 dark:text-gray-300">
                                     {{ $step['description'] ?? $step['content'] ?? '' }}
                                 </p>
                                 @if(!empty($step['code']))
-                                    <pre class="mt-3 p-4 bg-gray-100 dark:bg-gray-900 rounded-lg overflow-x-auto"><code>{{ $step['code'] }}</code></pre>
+                                    <pre class="mt-2 p-3 bg-gray-100 dark:bg-gray-900 rounded-lg overflow-x-auto text-xs"><code>{{ $step['code'] }}</code></pre>
                                 @endif
                             </x-lesson-step>
                         @endforeach
@@ -477,17 +484,17 @@
                 </div>
             @endif
 
-            {{-- Scratch Blocks Reference (for Scratch lessons) --}}
-            @if(!empty($lesson->scratch_blocks) && is_array($lesson->scratch_blocks))
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+            {{-- Scratch Blocks Reference (only for Scratch lessons) --}}
+            @if(!empty($lesson->scratch_blocks) && is_array($lesson->scratch_blocks) && $lesson->scratch_project_id)
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border-2 border-orange-200 dark:border-orange-800 p-6">
                     <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                         <svg class="w-6 h-6 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
                         </svg>
-                        Scratch Blocks You'll Use
+                        Scratch Blocks Reference
                     </h2>
                     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                        Here are the Scratch blocks you'll need for this lesson:
+                        Blocks you'll use in this Scratch project:
                     </p>
                     <div class="flex flex-wrap gap-3">
                         @foreach($lesson->scratch_blocks as $block)
@@ -535,9 +542,12 @@
             {{-- Web Development Editor (for HTML/CSS/JS lessons) --}}
             @if(stripos($lesson->title, 'web') !== false || stripos($lesson->title, 'html') !== false || stripos($lesson->title, 'css') !== false || stripos($lesson->title, 'javascript') !== false)
                 @php
-                    $htmlCode = $lesson->html_example ?? '<h1>Hello World!</h1>\n<p>Welcome to web development!</p>\n<button onclick="alert(\'Hello!\')">Click Me</button>';
-                    $cssCode = $lesson->css_example ?? 'body {\n  font-family: Arial, sans-serif;\n  padding: 20px;\n  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n  color: white;\n}\n\nh1 {\n  text-align: center;\n  font-size: 3em;\n}\n\nbutton {\n  background: white;\n  color: #667eea;\n  padding: 10px 20px;\n  border: none;\n  border-radius: 5px;\n  cursor: pointer;\n  font-size: 1.2em;\n}';
-                    $jsCode = $lesson->js_example ?? '// JavaScript code\nconsole.log("Page loaded!");\n\n// Add interactivity\ndocument.addEventListener("DOMContentLoaded", function() {\n  console.log("Ready to code!");\n});';
+                    // Normalize escaped newlines that may come from JSON/text storage
+                    $normalizeCode = fn($code) => str_replace(["\\r\\n", "\\n", "\r\n"], "\n", $code ?? '');
+
+                    $htmlCode = $normalizeCode($lesson->html_example) ?: "<h1>Hello World!</h1>\n<p>Welcome to web development!</p>\n<button onclick=\"alert('Hello!')\">Click Me</button>";
+                    $cssCode = $normalizeCode($lesson->css_example) ?: "body {\n  font-family: Arial, sans-serif;\n  padding: 20px;\n  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n  color: white;\n}\n\nh1 {\n  text-align: center;\n  font-size: 3em;\n}\n\nbutton {\n  background: white;\n  color: #667eea;\n  padding: 10px 20px;\n  border: none;\n  border-radius: 5px;\n  cursor: pointer;\n  font-size: 1.2em;\n}";
+                    $jsCode = $normalizeCode($lesson->js_example) ?: "// JavaScript code\nconsole.log('Page loaded!');\n\n// Add interactivity\ndocument.addEventListener('DOMContentLoaded', function() {\n  console.log('Ready to code!');\n});";
                 @endphp
                 <x-web-editor 
                     :html="$htmlCode"
@@ -573,63 +583,6 @@
                     </div>
                 </div>
             @endif
-            
-            {{-- Visual Interactive Components for All Lesson Types --}}
-            @if($lesson->lesson_type === 'interactive')
-                <div class="space-y-6">
-                    {{-- Placeholder for future interactive components --}}
-                    @if(!$lesson->scratch_project_id && empty($lesson->lesson_steps))
-                        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl border-2 border-blue-200 dark:border-blue-800 p-6 text-center">
-                            <p class="text-gray-600 dark:text-gray-400">
-                                This is an interactive lesson. Add Scratch projects or interactive steps in the curriculum builder to enhance the learning experience!
-                            </p>
-                        </div>
-                    @endif
-                    
-                    {{-- Step-by-Step Instructions (for all interactive lessons) --}}
-                    @if($lesson->lesson_steps ?? false)
-                        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-                            <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6">
-                                <svg class="w-6 h-6 inline-block mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
-                                </svg>
-                                Step-by-Step Instructions
-                            </h2>
-                            <div class="space-y-4">
-                                @foreach($lesson->lesson_steps as $index => $step)
-                                    <x-lesson-step 
-                                        :number="$index + 1"
-                                        :title="$step['title'] ?? 'Step ' . ($index + 1)"
-                                        :description="$step['description'] ?? ''"
-                                        :image="$step['image'] ?? null"
-                                        :code="$step['code'] ?? null"
-                                    />
-                                @endforeach
-                            </div>
-                        </div>
-                    @endif
-                    
-                    {{-- Code Blocks/Syntax Examples (for Scratch, Python, Web Dev, etc.) --}}
-                    @if($lesson->scratch_blocks ?? false)
-                        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-                            <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6">
-                                <svg class="w-6 h-6 inline-block mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-                                </svg>
-                                Code Examples
-                            </h2>
-                            <div class="space-y-3">
-                                @foreach($lesson->scratch_blocks as $block)
-                                    <x-scratch-block 
-                                        :category="$block['category'] ?? 'motion'"
-                                        :text="$block['text'] ?? ''"
-                                    />
-                                @endforeach
-                            </div>
-                        </div>
-                    @endif
-                </div>
-            @endif
 
             {{-- Attachments --}}
             @if($lesson->attachments && is_array($lesson->attachments) && count($lesson->attachments) > 0)
@@ -646,6 +599,56 @@
                             </a>
                         @endforeach
                     </div>
+                </div>
+            @endif
+
+            {{-- Post-Lesson Feedback CTA --}}
+            @if($isLessonCompleted)
+                <div class="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl shadow-lg border-2 border-emerald-200 dark:border-emerald-800 p-6">
+                    <div class="flex items-start gap-3 mb-3">
+                        <div class="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-md">
+                            ⭐
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Rate this lesson</h3>
+                            <p class="text-sm text-gray-700 dark:text-gray-300">Share a quick rating and send feedback to your teacher to improve the next lesson.</p>
+                        </div>
+                    </div>
+                    <form method="GET" action="{{ url('/feedback/teacher') }}" class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <input type="hidden" name="lesson_id" value="{{ $lesson->id }}">
+                        <input type="hidden" name="course_id" value="{{ $course->id }}">
+                        <input type="hidden" name="lesson_title" value="{{ $lesson->title }}">
+                        <input type="hidden" name="source" value="lesson_view">
+
+                        <div class="space-y-1">
+                            <label class="text-xs font-semibold text-gray-700 dark:text-gray-300">Rating</label>
+                            <select name="rating" class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-sm focus:ring-emerald-500 focus:border-emerald-500">
+                                <option value="" disabled selected>Choose rating</option>
+                                <option value="5">Excellent (5)</option>
+                                <option value="4">Good (4)</option>
+                                <option value="3">Okay (3)</option>
+                                <option value="2">Needs work (2)</option>
+                                <option value="1">Poor (1)</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1 md:col-span-2">
+                            <label class="text-xs font-semibold text-gray-700 dark:text-gray-300">Quick feedback (optional)</label>
+                            <textarea name="note" rows="2" class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-sm focus:ring-emerald-500 focus:border-emerald-500" placeholder="What worked well? What could improve?" ></textarea>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2 md:col-span-2">
+                            <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg shadow-md transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                Send feedback
+                            </button>
+                            <a href="{{ url('/feedback/teacher') }}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-emerald-600 text-emerald-700 dark:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/30">
+                                Open full feedback page
+                            </a>
+                        </div>
+                    </form>
                 </div>
             @endif
         </div>
@@ -810,13 +813,19 @@
                                 @endif
                                 
                                 <div class="flex items-center gap-2">
+                                    @php
+                                        $passedAttempt = $bestAttempt && $bestAttempt->is_passed;
+                                        $failedAttempt = $bestAttempt && !$bestAttempt->is_passed;
+                                    @endphp
                                     <flux:button 
-                                        href="{{ route('assessments.show', $assessment) }}" 
+                                        href="{{ $passedAttempt
+                                            ? route('assessments.results', ['assessment' => $assessment->id, 'attempt' => $bestAttempt->id])
+                                            : ($failedAttempt ? route('assessments.take', $assessment) : route('assessments.show', $assessment)) }}" 
                                         wire:navigate 
                                         variant="outline" 
                                         size="sm"
                                         class="flex-1">
-                                        View Details
+                                        {{ $passedAttempt ? 'View Results' : ($failedAttempt ? 'Retake' : 'View Details') }}
                                     </flux:button>
                                     @if($canTake)
                                         <flux:button 

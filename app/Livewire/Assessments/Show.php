@@ -95,7 +95,9 @@ class Show extends Component
 
     private function getStatistics()
     {
-        $allAttempts = AssessmentAttempt::where('assessment_id', $this->assessment->id)->get();
+        $allAttempts = AssessmentAttempt::visibleTo(Auth::user())
+            ->where('assessment_id', $this->assessment->id)
+            ->get();
         
         if ($allAttempts->isEmpty()) {
             return [

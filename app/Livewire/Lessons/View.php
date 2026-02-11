@@ -3,6 +3,7 @@
 namespace App\Livewire\Lessons;
 
 use App\Models\CourseEnrollment;
+use App\Models\CourseModule;
 use App\Models\Lesson;
 use App\Models\StudentLessonProgress;
 use App\Models\VideoProgress;
@@ -46,27 +47,39 @@ class View extends Component
             'module.course.instructor:id,name',
             'quizzes:id,lesson_id,title,time_limit',
             'assignments:id,lesson_id,title,due_date',
-            'assessments:id,lesson_id,title,time_limit,passing_score',
+            'assessments:id,lesson_id,title,time_limit_minutes,passing_score',
         ]);
 
         $this->course = $this->lesson->module->course;
+
+        $user = Auth::user();
 
         // Check enrollment
         $this->enrollment = CourseEnrollment::where('user_id', Auth::id())
             ->where('course_id', $this->course->id)
             ->first();
 
-        if (!$this->enrollment) {
+        $isInstructor = $this->course->instructor_id === $user->id || 
+                       $user->hasRole('admin') || 
+                       $user->hasRole('supervisor');
+
+        $isIctTeacherWithAccess = false;
+        if ($user->isIctTeacher()) {
+            $schoolId = $user->ictSchoolId();
+            $isIctTeacherWithAccess = $schoolId
+                && $this->course->schools
+                    ->where('id', (int) $schoolId)
+                    ->where('pivot.is_active', true)
+                    ->isNotEmpty();
+        }
+
+        if (!$this->enrollment && !$isInstructor && !$isIctTeacherWithAccess) {
             abort(403, 'You must be enrolled in this course to view lessons.');
         }
         
         // Check if lesson is locked for students (instructors and admins can always view)
-        $user = Auth::user();
-        $isInstructor = $this->course->instructor_id === $user->id || 
-                       $user->hasRole('admin') || 
-                       $user->hasRole('supervisor');
         
-        if (!$isInstructor && $this->lesson->is_locked) {
+        if (!$isInstructor && !$isIctTeacherWithAccess && $this->lesson->is_locked) {
             // Lesson is locked for students - they can only see quizzes/assignments
             return;
         }
@@ -143,7 +156,7 @@ class View extends Component
         
         // If no previous in same module, check previous module
         if (!$this->previousLesson) {
-            $previousModule = \App\Models\Module::where('course_id', $this->course->id)
+            $previousModule = CourseModule::where('course_id', $this->course->id)
                 ->where('order_index', '<', $currentModule->order_index)
                 ->orderBy('order_index', 'desc')
                 ->first();
@@ -165,7 +178,7 @@ class View extends Component
         
         // If no next in same module, check next module
         if (!$this->nextLesson) {
-            $nextModule = \App\Models\Module::where('course_id', $this->course->id)
+            $nextModule = CourseModule::where('course_id', $this->course->id)
                 ->where('order_index', '>', $currentModule->order_index)
                 ->orderBy('order_index', 'asc')
                 ->first();
@@ -353,31 +366,9 @@ class View extends Component
             ]
         );
 
-        // Create user progress entry
-        UserProgress::create([
-            'user_id' => Auth::id(),
-            'course_id' => $this->course->id,
-            'lesson_id' => $this->lesson->id,
-            'type' => 'lesson_completed',
-            'points_earned' => $points,
-            'completed_at' => now(),
-            'time_spent' => $timeSpent,
-        ]);
-
-        // Ensure UserPoints exists
-        $user = Auth::user();
-        if (!$user->points) {
-            \App\Models\UserPoint::create([
-                'user_id' => $user->id,
-                'total_points' => 0,
-                'level' => 1,
-                'points_to_next_level' => 100,
-            ]);
-            $user->refresh();
-        }
-
-        // Award points
-        $user->points->increment('total_points', $points);
+        // Award lesson completion points (safe from duplicates)
+        $pointsService = app(\App\Services\PointsService::class);
+        $pointsService->awardLessonPoints(Auth::id(), $this->course->id, $this->lesson->id, $points, $timeSpent);
 
         // Update course enrollment progress
         $this->updateCourseProgress();
@@ -465,29 +456,9 @@ class View extends Component
         if ($completedLessons >= $totalLessons && !$this->enrollment->completed_at) {
             $this->enrollment->update(['completed_at' => now()]);
             
-            // Ensure UserPoints exists
-            $user = Auth::user();
-            if (!$user->points) {
-                \App\Models\UserPoint::create([
-                    'user_id' => $user->id,
-                    'total_points' => 0,
-                    'level' => 1,
-                    'points_to_next_level' => 100,
-                ]);
-                $user->refresh();
-            }
-
-            // Award completion points
-            $user->points->increment('total_points', 100);
-
-            // Create user progress entry
-            UserProgress::create([
-                'user_id' => Auth::id(),
-                'course_id' => $this->course->id,
-                'type' => 'course_completed',
-                'points_earned' => 100,
-                'completed_at' => now(),
-            ]);
+            // Award course completion points (safe from duplicates)
+            $pointsService = app(\App\Services\PointsService::class);
+            $pointsService->awardCourseCompletionPoints(Auth::id(), $this->course->id);
 
             // Check and award badges for course completion
             $badgeService = app(BadgeAwardingService::class);

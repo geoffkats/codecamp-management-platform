@@ -75,6 +75,7 @@
                             </th>
                             @if($type === 'student')
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Student ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Category</th>
                             @endif
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Status</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Reason</th>
@@ -96,6 +97,18 @@
                             <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
                                 {{ $record->studentProfile->student_id }}
                             </td>
+                            <td class="px-6 py-4 text-sm">
+                                @php
+                                    $categoryLabel = match($record->studentProfile->student_category ?? 'codecamp') {
+                                        'school_club' => 'School Club',
+                                        'ict_school' => 'ICT School',
+                                        default => 'Codecamp',
+                                    };
+                                @endphp
+                                <span class="inline-flex px-2 py-1 text-xs font-medium rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">
+                                    {{ $categoryLabel }}
+                                </span>
+                            </td>
                             @endif
                             <td class="px-6 py-4">
                                 <span class="inline-flex px-2 py-1 text-xs font-medium rounded
@@ -116,7 +129,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="{{ $type === 'student' ? 6 : 5 }}" class="px-6 py-12 text-center">
+                            <td colspan="{{ $type === 'student' ? 7 : 5 }}" class="px-6 py-12 text-center">
                                 <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                                 </svg>

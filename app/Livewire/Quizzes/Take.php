@@ -98,15 +98,46 @@ class Take extends Component
 
     protected function startNewAttempt($attemptNumber)
     {
+        $studentType = $this->getStudentTypeForAttempt();
+        $schoolId = $this->getSchoolIdForAttempt();
+        $teacherId = $this->getTeacherIdForAttempt();
+
         $this->attempt = AssessmentAttempt::create([
             'user_id' => Auth::id(),
             'assessment_id' => $this->assessment->id,
+            'school_id' => $schoolId,
+            'teacher_id' => $teacherId,
+            'student_type' => $studentType,
+            'auto_scored' => true,
+            'is_locked' => false,
             'started_at' => now(),
             'answers' => [],
             'status' => 'in_progress',
         ]);
 
         $this->startedAt = $this->attempt->started_at;
+    }
+
+    protected function getStudentTypeForAttempt(): string
+    {
+        $user = Auth::user();
+
+        return $user?->student_type ?? 'codecamp';
+    }
+
+    protected function getSchoolIdForAttempt(): ?int
+    {
+        $user = Auth::user();
+        $schoolId = $user?->studentProfile?->school_id;
+
+        return $schoolId ? (int) $schoolId : null;
+    }
+
+    protected function getTeacherIdForAttempt(): ?int
+    {
+        $course = $this->assessment->course ?? $this->assessment->lesson?->course;
+
+        return $course?->instructor_id ? (int) $course->instructor_id : null;
     }
 
     public function updateAnswer($questionId, $value)
@@ -195,19 +226,21 @@ class Take extends Component
             'score' => $this->score,
             'is_passed' => $this->isPassed,
             'completed_at' => now(),
+            'auto_scored' => true,
+            'is_locked' => true,
         ]);
 
         // Award XP if passed
         if ($this->isPassed && $this->assessment->lesson->xp_reward) {
             $user = Auth::user();
-            if (!$user->points) {
-                \App\Models\UserPoint::create([
-                    'user_id' => $user->id,
-                    'total_points' => 0,
-                    'level' => 1,
-                ]);
-            }
-            $user->points->increment('total_points', $this->assessment->lesson->xp_reward);
+            $points = $user->points()->firstOrCreate([
+                'user_id' => $user->id,
+            ], [
+                'total_points' => 0,
+                'level' => 1,
+            ]);
+
+            $points->increment('total_points', $this->assessment->lesson->xp_reward);
         }
 
         // Check and award badges for perfect quiz scores

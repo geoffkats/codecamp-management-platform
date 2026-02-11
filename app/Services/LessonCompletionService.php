@@ -42,8 +42,8 @@ class LessonCompletionService
             }
         }
         
-        // Check required assessments
-        $requiredAssessments = $lesson->assessments()->where('is_required', true)->get();
+        // Check all assessments
+        $requiredAssessments = $lesson->assessments()->get();
         
         foreach ($requiredAssessments as $assessment) {
             $hasCompleted = false;

@@ -43,13 +43,14 @@ class DatabaseSeeder extends Seeder
         $this->command->info('✅ Database seeding completed successfully!');
         $this->command->info('');
         $this->command->info('📊 Summary:');
-        $this->command->info('   - Roles: 4');
+        $this->command->info('   - Roles: 6');
         
         $userCount = User::count();
         $adminCount = User::whereHas('roles', fn($q) => $q->where('name', 'admin'))->count();
         $teacherCount = User::whereHas('roles', fn($q) => $q->where('name', 'teacher'))->count();
+        $ictTeacherCount = User::whereHas('roles', fn($q) => $q->where('name', 'ict_teacher'))->count();
         $studentCount = User::whereHas('roles', fn($q) => $q->where('name', 'student'))->count();
-        $this->command->info("   - Users: {$userCount} ({$adminCount} admin, {$teacherCount} teachers, {$studentCount} students)");
+        $this->command->info("   - Users: {$userCount} ({$adminCount} admin, {$teacherCount} teachers, {$ictTeacherCount} ict teachers, {$studentCount} students)");
         
         $this->command->info('   - Badges: ' . Badge::count());
         
@@ -83,6 +84,7 @@ class DatabaseSeeder extends Seeder
         $this->command->info('🔐 Login Credentials:');
         $this->command->info('   - Admin: admin@example.com / password');
         $this->command->info('   - Teacher: teacher@example.com / password');
+        $this->command->info('   - ICT Teacher: ictteacher@example.com / password');
         $this->command->info('   - Student: student@example.com / password');
     }
 }

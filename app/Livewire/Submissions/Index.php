@@ -117,14 +117,8 @@ class Index extends Component
     {
         $query = AssessmentAttempt::query()
             ->whereHas('assessment', fn($q) => $q->where('assessment_type', 'assignment'))
-            ->where('status', 'completed');
-
-        // Role-based filtering
-        if (Auth::user()->hasRole('teacher')) {
-            $query->whereHas('assessment.course', fn($q) => $q->where('instructor_id', Auth::id()));
-        } else {
-            $query->where('user_id', Auth::id());
-        }
+            ->where('status', 'completed')
+            ->visibleTo(Auth::user());
 
         if ($this->search) {
             $query->whereHas('assessment', function ($q) {

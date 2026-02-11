@@ -76,19 +76,34 @@ class Index extends Component
     public function render()
     {
         $query = Course::query()
-            ->with(['instructor', 'modules'])
+            ->select('courses.*')
+            ->with(['instructor:id,name'])
             ->withCount(['enrollments', 'lessons']);
 
         // Role-based filtering
         if (Auth::user()?->hasRole('teacher')) {
-            // Teachers can see their own courses regardless of status
-            $query->where(function ($q) {
-                $q->where('instructor_id', Auth::id())
-                  ->orWhere(function ($subQ) {
-                      $subQ->where('is_published', true)
-                           ->where('approval_status', 'approved');
-                  });
-            });
+            $user = Auth::user();
+
+            if ($user->isIctTeacher()) {
+                $schoolId = $user->ictSchoolId();
+
+                if ($schoolId) {
+                    $query->whereHas('schools', function ($q) use ($schoolId) {
+                        $q->where('school_id', $schoolId)->where('is_active', true);
+                    });
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+            } else {
+                // Other teachers can see their own courses regardless of status
+                $query->where(function ($q) {
+                    $q->where('instructor_id', Auth::id())
+                      ->orWhere(function ($subQ) {
+                          $subQ->where('is_published', true)
+                               ->where('approval_status', 'approved');
+                      });
+                });
+            }
         } else {
             // For other users, only show published and approved courses
             $query->where('is_published', true)
@@ -134,15 +149,19 @@ class Index extends Component
             default => $query->latest(),
         };
 
+        // Use simplePaginate for better performance if total count isn't needed
         $courses = $query->paginate(12);
 
-        $categories = Course::where('is_published', true)
-            ->whereNotNull('category')
-            ->distinct()
-            ->pluck('category')
-            ->filter(fn($cat) => is_string($cat) && !empty($cat))
-            ->sort()
-            ->values();
+        // Cache categories list for 1 hour to reduce query load
+        $categories = cache()->remember('course_categories_list', 3600, function () {
+            return Course::where('is_published', true)
+                ->whereNotNull('category')
+                ->distinct()
+                ->pluck('category')
+                ->filter(fn($cat) => is_string($cat) && !empty($cat))
+                ->sort()
+                ->values();
+        });
 
         // Prepare category options array - format for Flux select (key => label)
         $categoryOptions = ['all' => 'All Categories'];
@@ -172,7 +191,11 @@ class Index extends Component
 
         $difficulties = ['Beginner', 'Intermediate', 'Advanced'];
 
-        return view('livewire.courses.index', [
+        $view = Auth::user()?->isIctTeacher()
+            ? 'livewire.courses.index-ict'
+            : 'livewire.courses.index';
+
+        return view($view, [
             'courses' => $courses,
             'categories' => $categories,
             'categoryOptions' => $categoryOptions,

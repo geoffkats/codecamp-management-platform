@@ -31,6 +31,9 @@
                 </flux:button>
             @endcan
                 @if(Auth::user()->hasAnyRole(['admin']))
+                    <flux:button wire:click="openPointsModal" variant="outline">
+                            Override XP
+                    </flux:button>
                     <flux:button wire:click="openResetModal" variant="ghost" title="Reset Password">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
@@ -40,6 +43,12 @@
                 @endif
             </div>
         </div>
+
+        @if (session('success'))
+            <div class="rounded-lg border border-green-200 bg-green-50 text-green-800 px-4 py-3 text-sm">
+                {{ session('success') }}
+            </div>
+        @endif
 
         <!-- Stats Grid -->
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -306,6 +315,58 @@
                             }
                         </script>
                     @endif
+                </div>
+            </form>
+        </flux:modal>
+    @endif
+
+    {{-- XP Override Modal --}}
+    @if($showPointsModal)
+        <flux:modal name="override-points" :show="$showPointsModal" wire:model="showPointsModal">
+            <form wire:submit.prevent="updatePoints">
+                <div class="p-6 space-y-4">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Override XP & Level</h2>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Admin-only manual adjustment for this user.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Points</label>
+                            <input type="number" min="0" wire:model.defer="pointsForm.total_points" class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900" />
+                            @error('pointsForm.total_points')<p class="text-sm text-red-600 mt-1">{{ $message }}</p>@enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Level</label>
+                            <input type="number" min="1" wire:model.defer="pointsForm.level" class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900" />
+                            @error('pointsForm.level')<p class="text-sm text-red-600 mt-1">{{ $message }}</p>@enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Points to Next Level</label>
+                            <input type="number" min="0" wire:model.defer="pointsForm.points_to_next_level" class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900" />
+                            @error('pointsForm.points_to_next_level')<p class="text-sm text-red-600 mt-1">{{ $message }}</p>@enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">XP Multiplier</label>
+                            <input type="number" min="0" step="0.1" wire:model.defer="pointsForm.xp_multiplier" class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900" />
+                            @error('pointsForm.xp_multiplier')<p class="text-sm text-red-600 mt-1">{{ $message }}</p>@enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Multiplier Expires At</label>
+                            <input type="datetime-local" wire:model.defer="pointsForm.multiplier_expires_at" class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900" />
+                            @error('pointsForm.multiplier_expires_at')<p class="text-sm text-red-600 mt-1">{{ $message }}</p>@enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason</label>
+                            <input type="text" wire:model.defer="pointsForm.multiplier_reason" class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900" />
+                            @error('pointsForm.multiplier_reason')<p class="text-sm text-red-600 mt-1">{{ $message }}</p>@enderror
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-3">
+                        <flux:button type="button" wire:click="closePointsModal" variant="ghost">Cancel</flux:button>
+                        <flux:button type="submit" variant="primary">Save</flux:button>
+                    </div>
                 </div>
             </form>
         </flux:modal>

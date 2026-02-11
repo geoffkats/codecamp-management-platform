@@ -55,10 +55,19 @@ class DailyChallenges extends Component
     public function render()
     {
         $today = $this->date ?? now()->toDateString();
+        $user = Auth::user();
+        $userCourseIds = $user?->enrollments()->pluck('course_id')->filter()->unique() ?? collect();
         
         // Get challenges for today, challenges with no date (always available), 
         // challenges from the last 30 days, or future challenges up to 30 days ahead
         $challenges = DailyChallenge::where('is_active', true)
+            ->where(function ($query) use ($userCourseIds) {
+                $query->whereNull('course_id');
+
+                if ($userCourseIds->isNotEmpty()) {
+                    $query->orWhereIn('course_id', $userCourseIds);
+                }
+            })
             ->where(function ($query) use ($today) {
                 $query->where('date', $today)
                       ->orWhereNull('date')
@@ -67,6 +76,7 @@ class DailyChallenges extends Component
                             ->where('date', '<=', now()->addDays(30)->toDateString());
                       });
             })
+                        ->with('course')
             ->orderBy('date', 'asc')
             ->orderBy('created_at', 'desc')
             ->get();

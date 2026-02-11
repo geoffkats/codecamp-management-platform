@@ -94,8 +94,21 @@ class Grade extends Component
             abort(404, 'Submission not found.');
         }
         
-        if ($user->isTeacher()) {
+        if ($user->isIctTeacher()) {
+            if ($this->submissionType === 'assessment') {
+                $schoolId = $user->ictSchoolId();
+                if (!$schoolId || $this->submission->student_type !== 'ict' || (int) $this->submission->school_id !== (int) $schoolId) {
+                    abort(403, 'You can only grade submissions from your school.');
+                }
+            } else {
+                abort(403, 'You can only grade submissions from your school.');
+            }
+        } elseif ($user->isTeacher()) {
             // Teachers can only grade submissions from their own courses
+            if ($this->submissionType === 'assessment' && $this->submission->student_type !== 'codecamp') {
+                abort(403, 'You can only grade submissions from your own courses.');
+            }
+
             if (!$course || $course->instructor_id !== $user->id) {
                 abort(403, 'You can only grade submissions from your own courses.');
             }
@@ -301,6 +314,9 @@ class Grade extends Component
                 'score' => $this->percentage,
                 'is_passed' => $this->percentage >= ($assignment->passing_score ?? 70),
                 'answers' => $answers,
+                'auto_scored' => false,
+                'is_locked' => true,
+                'teacher_id' => Auth::id(),
             ]);
         }
 

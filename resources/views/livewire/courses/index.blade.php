@@ -32,7 +32,7 @@
 
                     <flux:field>
                         <flux:label>Status</flux:label>
-                        <flux:select wire:model.live="filterStatus">
+                        <flux:select wire:model.live.debounce.150ms="filterStatus">
                             @foreach($statusOptions as $key => $label)
                                 <option value="{{ $key }}">{{ $label }}</option>
                             @endforeach
@@ -41,7 +41,7 @@
 
                     <flux:field>
                         <flux:label>Difficulty</flux:label>
-                        <flux:select wire:model.live="filterDifficulty">
+                        <flux:select wire:model.live.debounce.150ms="filterDifficulty">
                             @foreach($difficultyOptions as $key => $label)
                                 <option value="{{ $key }}">{{ $label }}</option>
                             @endforeach
@@ -51,7 +51,7 @@
                     @if(count($categoryOptions) > 1)
                         <flux:field>
                             <flux:label>Category</flux:label>
-                            <flux:select wire:model.live="filterCategory">
+                            <flux:select wire:model.live.debounce.150ms="filterCategory">
                                 @foreach($categoryOptions as $key => $label)
                                     <option value="{{ $key }}">{{ $label }}</option>
                                 @endforeach
@@ -73,23 +73,23 @@
         @endif
 
         {{-- Courses Grid --}}
-        @if($courses->count() > 0)
-            <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                @foreach($courses as $course)
-                    <div class="group bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden flex flex-col hover:shadow-2xl transition-all duration-300 border border-gray-200 dark:border-gray-700">
+        <div wire:loading.class="opacity-50 pointer-events-none" wire:target="search,filterStatus,filterCategory,filterDifficulty,sortBy">
+            @if($courses->count() > 0)
+                <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    @foreach($courses as $course)
+                        <div wire:key="course-{{ $course->id }}" class="group bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden flex flex-col hover:shadow-2xl transition-all duration-300 border border-gray-200 dark:border-gray-700">
                         {{-- Course Image/Thumbnail --}}
                         @if($course->featured_image)
                             <div class="relative h-48 w-full overflow-hidden">
                                 <img src="{{ asset('storage/' . $course->featured_image) }}" 
                                      alt="{{ $course->title }}" 
+                                     loading="lazy"
                                      class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300">
                                 <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                             </div>
                         @else
-                            <div class="h-48 w-full bg-gradient-to-br from-blue-500 via-purple-600 to-pink-600 flex items-center justify-center relative overflow-hidden">
-                                <div class="absolute inset-0 bg-black/20"></div>
-                                <span class="relative z-10 text-6xl font-bold text-white opacity-90">{{ substr($course->title, 0, 1) }}</span>
-                                <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+                            <div class="h-48 w-full bg-gradient-to-br from-blue-500 via-purple-600 to-pink-600 flex items-center justify-center">
+                                <span class="text-6xl font-bold text-white opacity-90">{{ substr($course->title, 0, 1) }}</span>
                             </div>
                         @endif
 
@@ -198,7 +198,7 @@
             <div class="mt-6">
                 {{ $courses->links() }}
             </div>
-        @else
+            @else
             {{-- Empty State --}}
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="p-12 text-center">
@@ -225,6 +225,18 @@
                     @endcan
                 </div>
             </div>
-        @endif
+            @endif
+        </div>
+
+        {{-- Loading Indicator --}}
+        <div wire:loading wire:target="search,filterStatus,filterCategory,filterDifficulty,sortBy" class="fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 flex items-center gap-3">
+                <svg class="animate-spin h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Loading courses...</span>
+            </div>
+        </div>
     </div>
 </div>

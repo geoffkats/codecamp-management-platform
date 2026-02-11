@@ -65,20 +65,9 @@ class ManageEnrollments extends Component
             'progress_percentage' => 0,
         ]);
 
-        // Ensure UserPoints exists
-        $user = $request->user;
-        if (!$user->points) {
-            \App\Models\UserPoint::create([
-                'user_id' => $user->id,
-                'total_points' => 0,
-                'level' => 1,
-                'points_to_next_level' => 100,
-            ]);
-            $user->refresh();
-        }
-
-        // Award enrollment points
-        $user->points->increment('total_points', 50);
+        // Award enrollment points (safe from duplicates)
+        $pointsService = app(\App\Services\PointsService::class);
+        $pointsService->awardEnrollmentPoints($request->user_id, $this->course->id);
 
         // Notify student
         \App\Models\Notification::create([
@@ -199,6 +188,22 @@ class ManageEnrollments extends Component
 
         $invitation->update(['status' => 'expired']);
         session()->flash('message', 'Invitation cancelled.');
+    }
+
+    public function unenrollStudent($enrollmentId)
+    {
+        $enrollment = CourseEnrollment::findOrFail($enrollmentId);
+
+        // Verify this enrollment belongs to this course
+        if ($enrollment->course_id !== $this->course->id) {
+            abort(403);
+        }
+
+        $studentName = $enrollment->user->name;
+        $enrollment->delete();
+
+        session()->flash('message', "$studentName has been unenrolled from the course.");
+        $this->resetPage();
     }
 
     public function render()

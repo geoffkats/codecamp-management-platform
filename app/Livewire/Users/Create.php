@@ -46,14 +46,25 @@ class Create extends Component
             $imagePath = $this->profile_image->store('profiles', 'public');
         }
 
-        $user = User::create([
+        // Check if student role is being assigned
+        $studentRole = \App\Models\Role::where('name', 'student')->first();
+        $isStudent = $studentRole && in_array($studentRole->id, $this->selectedRoles);
+
+        $userData = [
             'name' => $this->user['name'],
             'email' => $this->user['email'],
             'password' => Hash::make($this->password),
             'profile_image' => $imagePath,
             'bio' => $this->user['bio'] ?? null,
             'is_active' => $this->user['is_active'] ?? true,
-        ]);
+        ];
+
+        // Only set student_type if this is a student user
+        if ($isStudent) {
+            $userData['student_type'] = 'codecamp';
+        }
+
+        $user = User::create($userData);
 
         // Attach selected roles
         $user->roles()->attach($this->selectedRoles);

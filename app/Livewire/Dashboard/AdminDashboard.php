@@ -3,12 +3,14 @@
 namespace App\Livewire\Dashboard;
 
 use App\Models\Badge;
+use App\Models\Certificate;
 use App\Models\ContentApproval;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
 use App\Models\DailyChallenge;
 use App\Models\Lesson;
 use App\Models\Notification;
+use App\Models\AssessmentAttempt;
 use App\Models\User;
 use App\Models\UserPoint;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +27,9 @@ class AdminDashboard extends Component
     public $topPerformers = [];
     public $systemHealth = [];
     public $chartData = [];
+    public $sampleCertificate = null;
+    public $ictSchoolPerformance = [];
+    public $recentIctAssessmentResults = [];
 
     public function mount()
     {
@@ -33,8 +38,10 @@ class AdminDashboard extends Component
         $this->loadRecentUsers();
         $this->loadRecentCourses();
         $this->loadTopPerformers();
+        $this->loadSampleCertificate();
         $this->checkSystemHealth();
         $this->loadChartData();
+        $this->loadIctSchoolPerformance();
     }
 
     public function loadStats()
@@ -182,6 +189,57 @@ class AdminDashboard extends Component
             ->toArray();
     }
 
+    public function loadSampleCertificate()
+    {
+        $certificate = Certificate::with(['user', 'course'])
+            ->orderByDesc('issued_at')
+            ->orderByDesc('created_at')
+            ->first();
+
+        $this->sampleCertificate = $certificate ? [
+            'id' => $certificate->id,
+            'certificate_number' => $certificate->certificate_number,
+            'title' => $certificate->title,
+            'issued_at' => $certificate->issued_at?->format('M j, Y'),
+            'user_name' => $certificate->user?->name,
+            'course_title' => $certificate->course?->title,
+        ] : null;
+    }
+
+    public function loadIctSchoolPerformance(): void
+    {
+        $this->ictSchoolPerformance = DB::table('assessment_attempts')
+            ->leftJoin('schools', 'assessment_attempts.school_id', '=', 'schools.id')
+            ->selectRaw('assessment_attempts.school_id, schools.name as school_name, COUNT(*) as total_attempts, SUM(assessment_attempts.is_passed = 1) as passed_attempts')
+            ->where('assessment_attempts.student_type', 'ict')
+            ->where('assessment_attempts.status', 'completed')
+            ->groupBy('assessment_attempts.school_id', 'schools.name')
+            ->orderByDesc('total_attempts')
+            ->limit(10)
+            ->get()
+            ->map(function ($row) {
+                $total = (int) $row->total_attempts;
+                $passed = (int) $row->passed_attempts;
+
+                return [
+                    'school_id' => $row->school_id,
+                    'school_name' => $row->school_name ?? 'Unassigned',
+                    'total_attempts' => $total,
+                    'passed_attempts' => $passed,
+                    'pass_rate' => $total > 0 ? round(($passed / $total) * 100, 1) : 0,
+                ];
+            })
+            ->toArray();
+
+        $this->recentIctAssessmentResults = AssessmentAttempt::query()
+            ->where('student_type', 'ict')
+            ->where('status', 'completed')
+            ->with(['assessment.lesson', 'assessment.course', 'user', 'assessment.questions'])
+            ->orderByDesc('completed_at')
+            ->limit(8)
+            ->get();
+    }
+
     public function checkSystemHealth()
     {
         $this->systemHealth = [
@@ -236,26 +294,30 @@ class AdminDashboard extends Component
         if (file_exists($logPath)) {
             // Read last part of log file (last 100KB to avoid memory issues)
             $fileSize = filesize($logPath);
-            $chunkSize = min(100 * 1024, $fileSize); // 100KB
-            $handle = fopen($logPath, 'r');
             
-            if ($handle) {
-                // Read from end of file
-                fseek($handle, -$chunkSize, SEEK_END);
-                $content = fread($handle, $chunkSize);
-                fclose($handle);
+            // Skip if file is empty
+            if ($fileSize > 0) {
+                $chunkSize = min(100 * 1024, $fileSize); // 100KB
+                $handle = fopen($logPath, 'r');
                 
-                // Count ERROR level log entries from last 24 hours
-                $lines = explode("\n", $content);
-                $yesterday = now()->subDay()->format('Y-m-d');
-                
-                foreach ($lines as $line) {
-                    if (preg_match('/\[(\d{4}-\d{2}-\d{2})/', $line, $matches)) {
-                        if ($matches[1] >= $yesterday && 
-                            (stripos($line, '.ERROR') !== false || 
-                             stripos($line, 'CRITICAL') !== false ||
-                             stripos($line, 'Exception') !== false)) {
-                            $recentErrors++;
+                if ($handle && $chunkSize > 0) {
+                    // Read from end of file
+                    fseek($handle, -$chunkSize, SEEK_END);
+                    $content = fread($handle, $chunkSize);
+                    fclose($handle);
+                    
+                    // Count ERROR level log entries from last 24 hours
+                    $lines = explode("\n", $content);
+                    $yesterday = now()->subDay()->format('Y-m-d');
+                    
+                    foreach ($lines as $line) {
+                        if (preg_match('/\[(\d{4}-\d{2}-\d{2})/', $line, $matches)) {
+                            if ($matches[1] >= $yesterday && 
+                                (stripos($line, '.ERROR') !== false || 
+                                 stripos($line, 'CRITICAL') !== false ||
+                                 stripos($line, 'Exception') !== false)) {
+                                $recentErrors++;
+                            }
                         }
                     }
                 }
@@ -365,6 +427,7 @@ class AdminDashboard extends Component
         $this->loadRecentUsers();
         $this->loadRecentCourses();
         $this->loadTopPerformers();
+        $this->loadSampleCertificate();
         $this->checkSystemHealth();
         $this->loadChartData();
         

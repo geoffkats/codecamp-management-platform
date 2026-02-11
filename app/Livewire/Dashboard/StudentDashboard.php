@@ -6,6 +6,8 @@ use App\Models\Badge;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
 use App\Models\DailyChallenge;
+use App\Models\AssessmentAttempt;
+use App\Models\IcdlExamResult;
 use App\Models\Leaderboard;
 use App\Models\Notification;
 use App\Models\User;
@@ -59,7 +61,38 @@ class StudentDashboard extends Component
             'enrollments.course.modules.lessons',
             'badges' => fn($q) => $q->latest('user_badges.earned_at')->take(5),
             'points',
+            'studentProfile',
         ]);
+
+        if ($user->isIctStudent()) {
+            $enrollments = CourseEnrollment::where('user_id', $user->id)
+                ->with('course')
+                ->orderBy('enrolled_at', 'desc')
+                ->get();
+
+            $examResults = $user->studentProfile
+                ? IcdlExamResult::where('student_profile_id', $user->studentProfile->id)
+                    ->with('module')
+                    ->orderByDesc('exam_date')
+                    ->get()
+                : collect();
+
+            $assessmentAttempts = AssessmentAttempt::where('user_id', $user->id)
+                ->where('student_type', 'ict')
+                ->where('status', 'completed')
+                ->with(['assessment.questions', 'assessment.lesson', 'assessment.course'])
+                ->orderByDesc('completed_at')
+                ->take(8)
+                ->get();
+
+            return view('livewire.dashboard.icdl-student-dashboard', [
+                'user' => $user,
+                'studentProfile' => $user->studentProfile,
+                'enrollments' => $enrollments,
+                'examResults' => $examResults,
+                'assessmentAttempts' => $assessmentAttempts,
+            ]);
+        }
 
         // Cache dashboard data for 5 minutes
         $dashboardData = Cache::remember(
@@ -157,12 +190,24 @@ class StudentDashboard extends Component
 
     private function getDailyChallenges($user)
     {
+        $userCourseIds = $user->enrollments()->pluck('course_id')->filter()->unique();
+
         $challenges = DailyChallenge::where('is_active', true)
+            ->where(function($q) use ($userCourseIds) {
+                $q->whereNull('course_id');
+
+                if ($userCourseIds->isNotEmpty()) {
+                    $q->orWhereIn('course_id', $userCourseIds);
+                }
+            })
             ->where(function($q) {
                 $q->where('date', '>=', now()->toDateString())
                   ->orWhereNull('date');
             })
-            ->with(['attempts' => fn($q) => $q->where('user_id', $user->id)])
+            ->with([
+                'attempts' => fn($q) => $q->where('user_id', $user->id),
+                'course',
+            ])
             ->orderBy('date', 'asc')
             ->take(3)
             ->get()

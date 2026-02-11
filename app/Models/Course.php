@@ -5,13 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use App\Traits\Auditable;
 
 class Course extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, Auditable;
 
     protected $fillable = [
         'title',
@@ -86,6 +88,13 @@ class Course extends Model
     public function enrollments(): HasMany
     {
         return $this->hasMany(CourseEnrollment::class);
+    }
+
+    public function schools(): BelongsToMany
+    {
+        return $this->belongsToMany(School::class, 'school_courses')
+            ->withPivot('is_active')
+            ->withTimestamps();
     }
 
     public function lessons(): HasMany

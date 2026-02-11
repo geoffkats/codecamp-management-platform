@@ -87,14 +87,34 @@ class InstructorDashboard extends Component
 
     private function getPendingApprovals($user)
     {
-        return ContentApproval::whereHas('approvable', function ($query) use ($user) {
-            $query->where('instructor_id', $user->id);
-        })
-        ->where('status', 'pending')
-        ->with(['approvable', 'submitter'])
-        ->latest('submitted_at')
-        ->take(5)
-        ->get();
+        // Get IDs of lessons from courses this user owns
+        $lessonIds = \App\Models\Lesson::whereHas('module.course', function ($q) use ($user) {
+            $q->where('instructor_id', $user->id);
+        })->pluck('id');
+
+        // Get IDs of courses this user owns
+        $courseIds = Course::where('instructor_id', $user->id)->pluck('id');
+
+        // Get pending approvals for lessons
+        $lessonApprovals = ContentApproval::where('approvable_type', 'App\Models\Lesson')
+            ->whereIn('approvable_id', $lessonIds)
+            ->where('status', 'pending')
+            ->with(['approvable', 'submitter'])
+            ->get();
+
+        // Get pending approvals for courses
+        $courseApprovals = ContentApproval::where('approvable_type', 'App\Models\Course')
+            ->whereIn('approvable_id', $courseIds)
+            ->where('status', 'pending')
+            ->with(['approvable', 'submitter'])
+            ->get();
+
+        // Combine, sort by submitted_at, and take 5
+        return collect($lessonApprovals)
+            ->concat($courseApprovals)
+            ->sortByDesc('submitted_at')
+            ->take(5)
+            ->values();
     }
 
     private function getRecentEnrollments($user)

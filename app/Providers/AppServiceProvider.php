@@ -6,10 +6,12 @@ use App\Models\Assessment;
 use App\Models\Assignment;
 use App\Models\Course;
 use App\Models\Lesson;
+use App\Models\StudentProfile;
 use App\Models\User;
 use App\Policies\AssessmentPolicy;
 use App\Policies\CoursePolicy;
 use App\Policies\LessonPolicy;
+use App\Policies\StudentProfilePolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider;
 use Illuminate\Support\Facades\Gate;
@@ -28,6 +30,7 @@ class AppServiceProvider extends AuthServiceProvider
         Assessment::class => AssessmentPolicy::class,
         Assignment::class => AssessmentPolicy::class, // Reuse for now
         User::class => UserPolicy::class,
+        StudentProfile::class => StudentProfilePolicy::class,
     ];
 
     /**
@@ -50,7 +53,7 @@ class AppServiceProvider extends AuthServiceProvider
 
         // Register permission gates
         Gate::define('manage_users', function (User $user) {
-            return $user->hasPermission('manage_users');
+            return $user->hasPermission('manage_users') || $user->isAdmin() || $user->isOperationsManager() || $user->isTeacher();
         });
 
         Gate::define('view_analytics', function (User $user) {
@@ -83,6 +86,10 @@ class AppServiceProvider extends AuthServiceProvider
                 || $user->isAdmin() 
                 || $user->isTeacher() 
                 || $user->isSupervisor();
+        });
+
+        Gate::define('view_teacher_code', function (User $user) {
+            return $user->isTeacher() || $user->isAdmin() || $user->isOperationsManager();
         });
     }
 }

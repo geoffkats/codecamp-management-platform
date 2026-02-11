@@ -3,6 +3,9 @@ import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import TextAlign from '@tiptap/extension-text-align'
+import { TextStyle } from '@tiptap/extension-text-style'
+import FontFamily from '@tiptap/extension-font-family'
 import { common, createLowlight } from 'lowlight'
 
 const lowlight = createLowlight(common)
@@ -17,9 +20,15 @@ export function initTipTapEditor(element, initialContent = '', onUpdate = null) 
     try {
         const editor = new Editor({
             element: element,
+            editable: true,
             extensions: [
                 StarterKit.configure({
                     codeBlock: false, // We'll use CodeBlockLowlight instead
+                }),
+                TextStyle,
+                FontFamily,
+                TextAlign.configure({
+                    types: ['heading', 'paragraph'],
                 }),
                 Image.configure({
                     inline: true,
@@ -61,8 +70,45 @@ export function initTipTapEditor(element, initialContent = '', onUpdate = null) 
 }
 
 export function createToolbar(editor, container) {
+    const existingToolbar = container.querySelector('[data-tiptap-toolbar]')
+    if (existingToolbar) {
+        existingToolbar.remove()
+    }
+
     const toolbar = document.createElement('div')
+    toolbar.setAttribute('data-tiptap-toolbar', 'true')
     toolbar.className = 'flex flex-wrap items-center gap-1 p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'
+
+    const fontSelect = document.createElement('select')
+    fontSelect.className = 'text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-1'
+    fontSelect.innerHTML = [
+        '<option value="default">Font: Default</option>',
+        '<option value="Arial, sans-serif">Font: Sans</option>',
+        '<option value="\"Helvetica Neue\", Arial, sans-serif">Font: Helvetica</option>',
+        '<option value="\"Times New Roman\", serif">Font: Times</option>',
+        '<option value="Georgia, serif">Font: Serif</option>',
+        '<option value="\"Courier New\", monospace">Font: Mono</option>',
+        '<option value="Verdana, sans-serif">Font: Verdana</option>',
+        '<option value="Tahoma, sans-serif">Font: Tahoma</option>',
+        '<option value="\"Trebuchet MS\", sans-serif">Font: Trebuchet</option>',
+    ].join('')
+    fontSelect.addEventListener('change', () => {
+        const value = fontSelect.value
+        try {
+            if (value === 'default') {
+                editor.chain().focus().unsetFontFamily().run()
+            } else {
+                editor.chain().focus().setFontFamily(value).run()
+            }
+        } catch (error) {
+            console.error('Font family action error:', error)
+        }
+    })
+    toolbar.appendChild(fontSelect)
+
+    const fontSep = document.createElement('div')
+    fontSep.className = 'w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1'
+    toolbar.appendChild(fontSep)
 
     const buttons = [
         {
@@ -158,6 +204,79 @@ export function createToolbar(editor, container) {
         },
         { type: 'separator' },
         {
+            icon: 'Left',
+            title: 'Align Left',
+            action: () => {
+                try {
+                    editor.chain().focus().setTextAlign('left').run()
+                } catch (error) {
+                    console.error('Align left action error:', error)
+                }
+            },
+            isActive: () => {
+                try {
+                    return editor.isActive({ textAlign: 'left' })
+                } catch {
+                    return false
+                }
+            },
+        },
+        {
+            icon: 'Center',
+            title: 'Align Center',
+            action: () => {
+                try {
+                    editor.chain().focus().setTextAlign('center').run()
+                } catch (error) {
+                    console.error('Align center action error:', error)
+                }
+            },
+            isActive: () => {
+                try {
+                    return editor.isActive({ textAlign: 'center' })
+                } catch {
+                    return false
+                }
+            },
+        },
+        {
+            icon: 'Right',
+            title: 'Align Right',
+            action: () => {
+                try {
+                    editor.chain().focus().setTextAlign('right').run()
+                } catch (error) {
+                    console.error('Align right action error:', error)
+                }
+            },
+            isActive: () => {
+                try {
+                    return editor.isActive({ textAlign: 'right' })
+                } catch {
+                    return false
+                }
+            },
+        },
+        {
+            icon: 'Justify',
+            title: 'Justify',
+            action: () => {
+                try {
+                    editor.chain().focus().setTextAlign('justify').run()
+                } catch (error) {
+                    console.error('Justify action error:', error)
+                }
+            },
+            isActive: () => {
+                try {
+                    return editor.isActive({ textAlign: 'justify' })
+                } catch {
+                    return false
+                }
+            },
+        },
+        { type: 'separator' },
+        {
             icon: '• List',
             title: 'Bullet List',
             action: () => {
@@ -190,6 +309,32 @@ export function createToolbar(editor, container) {
                     return editor.isActive('orderedList')
                 } catch {
                     return false
+                }
+            },
+        },
+        {
+            icon: 'Indent',
+            title: 'Indent (List)',
+            action: () => {
+                try {
+                    if (editor.can().sinkListItem('listItem')) {
+                        editor.chain().focus().sinkListItem('listItem').run()
+                    }
+                } catch (error) {
+                    console.error('Indent action error:', error)
+                }
+            },
+        },
+        {
+            icon: 'Outdent',
+            title: 'Outdent (List)',
+            action: () => {
+                try {
+                    if (editor.can().liftListItem('listItem')) {
+                        editor.chain().focus().liftListItem('listItem').run()
+                    }
+                } catch (error) {
+                    console.error('Outdent action error:', error)
                 }
             },
         },
@@ -357,7 +502,7 @@ export function createToolbar(editor, container) {
             button.title = btn.title
             button.innerHTML = btn.icon
             
-            button.addEventListener('click', (e) => {
+            button.addEventListener('pointerdown', (e) => {
                 e.preventDefault()
                 e.stopPropagation()
                 btn.action()
@@ -371,6 +516,13 @@ export function createToolbar(editor, container) {
 
     function updateActiveStates() {
         try {
+            try {
+                const fontFamily = editor.getAttributes('textStyle').fontFamily || 'default'
+                fontSelect.value = fontFamily
+            } catch (error) {
+                console.debug('Font family update error:', error)
+            }
+
             buttonElements.forEach(({ button, config }) => {
                 try {
                     if (config.isActive && config.isActive()) {

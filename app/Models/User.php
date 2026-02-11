@@ -23,7 +23,10 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'student_type',
+        'student_id',
         'password',
+        'initial_password',
         'profile_image',
         'bio',
         'is_active',
@@ -37,6 +40,7 @@ class User extends Authenticatable
      */
     protected $hidden = [
         'password',
+        'initial_password',
         'two_factor_secret',
         'two_factor_recovery_codes',
         'remember_token',
@@ -107,6 +111,31 @@ class User extends Authenticatable
         return $this->hasOne(StudentProfile::class);
     }
 
+    public function teacherProfile()
+    {
+        return $this->hasOne(TeacherProfile::class);
+    }
+
+    public function schoolTeachers()
+    {
+        return $this->hasMany(SchoolTeacher::class, 'teacher_id');
+    }
+
+    public function ictSchoolId(): ?int
+    {
+        $assignment = $this->schoolTeachers()
+            ->where('role', 'ict_teacher')
+            ->orderByDesc('created_at')
+            ->first();
+
+        if ($assignment) {
+            return $assignment->status === 'active' ? (int) $assignment->school_id : null;
+        }
+
+        $schoolId = $this->teacherProfile?->school_id;
+        return $schoolId ? (int) $schoolId : null;
+    }
+
     public function invitations()
     {
         return $this->hasMany(CourseInvitation::class);
@@ -151,6 +180,16 @@ class User extends Authenticatable
     public function getTodayCheckInAttribute()
     {
         return $this->todayCheckIn();
+    }
+
+    public function isIctStudent(): bool
+    {
+        return $this->isStudent() && $this->student_type === 'ict';
+    }
+
+    public function isCodecampStudent(): bool
+    {
+        return $this->isStudent() && $this->student_type === 'codecamp';
     }
 
     public function discussionReplies()

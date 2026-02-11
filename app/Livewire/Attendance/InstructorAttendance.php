@@ -26,7 +26,7 @@ class InstructorAttendance extends Component
     public function loadInstructors()
     {
         $query = User::whereHas('roles', function($q) {
-            $q->where('name', 'teacher');
+            $q->whereIn('name', ['teacher', 'ict_teacher']);
         });
 
         if ($this->search) {

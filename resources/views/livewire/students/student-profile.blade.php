@@ -14,6 +14,9 @@
                 </div>
             </div>
             <div class="flex gap-3">
+                <a href="{{ route('students.print-credentials', $student->id) }}" target="_blank" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors">
+                    Print Credentials
+                </a>
                 <button wire:click="exportPDF" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors">
                     Export PDF
                 </button>
@@ -54,13 +57,37 @@
                     <div class="flex-1">
                         <h3 class="text-2xl font-bold text-gray-900 dark:text-white">{{ $student->full_name }}</h3>
                         <p class="text-gray-600 dark:text-gray-400 mt-1">{{ $student->student_id }}</p>
+                        @if($student->icdl_number)
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">ICDL: {{ $student->icdl_number }}</p>
+                        @endif
                         <div class="flex gap-4 mt-3">
                             <span class="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm rounded-full">
                                 {{ $student->class_grade ?? 'No Class' }}
                             </span>
+                            @php
+                                $categoryLabel = match($student->student_category ?? 'codecamp') {
+                                    'school_club' => 'School Club',
+                                    'ict_school' => 'ICT School',
+                                    default => 'Codecamp',
+                                };
+                            @endphp
+                            <span class="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-sm rounded-full">
+                                {{ $categoryLabel }}
+                            </span>
                             <span class="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
                                 {{ ucfirst($student->gender ?? 'N/A') }}
                             </span>
+                            <span class="px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
+                                {{ str_replace('_', ' ', $student->exam_readiness_status ?? 'not_ready') }}
+                            </span>
+                            <span class="px-3 py-1 {{ $student->is_active ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' }} text-sm rounded-full">
+                                {{ $student->is_active ? 'Active' : 'Removed' }}
+                            </span>
+                            @if($student->school)
+                            <span class="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm rounded-full">
+                                {{ $student->school->name }}
+                            </span>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -77,7 +104,7 @@
                     </div>
                     <div>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Email</p>
-                        <p class="text-gray-900 dark:text-white font-medium">{{ $student->user->email }}</p>
+                        <p class="text-gray-900 dark:text-white font-medium">{{ $student->user?->email ?: $student->student_id }}</p>
                     </div>
                     <div class="md:col-span-2 lg:col-span-3">
                         <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Address</p>

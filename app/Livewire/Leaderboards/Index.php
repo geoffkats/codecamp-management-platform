@@ -40,12 +40,33 @@ class Index extends Component
 
     public function render()
     {
+        $currentUser = Auth::user();
+
+        // If a student, limit leaderboard to students sharing at least one course
+        $courseScope = function ($q) use ($currentUser) {
+            if ($currentUser && $currentUser->isStudent()) {
+                $courseIds = $currentUser->enrollments()
+                    ->where('status', 'approved')
+                    ->pluck('course_id')
+                    ->toArray();
+
+                // If student has no enrollments, return an empty scope to avoid showing global board
+                if (empty($courseIds)) {
+                    $q->whereRaw('1 = 0');
+                    return;
+                }
+
+                $q->whereHas('enrollments', fn($e) => $e->whereIn('course_id', $courseIds));
+            }
+        };
+
         $query = UserPoint::query()
             ->with('user')
             ->whereHas('user', function ($q) {
                 $q->where('is_active', true)
                   ->whereHas('roles', fn($r) => $r->where('name', 'student'));
-            });
+            })
+            ->whereHas('user', $courseScope);
 
         // Filter by period
         if ($this->period === 'weekly') {
@@ -65,12 +86,12 @@ class Index extends Component
 
         // Get current user's position (only if user is a student)
         $currentUserRank = null;
-        $currentUser = Auth::user();
         if ($currentUser && $currentUser->isStudent() && $currentUser->points) {
             $rank = UserPoint::whereHas('user', function ($q) {
                     $q->where('is_active', true)
                       ->whereHas('roles', fn($r) => $r->where('name', 'student'));
                 })
+                ->whereHas('user', $courseScope)
                 ->where('total_points', '>', $currentUser->points->total_points ?? 0)
                 ->count() + 1;
             $currentUserRank = [
@@ -87,6 +108,7 @@ class Index extends Component
                 $q->where('is_active', true)
                   ->whereHas('roles', fn($r) => $r->where('name', 'student'));
             })
+            ->whereHas('user', $courseScope)
             ->orderByDesc('total_points')
             ->take(3)
             ->get()
@@ -105,6 +127,7 @@ class Index extends Component
                 $q->where('is_active', true)
                   ->whereHas('roles', fn($r) => $r->where('name', 'student'));
             })
+            ->whereHas('user', $courseScope)
             ->count();
 
         return view('livewire.leaderboards.index', [

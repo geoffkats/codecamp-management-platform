@@ -1,216 +1,497 @@
-<div class="flex h-screen bg-gray-100 dark:bg-gray-900" 
-     x-data="{ 
-         collapsed: @entangle('sidebarCollapsed'),
-         init() {
-             // Keyboard shortcut: Ctrl+B or Cmd+B to toggle sidebar
-             document.addEventListener('keydown', (e) => {
-                 if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
-                     e.preventDefault();
-                     $wire.toggleSidebar();
-                 }
-             });
-         }
-     }">
+<div class="flex h-screen bg-gray-50 dark:bg-gray-950"
+     x-data="{ collapsed: @entangle('sidebarCollapsed') }"
+     x-init="
+         document.addEventListener('keydown', (e) => {
+             if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+                 e.preventDefault();
+                 $wire.toggleSidebar();
+             }
+         }, { passive: false });
+     ">
     {{-- Left Sidebar - Course List or Course Structure --}}
-    <div class="transition-all duration-300 bg-white dark:bg-gray-800 overflow-hidden {{ $sidebarCollapsed ? 'w-0 border-0' : 'w-80 border-r border-gray-200 dark:border-gray-700 overflow-y-auto' }}">
-        <div class="{{ $sidebarCollapsed ? 'hidden' : 'block' }}" style="width: 320px;">
-        @if(!$courseId)
-            {{-- Course Selection --}}
-            <div class="p-6">
-                <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Select Course</h2>
-                
-                @if($courses->count() > 0)
-                    <div class="space-y-3">
-                        @foreach($courses as $courseOption)
-                            <a href="{{ route('curriculum.builder', ['course' => $courseOption->id]) }}" 
-                               wire:navigate
-                               class="block p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-lg transition-all">
-                                <div class="flex items-start justify-between gap-2">
-                                    <div class="flex-1 min-w-0">
-                                        <h3 class="font-bold text-gray-900 dark:text-white">{{ $courseOption->title }}</h3>
-                                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                            {{ $courseOption->modules->count() }} modules
-                                        </p>
-                                    </div>
-                                    @if($courseOption->instructor_id !== auth()->id())
-                                        <span class="px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full whitespace-nowrap">
-                                            Collaborator
-                                        </span>
-                                    @endif
-                                </div>
-                            </a>
-                        @endforeach
-                    </div>
-                @else
-                    <p class="text-gray-600 dark:text-gray-400">No courses available</p>
-                @endif
+    <div class="transition-all duration-300 bg-white dark:bg-gray-900 overflow-hidden {{ $sidebarCollapsed ? 'w-0 border-0' : 'w-96 border-r border-gray-200 dark:border-gray-800 overflow-y-auto' }}">
+        <div class="{{ $sidebarCollapsed ? 'hidden' : 'block' }}" style="width: 384px;">
+            <div wire:loading.delay class="p-6 space-y-4">
+                <div class="h-5 w-32 rounded bg-gray-200 dark:bg-gray-800 animate-pulse"></div>
+                <div class="h-10 w-full rounded bg-gray-200 dark:bg-gray-800 animate-pulse"></div>
+                <div class="h-10 w-4/5 rounded bg-gray-200 dark:bg-gray-800 animate-pulse"></div>
+                <div class="h-10 w-3/5 rounded bg-gray-200 dark:bg-gray-800 animate-pulse"></div>
+                <div class="h-10 w-2/3 rounded bg-gray-200 dark:bg-gray-800 animate-pulse"></div>
             </div>
-        @else
-            {{-- Course Structure Tree --}}
-            <div class="p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-lg font-bold text-gray-900 dark:text-white">Structure</h2>
-                    <a href="{{ route('curriculum.builder') }}" wire:navigate class="text-sm text-blue-600 hover:text-blue-700">
-                        ← Courses
-                    </a>
+            <div wire:loading.remove>
+            @if(!$courseId)
+                {{-- Course Selection --}}
+                <div class="p-6">
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Select Course</h2>
+                    
+                    @if($courses->count() > 0)
+                        <div class="space-y-3">
+                            @foreach($courses as $courseOption)
+                                <a wire:key="course-{{ $courseOption->id }}"
+                                   href="{{ route('curriculum.builder', ['course' => $courseOption->id]) }}"
+                                   wire:navigate
+                                   class="block p-4 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-gray-900 dark:hover:border-gray-100 hover:shadow-sm transition-all">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="flex-1 min-w-0">
+                                            <h3 class="font-semibold text-gray-900 dark:text-white">{{ $courseOption->title }}</h3>
+                                            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                {{ $courseOption->modules_count }} modules
+                                            </p>
+                                        </div>
+                                        @if($courseOption->instructor_id !== auth()->id())
+                                            <span class="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full whitespace-nowrap">
+                                                Collaborator
+                                            </span>
+                                        @endif
+                                    </div>
+                                </a>
+                            @endforeach
+                        </div>
+                    @else
+                        <p class="text-gray-600 dark:text-gray-400">No courses available</p>
+                    @endif
                 </div>
-                
-                @if($course)
-                    {{-- Course Title --}}
-                    <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <h3 class="font-bold text-blue-900 dark:text-blue-100">{{ $course->title }}</h3>
+            @else
+                {{-- Course Structure Tree --}}
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-lg font-bold text-gray-900 dark:text-white">Structure</h2>
+                        <a href="{{ route('curriculum.builder') }}" wire:navigate class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                            ← Courses
+                        </a>
                     </div>
                     
-                    {{-- Add Module Button --}}
-                    <button wire:click="selectItem('module')" 
-                            class="w-full mb-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                        + Add Module
-                    </button>
-                    
-                    {{-- Modules List --}}
-                    <div class="space-y-2">
-                        @foreach($course->modules as $module)
-                            <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                                {{-- Module Header --}}
-                                <button wire:click="selectItem('module', {{ $module->id }})"
-                                        class="w-full px-4 py-3 text-left bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors
-                                               {{ $selectedType === 'module' && $selectedId === $module->id ? 'bg-blue-50 dark:bg-blue-900/30' : '' }}">
-                                    <div class="flex items-center justify-between">
-                                        <span class="font-semibold text-gray-900 dark:text-white">{{ $module->title }}</span>
-                                        <span class="text-xs text-gray-500">{{ $module->lessons->count() }} lessons</span>
-                                    </div>
+                    @if($course)
+                        <div class="mb-4 p-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
+                            <h3 class="font-semibold text-gray-900 dark:text-gray-100">{{ $course->title }}</h3>
+                        </div>
+
+                        @php
+                            $activeModules = $course->modules->filter(fn($m) => !method_exists($m, 'trashed') || !$m->trashed());
+                            $archivedModules = $course->modules->filter(fn($m) => method_exists($m, 'trashed') && $m->trashed());
+                            $archivedLessonCount = $course->modules
+                                ->flatMap(fn($m) => $m->lessons)
+                                ->filter(fn($lesson) => method_exists($lesson, 'trashed') && $lesson->trashed())
+                                ->count();
+                            $archivedTotal = $archivedModules->count() + $archivedLessonCount;
+                        @endphp
+
+                        <div class="flex items-center gap-2 mb-4">
+                            <button wire:click="setStructureTab('active')"
+                                    class="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors
+                                        {{ $structureTab === 'active' ? 'bg-gray-900 text-white border-gray-900 dark:bg-white dark:text-gray-900 dark:border-white' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800' }}">
+                                Active ({{ $activeModules->count() }})
+                            </button>
+                            <button wire:click="setStructureTab('archived')"
+                                    class="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors
+                                        {{ $structureTab === 'archived' ? 'bg-gray-900 text-white border-gray-900 dark:bg-white dark:text-gray-900 dark:border-white' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800' }}">
+                                Archived ({{ $archivedTotal }})
+                            </button>
+                        </div>
+
+                        @if($structureTab === 'active')
+                            @if($mode === 'build' && $canManageCourse)
+                                <button wire:click="selectItem('module')"
+                                        class="w-full mb-4 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors">
+                                    + Add Module
                                 </button>
-                                
-                                {{-- Lessons List --}}
-                                <div class="pl-4">
-                                    @foreach($module->lessons as $lesson)
-                                        <div class="border-l-2 border-gray-200 dark:border-gray-700 ml-2">
-                                            {{-- Lesson Item --}}
-                                            <div class="flex items-center group">
-                                                <button wire:click="selectItem('lesson', {{ $lesson->id }})"
-                                                        class="flex-1 px-4 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors
-                                                               {{ $selectedType === 'lesson' && $selectedId === $lesson->id ? 'bg-blue-50 dark:bg-blue-900/30' : '' }}">
-                                                    <div class="flex items-center gap-2">
-                                                        {{-- Approval Status Icon --}}
-                                                        @if($lesson->approval_status === 'approved')
-                                                            <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                                                            </svg>
-                                                        @elseif($lesson->approval_status === 'pending')
-                                                            <svg class="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
-                                                            </svg>
-                                                        @elseif($lesson->approval_status === 'rejected')
-                                                            <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                                                            </svg>
-                                                        @else
-                                                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                            </svg>
-                                                        @endif
-                                                        <span class="text-gray-700 dark:text-gray-300 flex-1 truncate">{{ $lesson->title }}</span>
-                                                        @if($lesson->assessments->count() > 0)
-                                                            <span class="text-xs text-gray-500 dark:text-gray-400">{{ $lesson->assessments->count() }}</span>
-                                                        @endif
-                                                    </div>
-                                                </button>
-                                                {{-- Lock/Unlock Toggle --}}
-                                                <button wire:click.stop="toggleLessonLock({{ $lesson->id }})"
-                                                        title="{{ $lesson->is_locked ? 'Unlock lesson' : 'Lock lesson' }}"
-                                                        class="px-2 py-2 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-600 rounded">
-                                                    @if($lesson->is_locked)
-                                                        <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
-                                                        </svg>
-                                                    @else
-                                                        <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
-                                                        </svg>
-                                                    @endif
-                                                </button>
+                            @endif
+
+                            <div class="space-y-2">
+                                @foreach($activeModules as $module)
+                                    @php
+                                        $activeLessons = $module->lessons->filter(fn($lesson) => !method_exists($lesson, 'trashed') || !$lesson->trashed());
+                                    @endphp
+                                    <details wire:key="module-{{ $module->id }}" class="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden" open>
+                                        <summary wire:click="selectItem('module', {{ $module->id }})"
+                                                 class="cursor-pointer list-none px-4 py-3 text-left bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors
+                                                        {{ $selectedType === 'module' && $selectedId === $module->id ? 'bg-gray-50 dark:bg-gray-800' : '' }}">
+                                            <div class="flex items-start justify-between gap-2">
+                                                <span class="flex-1 font-semibold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">{{ $module->title }}</span>
+                                                <span class="text-xs text-gray-500 whitespace-nowrap">{{ $activeLessons->count() }} lessons</span>
                                             </div>
-                                            
-                                            {{-- Assessments under this lesson --}}
-                                            @if($lesson->assessments->count() > 0)
-                                                <div class="pl-6">
-                                                    @foreach($lesson->assessments as $assessment)
-                                                        <div class="flex items-center group">
-                                                            <button wire:click="selectItem('assessment', {{ $assessment->id }})"
-                                                                    class="flex-1 px-3 py-1.5 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors
-                                                                           {{ $selectedType === 'assessment' && $selectedId === $assessment->id ? 'bg-blue-50 dark:bg-blue-900/30' : '' }}">
-                                                                <div class="flex items-center gap-2">
-                                                                    <svg class="w-3 h-3 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
-                                                                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
-                                                                        <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
-                                                                    </svg>
-                                                                    <span class="text-gray-600 dark:text-gray-400 truncate">{{ $assessment->title }}</span>
+                                        </summary>
+
+                                        @if($mode === 'manage')
+                                            <div class="flex justify-end gap-3 px-4 py-2 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-800">
+                                                @if($canManageCourse)
+                                                    <button wire:click="deleteModule({{ $module->id }})"
+                                                            class="text-sm text-gray-700 dark:text-gray-300 flex items-center gap-1"
+                                                            title="Archive to keep recoverable">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h10" />
+                                                        </svg>
+                                                        <span>Archive</span>
+                                                    </button>
+                                                    @if($activeLessons->count() === 0)
+                                                        <button wire:click="forceDeleteModule({{ $module->id }})"
+                                                                class="text-sm font-semibold text-red-700 hover:text-red-800 dark:text-red-200 flex items-center gap-2 px-3 py-1.5 rounded-md border border-red-200 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                                title="This removes the module forever. No undo.">
+                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h12M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m1 0v12a2 2 0 01-2 2H8a2 2 0 01-2-2V7m3 4v6m4-6v6" />
+                                                            </svg>
+                                                            <span>Delete Permanently</span>
+                                                        </button>
+                                                    @endif
+                                                @else
+                                                    <button type="button" disabled
+                                                            class="text-sm text-gray-400 dark:text-gray-500 flex items-center gap-1 cursor-not-allowed"
+                                                            title="You do not have permission to manage modules.">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h10" />
+                                                        </svg>
+                                                        <span>Archive</span>
+                                                    </button>
+                                                    @if($activeLessons->count() === 0)
+                                                        <button type="button" disabled
+                                                                class="text-sm font-semibold text-gray-400 dark:text-gray-500 flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 cursor-not-allowed"
+                                                                title="You do not have permission to manage modules.">
+                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h12M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m1 0v12a2 2 0 01-2 2H8a2 2 0 01-2-2V7m3 4v6m4-6v6" />
+                                                            </svg>
+                                                            <span>Delete Permanently</span>
+                                                        </button>
+                                                    @endif
+                                                @endif
+                                            </div>
+                                        @endif
+
+                                        <div class="pl-4 pb-3">
+                                            <div class="ml-2 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
+                                                <div class="grid grid-cols-12 gap-2 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800">
+                                                    <div class="col-span-9">Lesson</div>
+                                                    <div class="col-span-1 text-right">Quizzes</div>
+                                                    <div class="col-span-2 text-right">Actions</div>
+                                                </div>
+                                                <div class="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                                                    @foreach($activeLessons as $lesson)
+                                                        <div wire:key="lesson-{{ $lesson->id }}">
+                                                            <div class="grid grid-cols-12 gap-2 px-3 py-2 items-center group relative"
+                                                                 x-data="{ menuOpen: false, menuX: 0, menuY: 0 }"
+                                                                 @contextmenu.prevent="menuOpen = true; menuX = $event.offsetX; menuY = $event.offsetY;"
+                                                                 @click="menuOpen = false">
+                                                                <button type="button" wire:click.debounce.100ms="selectItem('lesson', {{ $lesson->id }})"
+                                                                        class="col-span-9 text-left text-sm text-gray-800 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
+                                                                    <div class="flex items-center gap-2">
+                                                                        @if($mode === 'manage')
+                                                                            @if($lesson->approval_status === 'approved')
+                                                                                <span class="inline-flex w-2 h-2 rounded-full bg-green-500"></span>
+                                                                            @elseif($lesson->approval_status === 'pending')
+                                                                                <span class="inline-flex w-2 h-2 rounded-full bg-yellow-500"></span>
+                                                                            @elseif($lesson->approval_status === 'rejected')
+                                                                                <span class="inline-flex w-2 h-2 rounded-full bg-red-500"></span>
+                                                                            @else
+                                                                                <span class="inline-flex w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-600"></span>
+                                                                            @endif
+                                                                        @else
+                                                                            <span class="inline-flex w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-600"></span>
+                                                                        @endif
+                                                                        <span class="whitespace-normal break-words leading-snug">{{ $lesson->title }}</span>
+                                                                    </div>
+                                                                </button>
+                                                                <div class="col-span-1 text-right text-xs text-gray-500 dark:text-gray-400">
+                                                                    {{ $lesson->assessments_count ?? $lesson->assessments->count() }}
                                                                 </div>
-                                                            </button>
-                                                            {{-- Lock/Unlock Toggle for Assessment --}}
-                                                            <button wire:click.stop="toggleAssessmentLock({{ $assessment->id }})"
-                                                                    title="{{ $assessment->is_locked ? 'Unlock quiz' : 'Lock quiz' }}"
-                                                                    class="px-2 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-600 rounded">
-                                                                @if($assessment->is_locked)
-                                                                    <svg class="w-3 h-3 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                                                                        <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
-                                                                    </svg>
-                                                                @else
-                                                                    <svg class="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                                                                        <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
-                                                                    </svg>
+                                                                <div class="col-span-2 flex justify-end gap-1">
+                                                                    @if($mode === 'manage')
+                                                                        @if($canManageCourse)
+                                                                            <button wire:click.stop.debounce.150ms="toggleLessonLock({{ $lesson->id }})"
+                                                                                title="{{ $lesson->is_locked ? 'Unlock lesson' : 'Lock lesson' }}"
+                                                                                class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+                                                                                @if($lesson->is_locked)
+                                                                                    <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                                                                        <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                                                                                    </svg>
+                                                                                @else
+                                                                                    <svg class="w-4 h-4 text-gray-600 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                                                                                        <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
+                                                                                    </svg>
+                                                                                @endif
+                                                                            </button>
+                                                                            <button wire:click.stop.debounce.150ms="deleteLesson({{ $lesson->id }})"
+                                                                                title="Archive lesson"
+                                                                                class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+                                                                                <svg class="w-4 h-4 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h10" />
+                                                                                </svg>
+                                                                            </button>
+                                                                        @else
+                                                                            <button type="button" disabled
+                                                                                title="You do not have permission to manage lessons."
+                                                                                class="p-1.5 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                                                                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                                                    <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
+                                                                                </svg>
+                                                                            </button>
+                                                                            <button type="button" disabled
+                                                                                title="You do not have permission to manage lessons."
+                                                                                class="p-1.5 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h10" />
+                                                                                </svg>
+                                                                            </button>
+                                                                        @endif
+                                                                    @endif
+                                                                </div>
+
+                                                                @if($mode === 'manage')
+                                                                    <div x-show="menuOpen"
+                                                                         x-transition.opacity.duration.150ms
+                                                                         @click.away="menuOpen = false"
+                                                                         class="absolute z-50 min-w-[180px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg"
+                                                                         :style="`left: ${menuX}px; top: ${menuY}px;`">
+                                                                        <div class="py-1">
+                                                                            @if($canManageCourse)
+                                                                                <button type="button"
+                                                                                        wire:click.stop.debounce.150ms="selectItem('lesson', {{ $lesson->id }})"
+                                                                                        class="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
+                                                                                    Edit lesson
+                                                                                </button>
+                                                                                <div class="my-1 border-t border-gray-100 dark:border-gray-800"></div>
+                                                                                <button type="button"
+                                                                                        wire:click.stop.debounce.150ms="toggleLessonLock({{ $lesson->id }})"
+                                                                                        class="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
+                                                                                    {{ $lesson->is_locked ? 'Unlock lesson' : 'Lock lesson' }}
+                                                                                </button>
+                                                                                <button type="button"
+                                                                                        wire:click.stop.debounce.150ms="deleteLesson({{ $lesson->id }})"
+                                                                                        class="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+                                                                                    Archive lesson
+                                                                                </button>
+                                                                                <button type="button"
+                                                                                        wire:click.stop.debounce.150ms="selectItem('assessment', null, {{ $lesson->id }})"
+                                                                                        class="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
+                                                                                    Add quiz
+                                                                                </button>
+                                                                            @else
+                                                                                <button type="button" disabled
+                                                                                        class="w-full px-3 py-2 text-left text-sm text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                                                                                    Edit lesson
+                                                                                </button>
+                                                                                <div class="my-1 border-t border-gray-100 dark:border-gray-800"></div>
+                                                                                <button type="button" disabled
+                                                                                        class="w-full px-3 py-2 text-left text-sm text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                                                                                    Lock lesson
+                                                                                </button>
+                                                                                <button type="button" disabled
+                                                                                        class="w-full px-3 py-2 text-left text-sm text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                                                                                    Archive lesson
+                                                                                </button>
+                                                                                <button type="button" disabled
+                                                                                        class="w-full px-3 py-2 text-left text-sm text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                                                                                    Add quiz
+                                                                                </button>
+                                                                            @endif
+                                                                        </div>
+                                                                    </div>
                                                                 @endif
-                                                            </button>
+                                                            </div>
+
+                                                            @if($mode === 'manage' && $lesson->assessments->count() > 0)
+                                                                <div class="pl-6 pb-2">
+                                                                    @foreach($lesson->assessments as $assessment)
+                                                                        <div wire:key="assessment-{{ $assessment->id }}" class="flex items-center group relative"
+                                                                             x-data="{ menuOpen: false, menuX: 0, menuY: 0 }"
+                                                                             @contextmenu.prevent="menuOpen = true; menuX = $event.offsetX; menuY = $event.offsetY;"
+                                                                             @click="menuOpen = false">
+                                                                            <button wire:click.debounce.100ms="selectItem('assessment', {{ $assessment->id }})"
+                                                                                    class="flex-1 px-3 py-1.5 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors
+                                                                                           {{ $selectedType === 'assessment' && $selectedId === $assessment->id ? 'bg-gray-50 dark:bg-gray-800' : '' }}">
+                                                                                <div class="flex items-center gap-2">
+                                                                                    <span class="inline-flex w-2 h-2 rounded-full bg-purple-400"></span>
+                                                                                    <span class="text-gray-600 dark:text-gray-400 whitespace-normal break-words leading-snug">{{ $assessment->title }}</span>
+                                                                                </div>
+                                                                            </button>
+                                                                            @if($canManageCourse)
+                                                                                <button wire:click.stop.debounce.150ms="toggleAssessmentLock({{ $assessment->id }})"
+                                                                                        title="{{ $assessment->is_locked ? 'Unlock quiz' : 'Lock quiz' }}"
+                                                                                        class="px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-600 rounded">
+                                                                                    @if($assessment->is_locked)
+                                                                                        <svg class="w-3 h-3 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                                                                            <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                                                                                        </svg>
+                                                                                    @else
+                                                                                        <svg class="w-3 h-3 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                                                                                            <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
+                                                                                        </svg>
+                                                                                    @endif
+                                                                                </button>
+                                                                            @else
+                                                                                <button type="button" disabled
+                                                                                        title="You do not have permission to manage quizzes."
+                                                                                        class="px-2 py-1.5 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                                                                                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                                                        <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
+                                                                                    </svg>
+                                                                                </button>
+                                                                            @endif
+
+                                                                            <div x-show="menuOpen"
+                                                                                 x-transition.opacity.duration.150ms
+                                                                                 @click.away="menuOpen = false"
+                                                                                 class="absolute z-50 min-w-[180px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg"
+                                                                                 :style="`left: ${menuX}px; top: ${menuY}px;`">
+                                                                                <div class="py-1">
+                                                                                    @if($canManageCourse)
+                                                                                        <button type="button"
+                                                                                                wire:click.stop.debounce.150ms="selectItem('assessment', {{ $assessment->id }})"
+                                                                                                class="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
+                                                                                            Edit quiz
+                                                                                        </button>
+                                                                                        <div class="my-1 border-t border-gray-100 dark:border-gray-800"></div>
+                                                                                        <button type="button"
+                                                                                                wire:click.stop.debounce.150ms="toggleAssessmentLock({{ $assessment->id }})"
+                                                                                                class="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
+                                                                                            {{ $assessment->is_locked ? 'Unlock quiz' : 'Lock quiz' }}
+                                                                                        </button>
+                                                                                        <button type="button"
+                                                                                                wire:click.stop.debounce.150ms="deleteAssessment({{ $assessment->id }})"
+                                                                                                class="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+                                                                                            Archive quiz
+                                                                                        </button>
+                                                                                    @else
+                                                                                        <button type="button" disabled
+                                                                                                class="w-full px-3 py-2 text-left text-sm text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                                                                                            Edit quiz
+                                                                                        </button>
+                                                                                        <div class="my-1 border-t border-gray-100 dark:border-gray-800"></div>
+                                                                                        <button type="button" disabled
+                                                                                                class="w-full px-3 py-2 text-left text-sm text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                                                                                            Lock quiz
+                                                                                        </button>
+                                                                                        <button type="button" disabled
+                                                                                                class="w-full px-3 py-2 text-left text-sm text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                                                                                            Archive quiz
+                                                                                        </button>
+                                                                                    @endif
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    @endforeach
+                                                                </div>
+                                                            @endif
+
+                                                            @if($mode === 'manage')
+                                                                <div class="pl-6 pb-2">
+                                                                    @if($canManageCourse)
+                                                                        <button wire:click="selectItem('assessment', null, {{ $lesson->id }})"
+                                                                                class="w-full px-3 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                                                            + Add Quiz
+                                                                        </button>
+                                                                    @else
+                                                                        <button type="button" disabled
+                                                                                class="w-full px-3 py-1.5 text-left text-xs text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                                                                                title="You do not have permission to add quizzes.">
+                                                                            + Add Quiz
+                                                                        </button>
+                                                                    @endif
+                                                                </div>
+                                                            @elseif($mode === 'build' && $selectedType === 'lesson' && $selectedId === $lesson->id && $canManageCourse)
+                                                                <div class="pl-6 pb-2">
+                                                                    <button wire:click="selectItem('assessment', null, {{ $lesson->id }})"
+                                                                            class="w-full px-3 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                                                        + Add Quiz (optional)
+                                                                    </button>
+                                                                </div>
+                                                            @endif
                                                         </div>
                                                     @endforeach
                                                 </div>
-                                            @endif
-                                            
-                                            {{-- Add Assessment Button --}}
-                                            <div class="pl-6">
-                                                <button wire:click="selectItem('assessment', null, {{ $lesson->id }})"
-                                                        class="w-full px-3 py-1.5 text-left text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors">
-                                                    + Add Assessment
-                                                </button>
                                             </div>
+
+                                            @if($mode === 'build' && $canManageCourse)
+                                                <button wire:click="selectItem('lesson', null, {{ $module->id }})"
+                                                        class="mt-2 w-full px-4 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                                    + Add Lesson
+                                                </button>
+                                            @endif
                                         </div>
-                                    @endforeach
-                                    
-                                    {{-- Add Lesson Button --}}
-                                    <button wire:click="selectItem('lesson', null, {{ $module->id }})"
-                                            class="w-full px-4 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
-                                        + Add Lesson
-                                    </button>
-                                </div>
+                                    </details>
+                                @endforeach
                             </div>
-                        @endforeach
-                    </div>
-                @endif
+                        @else
+                            <div class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                Archived items are read-only in the builder.
+                            </div>
+                            <div class="space-y-2">
+                                @foreach($course->modules as $module)
+                                    @php
+                                        $archivedLessons = $module->lessons->filter(fn($lesson) => method_exists($lesson, 'trashed') && $lesson->trashed());
+                                        $showModule = (method_exists($module, 'trashed') && $module->trashed()) || $archivedLessons->count() > 0;
+                                    @endphp
+                                    @if(!$showModule)
+                                        @continue
+                                    @endif
+                                    <details wire:key="archived-module-{{ $module->id }}" class="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden opacity-80">
+                                        <summary wire:click="selectItem('module', {{ $module->id }})"
+                                                 class="cursor-pointer list-none px-4 py-3 text-left bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                            <div class="flex items-center justify-between">
+                                                <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $module->title }}</span>
+                                                @if(method_exists($module, 'trashed') && $module->trashed())
+                                                    <span class="text-[11px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200">Archived</span>
+                                                @else
+                                                    <span class="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700/50 dark:text-gray-200">Active</span>
+                                                @endif
+                                            </div>
+                                        </summary>
+                                        <div class="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
+                                            @if($mode === 'manage')
+                                                @if($canManageCourse && method_exists($module, 'trashed') && $module->trashed())
+                                                    <button wire:click="restoreModule({{ $module->id }})"
+                                                            class="text-sm text-green-600 hover:text-green-700 dark:text-green-300">Restore Module</button>
+                                                @elseif(method_exists($module, 'trashed') && $module->trashed())
+                                                    <button type="button" disabled
+                                                            class="text-sm text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                                                            title="You do not have permission to restore modules.">Restore Module</button>
+                                                @endif
+                                            @endif
+                                        </div>
+                                        <div class="pl-4 pb-2">
+                                            @foreach($archivedLessons as $lesson)
+                                                <div wire:key="archived-lesson-{{ $lesson->id }}" class="border-l-2 border-gray-200 dark:border-gray-800 ml-2">
+                                                    <div class="flex items-center justify-between px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                                                        <span class="whitespace-normal break-words leading-snug">{{ $lesson->title }}</span>
+                                                        @if($mode === 'manage')
+                                                            @if($canManageCourse)
+                                                                <button wire:click.stop.debounce.150ms="restoreLesson({{ $lesson->id }})"
+                                                                        class="text-xs text-green-600 hover:text-green-700 dark:text-green-300">Restore</button>
+                                                            @else
+                                                                <button type="button" disabled
+                                                                        class="text-xs text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                                                                        title="You do not have permission to restore lessons.">Restore</button>
+                                                            @endif
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </details>
+                                @endforeach
+                            </div>
+                        @endif
+                    @endif
+                </div>
+            @endif
             </div>
-        @endif
         </div>
     </div>
     
     {{-- Sidebar Toggle Button --}}
-    <div class="fixed left-0 top-1/2 -translate-y-1/2 z-50 transition-all duration-300 {{ $sidebarCollapsed ? 'translate-x-0' : 'translate-x-80' }}">
-        <button wire:click="toggleSidebar" 
-                class="group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-r-lg shadow-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-700 hover:shadow-xl transition-all duration-200 relative"
+    <div class="fixed left-0 top-1/2 -translate-y-1/2 z-50 {{ $sidebarCollapsed ? 'translate-x-0' : 'translate-x-96' }}" style="transition: transform 200ms ease-out;">
+        <button wire:click.debounce.100ms="toggleSidebar" 
+                class="group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-r-lg shadow-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-700 hover:shadow-xl transition-colors duration-150 relative"
                 x-data="{ showTooltip: false }"
                 @mouseenter="showTooltip = true"
                 @mouseleave="showTooltip = false">
-            <svg class="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-all duration-300 {{ $sidebarCollapsed ? '' : 'rotate-180' }}" 
+            <svg class="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 {{ $sidebarCollapsed ? '' : 'rotate-180' }}" 
+                 style="transition: transform 150ms ease-out;"
                  fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
             </svg>
             
             {{-- Tooltip --}}
             <div x-show="showTooltip" 
-                 x-transition:enter="transition ease-out duration-200"
-                 x-transition:enter-start="opacity-0 translate-x-2"
-                 x-transition:enter-end="opacity-100 translate-x-0"
-                 x-transition:leave="transition ease-in duration-150"
-                 x-transition:leave-start="opacity-100 translate-x-0"
-                 x-transition:leave-end="opacity-0 translate-x-2"
+                 x-transition.opacity.duration.150ms
                  class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 dark:bg-gray-700 text-white text-sm rounded-lg shadow-lg whitespace-nowrap pointer-events-none">
                 {{ $sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar' }}
                 <span class="text-xs text-gray-400 ml-2">(Ctrl+B)</span>
@@ -220,7 +501,37 @@
     </div>
     
     {{-- Main Content Area --}}
-    <div class="flex-1 overflow-y-auto" wire:key="content-{{ $selectedType }}-{{ $selectedId }}">
+    <div class="flex-1 overflow-y-auto relative" wire:key="content-{{ $selectedType }}-{{ $selectedId }}">
+        
+        {{-- Loading Overlay --}}
+        <div wire:loading.delay class="absolute inset-0 bg-gradient-to-br from-white/95 via-blue-50/90 to-white/95 dark:from-gray-900/95 dark:via-blue-900/50 dark:to-gray-900/95 backdrop-blur-md flex items-center justify-center z-50">
+            <div class="text-center">
+                <!-- Premium Spinner -->
+                <div class="relative w-16 h-16 mx-auto mb-6">
+                    <div class="absolute inset-0 rounded-full border-4 border-blue-100 dark:border-blue-900/30"></div>
+                    <div class="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-600 dark:border-t-blue-400 border-r-blue-500 dark:border-r-blue-300 animate-spin"></div>
+                </div>
+                
+                <!-- Loading Text -->
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Updating Content</h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400">Please wait while we refresh your curriculum...</p>
+                
+                <!-- Pulse Dots -->
+                <div class="flex justify-center gap-1.5 mt-4">
+                    <div class="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400 animate-bounce" style="animation-delay: 0s;"></div>
+                    <div class="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400 animate-bounce" style="animation-delay: 0.2s;"></div>
+                    <div class="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400 animate-bounce" style="animation-delay: 0.4s;"></div>
+                </div>
+
+                <!-- Skeleton Preview -->
+                <div class="mt-6 space-y-3">
+                    <div class="h-4 w-64 mx-auto rounded bg-gray-200/80 dark:bg-gray-700/60 animate-pulse"></div>
+                    <div class="h-4 w-56 mx-auto rounded bg-gray-200/80 dark:bg-gray-700/60 animate-pulse"></div>
+                    <div class="h-4 w-48 mx-auto rounded bg-gray-200/80 dark:bg-gray-700/60 animate-pulse"></div>
+                </div>
+            </div>
+        </div>
+        
         {{-- Success Message --}}
         @if (session()->has('message'))
             <div class="mx-8 mt-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
@@ -241,6 +552,29 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <p class="text-red-800 dark:text-red-200 font-medium">{{ session('error') }}</p>
+                </div>
+            </div>
+        @endif
+
+        @if($courseId && $course)
+            <div class="mx-8 mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ $course->title }}</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        {{ $mode === 'build' ? 'Build mode: add modules and lessons with a clear flow.' : 'Manage mode: approvals, collaborators, locks, and settings.' }}
+                    </p>
+                </div>
+                <div class="inline-flex rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-1">
+                    <button wire:click="setMode('build')"
+                            class="px-4 py-2 text-sm font-semibold rounded-md transition-colors
+                                {{ $mode === 'build' ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800' }}">
+                        Build Course
+                    </button>
+                    <button wire:click="setMode('manage')"
+                            class="px-4 py-2 text-sm font-semibold rounded-md transition-colors
+                                {{ $mode === 'manage' ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800' }}">
+                        Manage Course
+                    </button>
                 </div>
             </div>
         @endif
@@ -397,7 +731,7 @@
                                         <div wire:ignore
                                              class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-700"
                                              x-data="setupTipTapEditor($wire.entangle('formData.content'))"
-                                             x-init="init($refs.editor, '{{ $courseId }}')">
+                                             x-init="$nextTick(() => init($refs.editor, '{{ $courseId }}'))">
                                             <div x-show="loading" class="p-4 text-center text-gray-500">
                                                 <svg class="animate-spin h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24">
                                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -405,12 +739,61 @@
                                                 </svg>
                                                 <p class="mt-2 text-sm">Loading editor...</p>
                                             </div>
-                                            <div x-ref="editor" x-show="!loading" class="min-h-[300px]"></div>
+                                            <div x-ref="editor" x-show="!loading && !error" class="min-h-[300px]"></div>
+                                            <div x-show="error" class="p-4">
+                                                <p class="text-sm text-amber-700 dark:text-amber-300 mb-2" x-text="error"></p>
+                                                <textarea x-model="content" rows="12"
+                                                          class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm"></textarea>
+                                            </div>
                                         </div>
                                         
                                         <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                                             ✨ Rich text editor with formatting, images, and code blocks. Auto-saves every 10 seconds.
                                         </p>
+                                    </div>
+
+                                    <div class="mt-6">
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            Upload PDF (optional)
+                                        </label>
+                                        
+                                        {{-- Display existing attachments --}}
+                                        @if(isset($formData['attachments']) && count($formData['attachments']) > 0)
+                                            <div class="mb-4 space-y-2">
+                                                <p class="text-xs font-medium text-gray-600 dark:text-gray-400">Current Attachments:</p>
+                                                @foreach($formData['attachments'] as $index => $attachment)
+                                                    @if(isset($attachment['type']) && $attachment['type'] === 'pdf')
+                                                        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                                                            <div class="flex items-center gap-2">
+                                                                <svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                                                    <path d="M4 18h12V6h-4V2H4v16zm-2 1V0h12l4 4v16H2v-1z"/>
+                                                                </svg>
+                                                                <span class="text-sm text-gray-700 dark:text-gray-200">{{ $attachment['name'] ?? 'PDF Document' }}</span>
+                                                            </div>
+                                                            <button type="button" wire:click="removeAttachment({{ $index }})"
+                                                                    class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    @endif
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                        
+                                        {{-- Upload new PDF --}}
+                                        <input type="file" accept="application/pdf" wire:model="pdfUpload"
+                                               class="block w-full text-sm text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500">
+                                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                            Attach a PDF to display to students inside the lesson viewer. Max 50 MB.
+                                        </p>
+                                        @error('pdfUpload')
+                                            <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+                                        @enderror
+                                        @if($pdfUpload)
+                                            <p class="mt-2 text-sm text-gray-700 dark:text-gray-200">Selected: {{ $pdfUpload->getClientOriginalName() }}</p>
+                                        @endif
                                     </div>
                                 </div>
 
@@ -959,7 +1342,7 @@
                                         </div>
                                     </a>
                                 @else
-                                    <a href="{{ route('assessments.create', ['lesson_id' => $lessonId ?? null]) }}" 
+                                                <a href="{{ route('assessments.create', ['course_id' => $course->id, 'lesson_id' => $lessonId ?? null]) }}" 
                                        class="block w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors shadow-sm">
                                         <div class="flex items-center justify-center gap-2">
                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1012,147 +1395,194 @@
                 </div>
             </div>
         @else
-            {{-- Course Overview --}}
             @if($course)
-            <div class="p-8">
-                <div class="max-w-4xl mx-auto">
-                    <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">{{ $course->title }}</h2>
-                    
-                    {{-- Stats --}}
-                    <div class="grid grid-cols-3 gap-6 mb-8">
-                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                            <div class="text-3xl font-bold text-blue-600 mb-2">{{ $course->modules->count() }}</div>
-                            <div class="text-gray-600 dark:text-gray-400">Modules</div>
-                        </div>
-                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                            <div class="text-3xl font-bold text-green-600 mb-2">{{ $course->modules->sum(fn($m) => $m->lessons->count()) }}</div>
-                            <div class="text-gray-600 dark:text-gray-400">Lessons</div>
-                        </div>
-                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                            <div class="text-3xl font-bold text-purple-600 mb-2">{{ $course->modules->flatMap(fn($m) => $m->lessons)->flatMap(fn($l) => $l->assessments)->count() }}</div>
-                            <div class="text-gray-600 dark:text-gray-400">Assessments</div>
-                        </div>
-                    </div>
+                @if($mode === 'manage')
+                    {{-- Course Overview --}}
+                    <div class="p-8">
+                        <div class="max-w-4xl mx-auto">
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+                                <h2 class="text-3xl font-bold text-gray-900 dark:text-white">Course Settings</h2>
+                                <div class="flex flex-wrap items-center gap-3">
+                                    @if($course->trashed())
+                                        <span class="text-sm px-3 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200">
+                                            Archived {{ optional($course->deleted_at)->diffForHumans() }}
+                                        </span>
+                                        @php $restoreBy = $course->deleted_at?->copy()->addDays($restoreWindowDays); @endphp
+                                        @if($restoreBy)
+                                            <span class="text-xs text-gray-600 dark:text-gray-300">Restore by {{ $restoreBy->format('M d, Y') }}</span>
+                                        @endif
+                                        <button wire:click="restoreCourse"
+                                                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg shadow">
+                                            Restore Course
+                                        </button>
+                                    @else
+                                        <button wire:click="deleteCourse"
+                                                class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg shadow"
+                                                title="Archive course (soft delete, restorable within {{ $restoreWindowDays }} days)">
+                                            Archive Course
+                                        </button>
+                                    @endif
+                                </div>
+                            </div>
+                            
+                            {{-- Stats --}}
+                            <div class="grid grid-cols-3 gap-6 mb-8">
+                                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                                    <div class="text-3xl font-bold text-blue-600 mb-2">{{ $course->modules->count() }}</div>
+                                    <div class="text-gray-600 dark:text-gray-400">Modules (including archived)</div>
+                                </div>
+                                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                                    <div class="text-3xl font-bold text-green-600 mb-2">{{ $course->modules->sum(fn($m) => $m->lessons->count()) }}</div>
+                                    <div class="text-gray-600 dark:text-gray-400">Lessons (including archived)</div>
+                                </div>
+                                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                                    <div class="text-3xl font-bold text-purple-600 mb-2">{{ $course->modules->flatMap(fn($m) => $m->lessons)->flatMap(fn($l) => $l->assessments)->count() }}</div>
+                                    <div class="text-gray-600 dark:text-gray-400">Assessments</div>
+                                </div>
+                            </div>
 
-                    {{-- Collaborators Section - Admin/Supervisor Only --}}
-                    @if(auth()->user()->isAdmin() || auth()->user()->isSupervisor())
-                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-8">
-                            <livewire:course.manage-collaborators :course="$course" :key="'collaborators-'.$course->id" />
-                        </div>
-                    @endif
-                    
-                    {{-- Approval Actions (Admin/Supervisor Only) --}}
-                    @if((auth()->user()->hasRole('admin') || auth()->user()->hasRole('supervisor')) && $course->approval_status !== 'approved')
-                        <div class="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg shadow p-6 mb-6">
-                            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Course Approval</h3>
-                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                This course is currently in <span class="font-semibold">{{ ucfirst($course->approval_status) }}</span> status.
-                            </p>
-                            <div class="flex gap-3">
-                                <button wire:click="approveCourse" 
-                                        class="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold">
-                                    ✓ Approve Course
-                                </button>
-                                <button wire:click="rejectCourse" 
-                                        class="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold">
-                                    ✗ Reject Course
-                                </button>
-                            </div>
-                        </div>
-                    @elseif((auth()->user()->hasRole('admin') || auth()->user()->hasRole('supervisor')) && $course->approval_status === 'approved')
-                        <div class="bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800 rounded-lg shadow p-6 mb-6">
-                            <h3 class="text-lg font-bold text-green-900 dark:text-green-100 mb-2">✓ Course Approved</h3>
-                            <p class="text-sm text-green-700 dark:text-green-300">
-                                This course has been approved and is published.
-                            </p>
-                        </div>
-                    @endif
-                    
-                    {{-- Content Lock Management --}}
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-                        <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                            <svg class="w-5 h-5 inline-block mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
-                            </svg>
-                            Content Lock Management
-                        </h3>
-                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                            Control student access to lessons, quizzes, and assignments. Hover over items in the sidebar to lock/unlock them.
-                        </p>
-                        
-                        @php
-                            $allLessons = $course->modules->flatMap(fn($m) => $m->lessons);
-                            $lockedLessons = $allLessons->where('is_locked', true)->count();
-                            $unlockedLessons = $allLessons->where('is_locked', false)->count();
+                            {{-- Collaborators Section - Admin/Supervisor Only --}}
+                            @if(auth()->user()->isAdmin() || auth()->user()->isSupervisor())
+                                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-8">
+                                    <livewire:course.manage-collaborators :course="$course" :key="'collaborators-'.$course->id" />
+                                </div>
+                            @endif
                             
-                            $allAssessments = $allLessons->flatMap(fn($l) => $l->assessments);
-                            $lockedAssessments = $allAssessments->where('is_locked', true)->count();
-                            $unlockedAssessments = $allAssessments->where('is_locked', false)->count();
-                        @endphp
-                        
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                <div class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Lessons</div>
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
-                                        </svg>
-                                        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $lockedLessons }}</span>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
-                                        </svg>
-                                        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $unlockedLessons }}</span>
+                            {{-- Approval Actions (Admin/Supervisor Only) --}}
+                            @if((auth()->user()->hasRole('admin') || auth()->user()->hasRole('supervisor')) && $course->approval_status !== 'approved')
+                                <div class="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg shadow p-6 mb-6">
+                                    <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Course Approval</h3>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                        This course is currently in <span class="font-semibold">{{ ucfirst($course->approval_status) }}</span> status.
+                                    </p>
+                                    <div class="flex gap-3">
+                                        <button wire:click="approveCourse" 
+                                                class="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold">
+                                            ✓ Approve Course
+                                        </button>
+                                        <button wire:click="rejectCourse" 
+                                                class="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold">
+                                            ✗ Reject Course
+                                        </button>
                                     </div>
                                 </div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">Locked / Unlocked</div>
-                            </div>
+                            @elseif((auth()->user()->hasRole('admin') || auth()->user()->hasRole('supervisor')) && $course->approval_status === 'approved')
+                                <div class="bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800 rounded-lg shadow p-6 mb-6">
+                                    <h3 class="text-lg font-bold text-green-900 dark:text-green-100 mb-2">✓ Course Approved</h3>
+                                    <p class="text-sm text-green-700 dark:text-green-300">
+                                        This course has been approved and is published.
+                                    </p>
+                                </div>
+                            @endif
                             
-                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                <div class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quizzes</div>
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
-                                        </svg>
-                                        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $lockedAssessments }}</span>
+                            {{-- Content Lock Management --}}
+                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+                                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">
+                                    <svg class="w-5 h-5 inline-block mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                    Content Lock Management
+                                </h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                    Control student access to lessons, quizzes, and assignments. Hover over items in the sidebar to lock/unlock them.
+                                </p>
+                                
+                                @php
+                                    $allLessons = $course->modules->flatMap(fn($m) => $m->lessons);
+                                    $lockedLessons = $allLessons->where('is_locked', true)->count();
+                                    $unlockedLessons = $allLessons->where('is_locked', false)->count();
+                                    
+                                    $allAssessments = $allLessons->flatMap(fn($l) => $l->assessments);
+                                    $lockedAssessments = $allAssessments->where('is_locked', true)->count();
+                                    $unlockedAssessments = $allAssessments->where('is_locked', false)->count();
+                                @endphp
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                                        <div class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Lessons</div>
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center gap-2">
+                                                <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                                                </svg>
+                                                <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $lockedLessons }}</span>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
+                                                </svg>
+                                                <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $unlockedLessons }}</span>
+                                            </div>
+                                        </div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">Locked / Unlocked</div>
                                     </div>
-                                    <div class="flex items-center gap-2">
-                                        <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
-                                        </svg>
-                                        <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $unlockedAssessments }}</span>
+                                    
+                                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                                        <div class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quizzes</div>
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center gap-2">
+                                                <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                                                </svg>
+                                                <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $lockedAssessments }}</span>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
+                                                </svg>
+                                                <span class="text-2xl font-bold text-gray-900 dark:text-white">{{ $unlockedAssessments }}</span>
+                                            </div>
+                                        </div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">Locked / Unlocked</div>
                                     </div>
                                 </div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">Locked / Unlocked</div>
+                                
+                                <div class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                                    <p class="text-sm text-blue-800 dark:text-blue-200">
+                                        <strong>Tip:</strong> Hover over any lesson or quiz in the left sidebar to see the lock/unlock button.
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            {{-- Quick Actions --}}
+                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
+                                <div class="space-y-3">
+                                    <button wire:click="setMode('build')" 
+                                            class="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-left">
+                                        Switch to Build Mode
+                                    </button>
+                                    <a href="{{ route('courses.edit', $course->id) }}" wire:navigate
+                                       class="block w-full px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-center">
+                                        Edit Course Details
+                                    </a>
+                                </div>
                             </div>
                         </div>
-                        
-                        <div class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                            <p class="text-sm text-blue-800 dark:text-blue-200">
-                                <strong>Tip:</strong> Hover over any lesson or quiz in the left sidebar to see the lock/unlock button.
-                            </p>
+                    </div>
+                @else
+                    {{-- Build Mode Empty State --}}
+                    <div class="p-8">
+                        <div class="max-w-3xl mx-auto bg-white dark:bg-gray-900 rounded-xl shadow p-8 border border-gray-200 dark:border-gray-800">
+                            <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Build your course step by step</h3>
+                            <p class="text-gray-600 dark:text-gray-400 mb-6">Start with modules, then add lessons inside each module. Quizzes are optional and live inside lessons.</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                                <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-4">
+                                    <div class="font-semibold text-gray-900 dark:text-gray-100">1. Add a module</div>
+                                    <p class="text-gray-600 dark:text-gray-400 mt-1">Create the major sections of your course.</p>
+                                </div>
+                                <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-4">
+                                    <div class="font-semibold text-gray-900 dark:text-gray-100">2. Add lessons</div>
+                                    <p class="text-gray-600 dark:text-gray-400 mt-1">Populate each module with lessons.</p>
+                                </div>
+                                <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-4">
+                                    <div class="font-semibold text-gray-900 dark:text-gray-100">3. Add quizzes</div>
+                                    <p class="text-gray-600 dark:text-gray-400 mt-1">Optional checks inside lessons.</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    
-                    {{-- Quick Actions --}}
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                        <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
-                        <div class="space-y-3">
-                            <button wire:click="selectItem('module')" 
-                                    class="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-left">
-                                + Add Module
-                            </button>
-                            <a href="{{ route('courses.edit', $course->id) }}" wire:navigate
-                               class="block w-full px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-center">
-                                Edit Course Details
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                @endif
             @else
                 {{-- Course Not Found or No Access --}}
                 <div class="p-8">

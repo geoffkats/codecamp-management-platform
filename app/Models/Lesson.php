@@ -6,11 +6,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use App\Traits\Auditable;
 
 class Lesson extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes, Auditable;
 
     protected $fillable = [
         'course_id',
@@ -69,7 +71,38 @@ class Lesson extends Model
 
         static::creating(function ($lesson) {
             if (empty($lesson->slug)) {
-                $lesson->slug = Str::slug($lesson->title);
+                $slug = Str::slug($lesson->title);
+                $originalSlug = $slug;
+                $counter = 1;
+                
+                // Ensure slug is unique within the same course
+                while (static::where('course_id', $lesson->course_id)
+                    ->where('slug', $slug)
+                    ->exists()) {
+                    $slug = $originalSlug . '-' . $counter;
+                    $counter++;
+                }
+                
+                $lesson->slug = $slug;
+            }
+        });
+        
+        static::updating(function ($lesson) {
+            if ($lesson->isDirty('title') && empty($lesson->slug)) {
+                $slug = Str::slug($lesson->title);
+                $originalSlug = $slug;
+                $counter = 1;
+                
+                // Ensure slug is unique within the same course, excluding current lesson
+                while (static::where('course_id', $lesson->course_id)
+                    ->where('slug', $slug)
+                    ->where('id', '!=', $lesson->id)
+                    ->exists()) {
+                    $slug = $originalSlug . '-' . $counter;
+                    $counter++;
+                }
+                
+                $lesson->slug = $slug;
             }
         });
     }

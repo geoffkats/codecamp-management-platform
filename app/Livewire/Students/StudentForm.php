@@ -5,8 +5,11 @@ namespace App\Livewire\Students;
 use App\Models\StudentProfile;
 use App\Models\StudentGadget;
 use App\Models\User;
+use App\Models\School;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -14,7 +17,7 @@ use Livewire\WithFileUploads;
 #[Layout('components.layouts.app')]
 class StudentForm extends Component
 {
-    use WithFileUploads;
+    use WithFileUploads, AuthorizesRequests;
 
     public $student = null;
     public $isEdit = false;
@@ -37,6 +40,10 @@ class StudentForm extends Component
     public $scratch_account = '';
     public $scratch_password = '';
     public $github_account = '';
+    public $student_category = 'codecamp';
+    public $program_type = 'codecamp';
+    public $school_id = null;
+    public $icdl_number = '';
     public $photo = null;
 
     // Parent 1
@@ -84,6 +91,10 @@ class StudentForm extends Component
             'scratch_account' => 'nullable|string|max:255',
             'scratch_password' => 'nullable|string|max:255',
             'github_account' => 'nullable|string|max:255',
+            'student_category' => 'required|in:codecamp,school_club,ict_school',
+            'program_type' => 'required|in:ict,codecamp',
+            'school_id' => 'required_if:program_type,ict|nullable|exists:schools,id',
+            'icdl_number' => 'nullable|string|max:255',
             'photo' => 'nullable|image|max:2048',
             'parent1_name' => 'required|string|max:255',
             'parent1_relationship' => 'required|in:mother,father,guardian',
@@ -100,8 +111,13 @@ class StudentForm extends Component
         ];
 
         if (!$this->isEdit) {
-            $rules['email'] = 'required|email|unique:users,email';
-            $rules['password'] = 'required|min:8|confirmed';
+            if ($this->program_type === 'ict') {
+                $rules['email'] = 'nullable|email|unique:users,email';
+                $rules['password'] = 'nullable|min:8|confirmed';
+            } else {
+                $rules['email'] = 'required|email|unique:users,email';
+                $rules['password'] = 'required|min:8|confirmed';
+            }
         }
 
         return $rules;
@@ -128,11 +144,45 @@ class StudentForm extends Component
         $this->full_name = implode(' ', $parts);
     }
 
+    private function generateStudentEmail(): string
+    {
+        $base = Str::slug($this->full_name ?: 'student', '.');
+        $base = $base !== '' ? $base : 'student';
+        $base = substr($base, 0, 40);
+
+        $candidate = $base . '@outlook.com';
+        $suffix = 1;
+
+        while (User::where('email', $candidate)->exists()) {
+            $candidate = $base . $suffix . '@outlook.com';
+            $suffix++;
+        }
+
+        return $candidate;
+    }
+
+    private function generateSimplePassword(): string
+    {
+        $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        $password = '';
+
+        for ($i = 0; $i < 8; $i++) {
+            $password .= $chars[random_int(0, strlen($chars) - 1)];
+        }
+
+        return $password;
+    }
+
     public function mount($student = null)
     {
+        if (auth()->user()->isIctTeacher() && !$student) {
+            abort(403, 'ICT teachers cannot access the CodeCamp intake form.');
+        }
+
         if ($student) {
             $this->isEdit = true;
             $this->student = StudentProfile::with('gadgets')->findOrFail($student);
+            $this->authorize('view', $this->student);
             $this->loadStudent();
         }
     }
@@ -164,6 +214,10 @@ class StudentForm extends Component
         $this->scratch_account = $this->student->scratch_account;
         $this->scratch_password = $this->student->scratch_password;
         $this->github_account = $this->student->github_account;
+        $this->student_category = $this->student->student_category ?? 'codecamp';
+        $this->program_type = $this->student->program_type ?? 'codecamp';
+        $this->school_id = $this->student->school_id;
+        $this->icdl_number = $this->student->icdl_number ?? '';
         $this->email = $this->student->user->email;
         
         // Load parent data
@@ -213,7 +267,14 @@ class StudentForm extends Component
 
     public function save()
     {
+        $this->applyProgramScope();
         $this->validate();
+
+        if (!$this->isEdit) {
+            $this->authorize('create', [StudentProfile::class, $this->program_type, $this->school_id]);
+        } else {
+            $this->authorize('update', $this->student);
+        }
 
         if ($this->isEdit) {
             $this->updateStudent();
@@ -229,11 +290,19 @@ class StudentForm extends Component
     {
         $this->updateFullName();
 
+        $studentType = $this->program_type === 'ict' ? 'ict' : 'codecamp';
+        $studentId = StudentProfile::generateStudentId();
+        $email = $this->email ?: ($this->program_type === 'ict' ? $this->generateStudentEmail() : null);
+        $password = $this->password ?: ($this->program_type === 'ict' ? $this->generateSimplePassword() : Str::random(12));
+
         // Create user account
         $user = User::create([
             'name' => $this->full_name,
-            'email' => $this->email,
-            'password' => Hash::make($this->password),
+            'email' => $email,
+            'student_type' => $studentType,
+            'student_id' => $studentType === 'ict' ? $studentId : null,
+            'password' => Hash::make($password),
+            'initial_password' => $password,
         ]);
 
         // Assign student role
@@ -273,7 +342,12 @@ class StudentForm extends Component
         // Create student profile
         $studentProfile = StudentProfile::create([
             'user_id' => $user->id,
-            'student_id' => StudentProfile::generateStudentId(),
+            'school_id' => $this->school_id,
+            'program_type' => $this->program_type,
+            'student_id' => $studentId,
+            'icdl_number' => $this->icdl_number ?: null,
+            'exam_readiness_status' => 'not_ready',
+            'is_active' => true,
             'full_name' => $this->full_name,
             'date_of_birth' => $this->date_of_birth,
             'gender' => $this->gender,
@@ -286,6 +360,7 @@ class StudentForm extends Component
             'scratch_account' => $this->scratch_account,
             'scratch_password' => $this->scratch_password,
             'github_account' => $this->github_account,
+            'student_category' => $this->student_category,
             'photo_path' => $photoPath,
             'uniform_size' => $this->uniform_size,
             'tshirt_collected' => $this->tshirt_collected,
@@ -345,7 +420,10 @@ class StudentForm extends Component
         }
 
         $this->student->update([
+            'school_id' => $this->school_id,
+            'program_type' => $this->program_type,
             'full_name' => $this->full_name,
+            'icdl_number' => $this->icdl_number ?: null,
             'date_of_birth' => $this->date_of_birth,
             'gender' => $this->gender,
             'nationality' => $this->nationality,
@@ -357,6 +435,7 @@ class StudentForm extends Component
             'scratch_account' => $this->scratch_account,
             'scratch_password' => $this->scratch_password,
             'github_account' => $this->github_account,
+            'student_category' => $this->student_category,
             'uniform_size' => $this->uniform_size,
             'tshirt_collected' => $this->tshirt_collected,
             'uniform_paid' => $this->uniform_paid,
@@ -381,6 +460,35 @@ class StudentForm extends Component
 
     public function render()
     {
-        return view('livewire.students.student-form');
+        return view('livewire.students.student-form', [
+            'schools' => School::orderBy('name')->get(),
+        ]);
+    }
+
+    private function applyProgramScope(): void
+    {
+        $user = Auth::user();
+
+        if ($user->isIctTeacher()) {
+            $this->program_type = 'ict';
+            $this->student_category = 'ict_school';
+            $this->school_id = $user->ictSchoolId();
+            return;
+        }
+
+        if ($user->isCodecampTrainer()) {
+            $this->program_type = 'codecamp';
+            if ($this->student_category === 'ict_school') {
+                $this->student_category = 'codecamp';
+            }
+            $this->school_id = null;
+            return;
+        }
+
+        if ($this->program_type === 'ict') {
+            $this->student_category = 'ict_school';
+        } elseif ($this->student_category === 'ict_school') {
+            $this->student_category = 'codecamp';
+        }
     }
 }

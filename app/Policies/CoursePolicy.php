@@ -48,17 +48,22 @@ class CoursePolicy
      */
     public function update(User $user, Course $course): bool
     {
-        if (!$user->hasPermission('edit_courses')) {
-            return false;
+        // Anyone with explicit permission can edit any course
+        if ($user->hasPermission('edit_courses')) {
+            return true;
         }
 
-        // Teachers can only edit their own courses
+        // Admins can edit all courses
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        // Teachers without explicit permission fall back to ownership
         if ($user->isTeacher()) {
             return $course->instructor_id === $user->id;
         }
 
-        // Admins can edit all courses
-        return $user->isAdmin();
+        return false;
     }
 
     /**

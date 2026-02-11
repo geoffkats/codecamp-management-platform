@@ -38,22 +38,22 @@
                         <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
                             <div class="text-sm text-green-600 dark:text-green-400 mb-1">Check-In</div>
                             <div class="text-2xl font-bold text-green-700 dark:text-green-300">
-                                {{ $todayLog->check_in_time ? \Carbon\Carbon::parse($todayLog->check_in_time)->format('h:i A') : '--:--' }}
+                                {{ $todayLog->check_in_time ? \Carbon\Carbon::parse($todayLog->attendance_date->format('Y-m-d') . ' ' . $todayLog->check_in_time)->format('h:i A') : '--:--' }}
                             </div>
                         </div>
                         
                         <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
                             <div class="text-sm text-blue-600 dark:text-blue-400 mb-1">Check-Out</div>
                             <div class="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                                {{ $todayLog->check_out_time ? \Carbon\Carbon::parse($todayLog->check_out_time)->format('h:i A') : '--:--' }}
+                                {{ $todayLog->check_out_time ? \Carbon\Carbon::parse($todayLog->attendance_date->format('Y-m-d') . ' ' . $todayLog->check_out_time)->format('h:i A') : '--:--' }}
                             </div>
                         </div>
                     </div>
 
                     @if($todayLog->check_in_time && $todayLog->check_out_time)
                         @php
-                            $checkIn = \Carbon\Carbon::parse($todayLog->check_in_time);
-                            $checkOut = \Carbon\Carbon::parse($todayLog->check_out_time);
+                            $checkIn = \Carbon\Carbon::parse($todayLog->attendance_date->format('Y-m-d') . ' ' . $todayLog->check_in_time);
+                            $checkOut = \Carbon\Carbon::parse($todayLog->attendance_date->format('Y-m-d') . ' ' . $todayLog->check_out_time);
                             $totalHours = $checkIn->diffInHours($checkOut, true);
                         @endphp
                         <div class="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg text-center">

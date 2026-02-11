@@ -10,11 +10,11 @@
 
             {{-- Logo Section --}}
             @php
-                $appName = \App\Models\SystemSetting::get('app_name', config('app.name'));
-                $appShortName = \App\Models\SystemSetting::get('app_short_name', 'CAU');
-                $appTagline = \App\Models\SystemSetting::get('app_tagline', 'E-Learning Platform');
-                $logo = \App\Models\SystemSetting::get('logo');
-                $logoDark = \App\Models\SystemSetting::get('logo_dark');
+                $appName = cache()->remember('app_name', 86400, fn() => \App\Models\SystemSetting::get('app_name', config('app.name')));
+                $appShortName = cache()->remember('app_short_name', 86400, fn() => \App\Models\SystemSetting::get('app_short_name', 'CAU'));
+                $appTagline = cache()->remember('app_tagline', 86400, fn() => \App\Models\SystemSetting::get('app_tagline', 'E-Learning Platform'));
+                $logo = cache()->remember('logo_path', 86400, fn() => \App\Models\SystemSetting::get('logo'));
+                $logoDark = cache()->remember('logo_dark_path', 86400, fn() => \App\Models\SystemSetting::get('logo_dark'));
             @endphp
             <div class="me-5 mb-4">
                 <a href="{{ route('dashboard') }}" class="flex items-center space-x-3 rtl:space-x-reverse group" wire:navigate>
@@ -36,6 +36,16 @@
             </div>
 
             <x-navigation.sidebar :user="auth()->user()" />
+
+            @can('manage_users')
+            <div class="px-3 mt-2">
+                <flux:navlist variant="outline" class="rounded-lg">
+                    <flux:navlist.item icon="shield-check" href="{{ route('admin.audit.logs') }}" wire:navigate>
+                        {{ __('Audit Logs') }}
+                    </flux:navlist.item>
+                </flux:navlist>
+            </div>
+            @endcan
 
             <flux:spacer />
 
@@ -63,7 +73,7 @@
                             </div>
                             <div class="flex-1 min-w-0 text-left">
                                 <div class="font-semibold text-sm text-gray-900 dark:text-white truncate">{{ auth()->user()->name }}</div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ Str::limit(auth()->user()->email, 20) }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ Str::limit(auth()->user()->email ?: auth()->user()->student_id, 20) }}</div>
                             </div>
                             <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -84,7 +94,7 @@
 
                                 <div class="grid flex-1 text-start text-sm leading-tight">
                                     <span class="truncate font-semibold">{{ auth()->user()->name }}</span>
-                                    <span class="truncate text-xs">{{ auth()->user()->email }}</span>
+                                    <span class="truncate text-xs">{{ auth()->user()->email ?: auth()->user()->student_id }}</span>
                                 </div>
                             </div>
                         </div>
@@ -136,7 +146,7 @@
 
                                 <div class="grid flex-1 text-start text-sm leading-tight">
                                     <span class="truncate font-semibold">{{ auth()->user()->name }}</span>
-                                    <span class="truncate text-xs">{{ auth()->user()->email }}</span>
+                                    <span class="truncate text-xs">{{ auth()->user()->email ?: auth()->user()->student_id }}</span>
                                 </div>
                             </div>
                         </div>

@@ -5,6 +5,7 @@ namespace App\Livewire\Attendance;
 use App\Models\StudentProfile;
 use App\Models\StudentAttendance as StudentAttendanceModel;
 use App\Models\Course;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -98,6 +99,9 @@ class StudentAttendance extends Component
     public function saveAttendance()
     {
         foreach ($this->attendance as $studentId => $status) {
+            $clockIn = $this->normalizeTime($this->clockIn[$studentId] ?? null);
+            $clockOut = $this->normalizeTime($this->clockOut[$studentId] ?? null);
+
             StudentAttendanceModel::updateOrCreate(
                 [
                     'student_profile_id' => $studentId,
@@ -107,8 +111,8 @@ class StudentAttendance extends Component
                 [
                     'status' => $status,
                     'reason' => $this->reasons[$studentId] ?? null,
-                    'clock_in' => $this->clockIn[$studentId] ?? null,
-                    'clock_out' => $this->clockOut[$studentId] ?? null,
+                    'clock_in' => $clockIn,
+                    'clock_out' => $clockOut,
                     'recorded_by' => Auth::id(),
                 ]
             );
@@ -124,5 +128,22 @@ class StudentAttendance extends Component
         return view('livewire.attendance.student-attendance', [
             'courses' => $courses,
         ]);
+    }
+
+    private function normalizeTime(?string $value): ?string
+    {
+        $value = $value ? trim($value) : '';
+
+        if ($value === '') {
+            return null;
+        }
+
+        try {
+            $format = strlen($value) === 5 ? 'H:i' : 'H:i:s';
+
+            return Carbon::createFromFormat($format, $value)->format('H:i:s');
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 }

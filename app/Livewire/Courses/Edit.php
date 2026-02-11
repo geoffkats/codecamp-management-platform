@@ -4,14 +4,20 @@ namespace App\Livewire\Courses;
 
 use App\Models\Course;
 use App\Models\ContentApproval;
+use App\Models\CourseEnrollment;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Illuminate\Support\Str;
+use Livewire\WithPagination;
 
 #[Layout('components.layouts.app')]
 class Edit extends Component
 {
+    use WithPagination;
+
+    protected $paginationTheme = 'tailwind';
+
     public Course $course;
     public $title = '';
     public $slug = '';
@@ -120,6 +126,14 @@ class Edit extends Component
     {
         $this->validate();
         
+        $user = Auth::user();
+        $isAdmin = $user->hasAnyRole(['admin', 'supervisor']);
+        
+        // If admin or course is already approved, keep it approved
+        $approvalStatus = ($isAdmin || $this->course->approval_status === 'approved') 
+            ? 'approved' 
+            : 'draft';
+        
         $this->course->update([
             'title' => $this->title,
             'slug' => $this->slug ?: Str::slug($this->title),
@@ -133,8 +147,12 @@ class Edit extends Component
             'requirements' => $this->requirements,
             'what_you_learn' => $this->what_you_learn,
             'is_featured' => $this->is_featured,
-            'approval_status' => 'draft',
-            'is_published' => false,
+            'approval_status' => $approvalStatus,
+            'is_published' => $this->is_published, // Keep current published state
+            'enrollment_type' => $this->enrollment_type,
+            'max_students' => $this->max_students,
+            'approved_at' => $approvalStatus === 'approved' ? now() : $this->course->approved_at,
+            'approved_by' => $approvalStatus === 'approved' ? $user->id : $this->course->approved_by,
         ]);
 
         session()->flash('message', 'Course updated successfully!');
@@ -196,8 +214,45 @@ class Edit extends Component
         return $this->redirect(route('courses.index'), navigate: true);
     }
 
+    public function togglePublish()
+    {
+        $this->is_published = !$this->is_published;
+        
+        $this->course->update([
+            'is_published' => $this->is_published,
+        ]);
+
+        $message = $this->is_published 
+            ? 'Course published successfully! Students can now enroll.' 
+            : 'Course unpublished. Students can no longer enroll.';
+        
+        session()->flash('message', $message);
+        $this->dispatch('course-updated');
+    }
+
+    public function unenrollStudent($enrollmentId)
+    {
+        $enrollment = CourseEnrollment::findOrFail($enrollmentId);
+
+        // Verify this enrollment belongs to this course
+        if ($enrollment->course_id !== $this->course->id) {
+            abort(403);
+        }
+
+        $studentName = $enrollment->user->name;
+        $enrollment->delete();
+
+        session()->flash('message', "$studentName has been unenrolled from the course.");
+    }
+
     public function render()
     {
-        return view('livewire.courses.edit');
+        $enrollments = $this->course->enrollments()
+            ->with('user')
+            ->paginate(10);
+
+        return view('livewire.courses.edit', [
+            'enrollments' => $enrollments,
+        ]);
     }
 }

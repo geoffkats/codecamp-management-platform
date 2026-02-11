@@ -179,6 +179,7 @@
                     <thead class="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Student Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Check-In</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Check-Out</th>
@@ -204,19 +205,31 @@
                                         </div>
                                     </div>
                                 </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    @php
+                                        $categoryLabel = match($log->studentProfile->student_category ?? 'codecamp') {
+                                            'school_club' => 'School Club',
+                                            'ict_school' => 'ICT School',
+                                            default => 'Codecamp',
+                                        };
+                                    @endphp
+                                    <span class="px-2.5 py-1 text-xs font-medium rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300">
+                                        {{ $categoryLabel }}
+                                    </span>
+                                </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                                     {{ $log->attendance_date->format('M d, Y') }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                                     @if($log->check_in_time)
-                                        <span class="font-medium">{{ \Carbon\Carbon::parse($log->check_in_time)->format('h:i A') }}</span>
+                                        <span class="font-medium">{{ \Carbon\Carbon::parse($log->attendance_date->format('Y-m-d') . ' ' . $log->check_in_time)->format('h:i A') }}</span>
                                     @else
                                         <span class="text-gray-400">--:--</span>
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                                     @if($log->check_out_time)
-                                        <span class="font-medium">{{ \Carbon\Carbon::parse($log->check_out_time)->format('h:i A') }}</span>
+                                        <span class="font-medium">{{ \Carbon\Carbon::parse($log->attendance_date->format('Y-m-d') . ' ' . $log->check_out_time)->format('h:i A') }}</span>
                                     @else
                                         <span class="text-gray-400">--:--</span>
                                     @endif
@@ -224,8 +237,8 @@
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                                     @if($log->check_in_time && $log->check_out_time)
                                         @php
-                                            $checkIn = \Carbon\Carbon::parse($log->check_in_time);
-                                            $checkOut = \Carbon\Carbon::parse($log->check_out_time);
+                                            $checkIn = \Carbon\Carbon::parse($log->attendance_date->format('Y-m-d') . ' ' . $log->check_in_time);
+                                            $checkOut = \Carbon\Carbon::parse($log->attendance_date->format('Y-m-d') . ' ' . $log->check_out_time);
                                             $totalHours = $checkIn->diffInHours($checkOut, true);
                                             $hours = floor($totalHours);
                                             $minutes = round(($totalHours - $hours) * 60);
@@ -255,7 +268,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                <td colspan="7" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                                     <svg class="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
                                     </svg>

@@ -128,6 +128,14 @@
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Filter & Search</h2>
+            @if(($stats['pending'] ?? 0) > 0)
+                <button wire:click="approveAll" class="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Approve All ({{ $stats['pending'] ?? 0 }})
+                </button>
+            @endif
         </div>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <flux:input wire:model.live.debounce.300ms="search" placeholder="Search content..." />

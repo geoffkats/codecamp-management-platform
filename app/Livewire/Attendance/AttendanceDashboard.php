@@ -33,13 +33,13 @@ class AttendanceDashboard extends Component
             $file = fopen('php://output', 'w');
             
             // Add CSV headers
-            fputcsv($file, ['Student Name', 'Student ID', 'Date', 'Check-In', 'Check-Out', 'Total Hours', 'Status']);
+            fputcsv($file, ['Student Name', 'Student ID', 'Category', 'Date', 'Check-In', 'Check-Out', 'Total Hours', 'Status']);
             
             foreach ($logs as $log) {
                 $totalHours = '';
                 if ($log->check_in_time && $log->check_out_time) {
-                    $checkIn = \Carbon\Carbon::parse($log->check_in_time);
-                    $checkOut = \Carbon\Carbon::parse($log->check_out_time);
+                    $checkIn = \Carbon\Carbon::parse($log->attendance_date->format('Y-m-d') . ' ' . $log->check_in_time);
+                    $checkOut = \Carbon\Carbon::parse($log->attendance_date->format('Y-m-d') . ' ' . $log->check_out_time);
                     $hours = $checkIn->diffInHours($checkOut, true);
                     $totalHours = number_format($hours, 2) . ' hours';
                 }
@@ -54,9 +54,10 @@ class AttendanceDashboard extends Component
                 fputcsv($file, [
                     $log->studentProfile->full_name ?? 'Unknown',
                     $log->studentProfile->student_id ?? 'N/A',
+                    $this->formatStudentCategory($log->studentProfile),
                     $log->attendance_date->format('Y-m-d'),
-                    $log->check_in_time ? \Carbon\Carbon::parse($log->check_in_time)->format('h:i A') : '--:--',
-                    $log->check_out_time ? \Carbon\Carbon::parse($log->check_out_time)->format('h:i A') : '--:--',
+                    $log->check_in_time ? \Carbon\Carbon::parse($log->attendance_date->format('Y-m-d') . ' ' . $log->check_in_time)->format('h:i A') : '--:--',
+                    $log->check_out_time ? \Carbon\Carbon::parse($log->attendance_date->format('Y-m-d') . ' ' . $log->check_out_time)->format('h:i A') : '--:--',
                     $totalHours,
                     $status,
                 ]);
@@ -159,8 +160,8 @@ class AttendanceDashboard extends Component
             ->get()
             ->sum(function ($log) {
                 if ($log->check_in_time && $log->check_out_time) {
-                    $checkIn = \Carbon\Carbon::parse($log->check_in_time);
-                    $checkOut = \Carbon\Carbon::parse($log->check_out_time);
+                    $checkIn = \Carbon\Carbon::parse($log->attendance_date->format('Y-m-d') . ' ' . $log->check_in_time);
+                    $checkOut = \Carbon\Carbon::parse($log->attendance_date->format('Y-m-d') . ' ' . $log->check_out_time);
                     return $checkIn->diffInHours($checkOut, true);
                 }
                 return 0;
@@ -185,5 +186,16 @@ class AttendanceDashboard extends Component
                 'currently_present' => $currentlyPresent->count(),
             ],
         ]);
+    }
+
+    private function formatStudentCategory(?StudentProfile $profile): string
+    {
+        $category = $profile?->student_category ?? 'codecamp';
+
+        return match ($category) {
+            'school_club' => 'School Club',
+            'ict_school' => 'ICT School',
+            default => 'Codecamp',
+        };
     }
 }

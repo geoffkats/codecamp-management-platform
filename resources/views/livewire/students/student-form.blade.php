@@ -64,6 +64,73 @@
                         <input type="text" wire:model="nationality" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
                     </div>
 
+                    @if($program_type === 'ict' || auth()->user()->isIctTeacher())
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ICDL Number</label>
+                            <input type="text" wire:model="icdl_number" placeholder="ICDL-XXXX" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                            @error('icdl_number') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
+                    @endif
+
+                    @if(auth()->user()->isAdmin() || auth()->user()->isOperationsManager())
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Program Type *</label>
+                            <select wire:model="program_type" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                                <option value="codecamp">Codecamp</option>
+                                <option value="ict">ICT / ICDL</option>
+                            </select>
+                            @error('program_type') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">School (ICT only)</label>
+                            <select wire:model="school_id" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                                <option value="">No School</option>
+                                @foreach($schools as $school)
+                                    <option value="{{ $school->id }}">{{ $school->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('school_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
+                    @else
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Program Type</label>
+                            <div class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white">
+                                {{ auth()->user()->isIctTeacher() ? 'ICT / ICDL' : 'Codecamp' }}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">School</label>
+                            <div class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white">
+                                @php
+                                    $ictSchoolId = auth()->user()->ictSchoolId();
+                                    $ictSchoolName = $ictSchoolId ? ($schools->firstWhere('id', $ictSchoolId)?->name ?? 'Not assigned') : 'Not assigned';
+                                @endphp
+                                {{ auth()->user()->isIctTeacher() ? $ictSchoolName : 'Not applicable' }}
+                            </div>
+                        </div>
+                    @endif
+
+                    @if(auth()->user()->isAdmin() || auth()->user()->isOperationsManager())
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Student Category *</label>
+                            <select wire:model="student_category" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                                <option value="codecamp">Codecamp Student</option>
+                                <option value="school_club">School Club Student</option>
+                                <option value="ict_school">ICT School Student</option>
+                            </select>
+                            @error('student_category') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
+                    @else
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Student Category</label>
+                            <div class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white">
+                                {{ auth()->user()->isIctTeacher() ? 'ICT School Student' : 'Codecamp Student' }}
+                            </div>
+                        </div>
+                    @endif
+
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Student Photo</label>
                         <input type="file" wire:model="photo" accept="image/*" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">

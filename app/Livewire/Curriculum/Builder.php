@@ -42,11 +42,15 @@ class Builder extends Component
             
             if ($courseModel) {
                 // Check authorization
-                if (Auth::user()->isTeacher() && $courseModel->instructor_id !== Auth::id()) {
+                $user = Auth::user();
+
+                $hasGlobalEdit = $user->hasPermission('edit_courses') || $user->isAdmin();
+
+                if ($user->isTeacher() && !$hasGlobalEdit && $courseModel->instructor_id !== $user->id) {
                     abort(403, 'You can only edit your own courses.');
                 }
-                
-                if (!Auth::user()->isAdmin() && !Auth::user()->isTeacher() && !Auth::user()->isSupervisor()) {
+
+                if (!$user->isAdmin() && !$user->isTeacher() && !$user->isSupervisor()) {
                     abort(403, 'Only teachers, supervisors and admins can access the curriculum builder.');
                 }
                 
@@ -66,9 +70,12 @@ class Builder extends Component
         $query = Course::with(['modules.lessons.assessments'])
             ->where('id', $this->courseId);
             
-        // Teachers can only view their own courses
-        if (!Auth::user()->isAdmin() && !Auth::user()->isSupervisor()) {
-            $query->where('instructor_id', Auth::id());
+        // Restrict teachers without global edit permission to their own courses
+        $user = Auth::user();
+        $hasGlobalEdit = $user->hasPermission('edit_courses') || $user->isAdmin();
+
+        if (!$user->isAdmin() && !$user->isSupervisor() && !$hasGlobalEdit) {
+            $query->where('instructor_id', $user->id);
         }
         
         $this->course = $query->first();

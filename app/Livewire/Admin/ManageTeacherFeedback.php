@@ -145,7 +145,7 @@ class ManageTeacherFeedback extends Component
         $feedbackList = $query->paginate(15);
 
         $teachers = User::whereHas('roles', function($q) {
-            $q->where('name', 'teacher');
+            $q->whereIn('name', ['teacher', 'ict_teacher']);
         })->orderBy('name')->get();
 
         // Statistics

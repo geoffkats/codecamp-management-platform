@@ -72,6 +72,16 @@
                             @if($student->class_grade)
                                 <p class="text-xs text-gray-500 dark:text-gray-400">{{ $student->class_grade }}</p>
                             @endif
+                            @php
+                                $categoryLabel = match($student->student_category ?? 'codecamp') {
+                                    'school_club' => 'School Club',
+                                    'ict_school' => 'ICT School',
+                                    default => 'Codecamp',
+                                };
+                            @endphp
+                            <span class="inline-flex px-2 py-0.5 text-[10px] rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 mt-1">
+                                {{ $categoryLabel }}
+                            </span>
                         </div>
                     </div>
 

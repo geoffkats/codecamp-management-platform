@@ -3,8 +3,8 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 
 @php
-    $appName = \App\Models\SystemSetting::get('app_name', config('app.name'));
-    $favicon = \App\Models\SystemSetting::get('favicon');
+    $appName = cache()->remember('app_name', 86400, fn() => \App\Models\SystemSetting::get('app_name', config('app.name')));
+    $favicon = cache()->remember('favicon_path', 86400, fn() => \App\Models\SystemSetting::get('favicon'));
 @endphp
 
 <title>{{ $title ?? $appName }}</title>

@@ -60,20 +60,9 @@ class EnrollmentManagement extends Component
             'progress_percentage' => 0,
         ]);
 
-        // Ensure UserPoints exists
-        $user = $request->user;
-        if (!$user->points) {
-            \App\Models\UserPoint::create([
-                'user_id' => $user->id,
-                'total_points' => 0,
-                'level' => 1,
-                'points_to_next_level' => 100,
-            ]);
-            $user->refresh();
-        }
-
-        // Award enrollment points
-        $user->points->increment('total_points', 50);
+        // Award enrollment points (safe from duplicates)
+        $pointsService = app(\App\Services\PointsService::class);
+        $pointsService->awardEnrollmentPoints($request->user_id, $request->course_id);
 
         // Notify student
         \App\Models\Notification::create([

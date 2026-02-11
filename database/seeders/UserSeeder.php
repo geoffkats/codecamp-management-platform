@@ -18,6 +18,7 @@ class UserSeeder extends Seeder
         // Get roles
         $studentRole = Role::where('name', 'student')->first();
         $teacherRole = Role::where('name', 'teacher')->first();
+        $ictTeacherRole = Role::where('name', 'ict_teacher')->first();
         $adminRole = Role::where('name', 'admin')->first();
         $supervisorRole = Role::where('name', 'supervisor')->first();
 
@@ -73,6 +74,21 @@ class UserSeeder extends Seeder
             ]
         );
         $teacher2->roles()->sync([$teacherRole->id]);
+
+        if ($ictTeacherRole) {
+            $ictTeacher = User::updateOrCreate(
+                ['email' => 'ictteacher@example.com'],
+                [
+                    'name' => 'ICT Teacher',
+                    'email' => 'ictteacher@example.com',
+                    'password' => Hash::make('password'),
+                    'is_active' => true,
+                    'email_verified_at' => now(),
+                    'bio' => 'ICT-focused instructor for digital literacy modules',
+                ]
+            );
+            $ictTeacher->roles()->sync([$ictTeacherRole->id]);
+        }
 
         // Create Student Users
         $students = [

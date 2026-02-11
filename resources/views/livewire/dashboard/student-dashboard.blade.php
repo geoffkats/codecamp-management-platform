@@ -1,15 +1,31 @@
 <div class="flex flex-col gap-6 p-6">
+        <!-- Quick Actions Header -->
+        <x-dashboard-quick-actions :user="$user" />
+
+        <!-- Getting Started Guide (for new users) -->
+        <x-dashboard-getting-started :user="$user" />
+
         <!-- Welcome Header -->
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
                 <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
-                    Welcome back, {{ $user->name }}! 👋
+                    Your Learning Dashboard
                 </h1>
                 <p class="mt-2 text-gray-600 dark:text-gray-400">
-                    Continue your learning journey today
+                    Track your progress, earn badges, and climb the leaderboard
                 </p>
             </div>
             <div class="flex items-center gap-4">
+                @php
+                    $categoryLabel = match($user->studentProfile?->student_category ?? 'codecamp') {
+                        'school_club' => 'School Club',
+                        'ict_school' => 'ICT School',
+                        default => 'Codecamp',
+                    };
+                @endphp
+                <flux:badge variant="secondary" size="lg">
+                    {{ $categoryLabel }}
+                </flux:badge>
                 <flux:badge variant="primary" size="lg">
                     Level {{ $stats['level'] }}
                 </flux:badge>
@@ -175,6 +191,11 @@
                                     <div class="flex-1 min-w-0">
                                         <h3 class="font-semibold text-gray-900 dark:text-white">{{ $challenge->title }}</h3>
                                         <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ $challenge->description }}</p>
+                                        @if($challenge->course)
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                Course: {{ $challenge->course->title }}
+                                            </p>
+                                        @endif
                                         <div class="mt-2 flex items-center gap-2">
                                             <flux:badge size="sm" variant="{{ $challenge->is_completed ? 'success' : 'primary' }}">
                                                 {{ $challenge->reward_points ?? 100 }} XP
@@ -275,12 +296,12 @@
         @if(count($upcomingDeadlines['assignments']) > 0 || count($upcomingDeadlines['quizzes']) > 0)
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
                 <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-                    <h2 class="text-xl font-semibold">Upcoming Deadlines</h2>
+                    <h2 class="text-xl font-semibold">📅 Upcoming Deadlines</h2>
                 </div>
                 <div class="p-6">
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         @foreach($upcomingDeadlines['assignments'] as $assignment)
-                            <div class="flex items-center gap-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                            <div class="flex items-center gap-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition">
                                 <div class="flex-shrink-0">
                                     <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/20">
                                         <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -301,7 +322,7 @@
                             </div>
                         @endforeach
                         @foreach($upcomingDeadlines['quizzes'] as $quiz)
-                            <div class="flex items-center gap-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                            <div class="flex items-center gap-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition">
                                 <div class="flex-shrink-0">
                                     <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/20">
                                         <svg class="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -313,7 +334,7 @@
                                     <h3 class="font-semibold text-gray-900 dark:text-white">{{ $quiz->title ?? 'Quiz' }}</h3>
                                     <p class="text-sm text-gray-600 dark:text-gray-400">{{ $quiz->lesson->course->title ?? 'N/A' }}</p>
                                 </div>
-                                <flux:button href="{{ route('quizzes.show', $quiz) }}" variant="ghost" size="sm" wire:navigate>
+                                <flux:button href="{{ route('assessments.show', $quiz) }}" variant="ghost" size="sm" wire:navigate>
                                     View
                                 </flux:button>
                             </div>
@@ -445,5 +466,13 @@
                 </div>
             </div>
         </div>
+
+        <!-- Help & Tips Section -->
+        <x-dashboard-help-tips />
+
+        <!-- Recommended Courses (if not all courses are enrolled) -->
+        @if($recommendedCourses && $recommendedCourses->count() > 0)
+            <x-dashboard-recommended-courses :courses="$recommendedCourses" />
+        @endif
     </div>
 

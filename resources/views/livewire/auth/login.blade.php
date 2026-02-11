@@ -16,12 +16,12 @@
             <div>
                 <flux:input
                     name="email"
-                    :label="__('Email address')"
-                    type="email"
+                    :label="__('Email or Student ID')"
+                    type="text"
                     required
                     autofocus
-                    autocomplete="email"
-                    placeholder="your.email@example.com"
+                    autocomplete="username"
+                    placeholder="email or student ID"
                     class="w-full"
                 />
             </div>

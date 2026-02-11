@@ -12,6 +12,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Add session validation middleware to web group
+        $middleware->web(append: [
+            \App\Http\Middleware\EnsureUserExists::class,
+        ]);
+        
         // Add performance optimization middleware
         $middleware->append(\App\Http\Middleware\OptimizeResponse::class);
         $middleware->append(\App\Http\Middleware\PerformanceHeaders::class);
@@ -19,6 +24,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // Register middleware aliases
         $middleware->alias([
             'student.profile' => \App\Http\Middleware\EnsureUserHasStudentProfile::class,
+            'admin' => \App\Http\Middleware\IsAdmin::class,
+            'require.daily.report' => \App\Http\Middleware\RequireDailyReport::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

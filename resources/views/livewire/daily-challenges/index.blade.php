@@ -7,6 +7,11 @@
                 Complete daily challenges to earn XP and climb the leaderboard! 🔥
             </p>
         </div>
+        @can('manage_badges')
+            <flux:button href="{{ route('daily-challenges.create') }}" variant="primary" icon="plus" wire:navigate>
+                Create Challenge
+            </flux:button>
+        @endcan
     </div>
 
     <!-- Stats Cards -->
@@ -97,6 +102,9 @@
                                     <div class="flex-1">
                                         <h3 class="text-lg font-bold text-gray-900 dark:text-white">{{ $challenge->title }}</h3>
                                         <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{{ $challenge->description }}</p>
+                                        @if($challenge->course)
+                                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Course: {{ $challenge->course->title }}</p>
+                                        @endif
                                     </div>
                                 </div>
                                 <div class="flex items-center justify-between mt-4">
@@ -215,6 +223,17 @@
                                     </p>
                                 @endif
                             </div>
+                            @can('manage_badges')
+                                <flux:button 
+                                    href="{{ route('daily-challenges.edit', $challenge) }}" 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    icon="pencil"
+                                    wire:navigate
+                                >
+                                    Edit
+                                </flux:button>
+                            @endcan
                         </div>
                         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-3">{{ $challenge->description }}</p>
                         
@@ -228,6 +247,9 @@
                                 </svg>
                                 {{ $challenge->reward_points ?? 100 }} XP
                             </flux:badge>
+                            @if($challenge->course)
+                                <flux:badge variant="ghost" size="sm">{{ $challenge->course->title }}</flux:badge>
+                            @endif
                             @if($challenge->category)
                                 <flux:badge variant="ghost" size="sm">{{ $challenge->category }}</flux:badge>
                             @endif

@@ -25,6 +25,11 @@ class Show extends Component
     public function mount(DailyChallenge $dailyChallenge)
     {
         $this->dailyChallenge = $dailyChallenge->load('attempts');
+
+        if ($this->dailyChallenge->course_id && !$this->userEnrolledInCourse($this->dailyChallenge->course_id)) {
+            session()->flash('error', 'This challenge is restricted to its course.');
+            return redirect()->route('daily-challenges.index');
+        }
         
         // Check if challenge is active
         if (!$this->dailyChallenge->is_active) {
@@ -219,6 +224,11 @@ class Show extends Component
     protected function getRequirementMessage(): string
     {
         return $this->requirementStatus['message'] ?? 'Please complete the required activities first.';
+    }
+
+    protected function userEnrolledInCourse(int $courseId): bool
+    {
+        return Auth::user()?->enrollments()->where('course_id', $courseId)->exists() ?? false;
     }
 
     public function render()

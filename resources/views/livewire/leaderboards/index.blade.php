@@ -1,4 +1,4 @@
-<div class="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950 py-8 px-4 sm:px-6 lg:px-8">
+<div class="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950 py-8 px-4 sm:px-6 lg:px-8" wire:key="leaderboards-root">
     <div class="max-w-7xl mx-auto space-y-8">
         <!-- Hero Header -->
         <div class="text-center space-y-4">
@@ -104,7 +104,7 @@
         </flux:card>
 
         <!-- Premium Podium for Top 3 -->
-        @if($topThree->count() >= 3)
+        @if($topThree->count() >= 3 && $topThree->first()['points'] > 0)
             <div class="relative">
                 <div class="absolute inset-0 bg-gradient-to-r from-yellow-400/20 via-orange-500/20 to-red-500/20 rounded-3xl blur-2xl"></div>
                 <flux:card class="relative bg-white/90 dark:bg-zinc-900/90 backdrop-blur-sm border-2 border-yellow-200/50 dark:border-yellow-800/50 shadow-2xl">
@@ -112,7 +112,7 @@
                         <h2 class="text-3xl font-black text-center mb-8 bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
                             🥇 CHAMPIONS PODIUM 🥇
                         </h2>
-                        
+
                         <div class="flex items-end justify-center gap-4 md:gap-8">
                             <!-- 2nd Place -->
                             <div class="flex flex-col items-center transform transition-all duration-300 hover:scale-105">
@@ -180,6 +180,44 @@
                     </div>
                 </flux:card>
             </div>
+        @elseif($topThree->count() > 0 && $topThree->first()['points'] == 0)
+            <!-- Motivational Message When Everyone Has 0 Points -->
+            <flux:card class="relative bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 backdrop-blur-sm border-2 border-blue-200/50 dark:border-blue-800/50 shadow-2xl">
+                <div class="p-12 text-center">
+                    <div class="mb-6">
+                        <span class="text-8xl animate-bounce inline-block">🚀</span>
+                    </div>
+                    <h2 class="text-4xl font-black bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent mb-4">
+                        Be the First to Climb the Ranks!
+                    </h2>
+                    <p class="text-xl text-gray-700 dark:text-gray-300 font-semibold mb-6">
+                        The leaderboard is waiting for its first champions. Start earning XP today!
+                    </p>
+                    <div class="flex flex-col md:flex-row items-center justify-center gap-6 mt-8">
+                        <div class="flex items-center gap-3 bg-white dark:bg-zinc-800 px-6 py-3 rounded-xl shadow-lg">
+                            <span class="text-3xl">📚</span>
+                            <div class="text-left">
+                                <p class="text-sm font-bold text-gray-600 dark:text-gray-400">Complete Lessons</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-500">Earn 10-50 XP</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 bg-white dark:bg-zinc-800 px-6 py-3 rounded-xl shadow-lg">
+                            <span class="text-3xl">✅</span>
+                            <div class="text-left">
+                                <p class="text-sm font-bold text-gray-600 dark:text-gray-400">Finish Courses</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-500">Earn 100+ XP</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 bg-white dark:bg-zinc-800 px-6 py-3 rounded-xl shadow-lg">
+                            <span class="text-3xl">🎯</span>
+                            <div class="text-left">
+                                <p class="text-sm font-bold text-gray-600 dark:text-gray-400">Daily Challenges</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-500">Earn bonus XP</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </flux:card>
         @endif
 
         <!-- Full Leaderboard Table -->

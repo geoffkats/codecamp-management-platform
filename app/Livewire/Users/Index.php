@@ -19,6 +19,7 @@ class Index extends Component
     public $filterRole = 'all';
     public $filterStatus = 'all'; // 'all', 'active', 'inactive'
     public $sortBy = 'recent';
+    public $filterAudience = 'staff'; // 'staff', 'students', 'ict_students'
     
     // Password reset modal
     public $showResetModal = false;
@@ -30,9 +31,15 @@ class Index extends Component
         'filterRole' => ['except' => 'all'],
         'filterStatus' => ['except' => 'all'],
         'sortBy' => ['except' => 'recent'],
+        'filterAudience' => ['except' => 'staff'],
     ];
 
     public function updatingSearch()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterAudience()
     {
         $this->resetPage();
     }
@@ -97,8 +104,23 @@ class Index extends Component
     public function render()
     {
         // Optimize: Select only needed columns and eager load roles
-        $query = User::select('id', 'name', 'email', 'is_active', 'created_at', 'updated_at')
+        $query = User::select('id', 'name', 'email', 'is_active', 'created_at', 'updated_at', 'student_type')
             ->with('roles:id,name');
+
+        $audienceQuery = User::query();
+
+        if ($this->filterAudience === 'students') {
+            $query->whereHas('roles', fn($q) => $q->where('name', 'student'));
+            $audienceQuery->whereHas('roles', fn($q) => $q->where('name', 'student'));
+        } elseif ($this->filterAudience === 'ict_students') {
+            $query->whereHas('roles', fn($q) => $q->where('name', 'student'))
+                ->where('student_type', 'ict');
+            $audienceQuery->whereHas('roles', fn($q) => $q->where('name', 'student'))
+                ->where('student_type', 'ict');
+        } else {
+            $query->whereDoesntHave('roles', fn($q) => $q->where('name', 'student'));
+            $audienceQuery->whereDoesntHave('roles', fn($q) => $q->where('name', 'student'));
+        }
 
         if ($this->search) {
             $query->where(function ($q) {
@@ -127,12 +149,23 @@ class Index extends Component
 
         $users = $query->paginate(15);
 
-        // Cache stats for 5 minutes to reduce database load
-        $stats = cache()->remember('user_stats', 300, function () {
+        $stats = cache()->remember('user_stats_' . $this->filterAudience, 300, function () use ($audienceQuery) {
+            $baseQuery = clone $audienceQuery;
+
             return [
-                'total' => User::count(),
-                'active' => User::where('is_active', true)->count(),
-                'inactive' => User::where('is_active', false)->count(),
+                'total' => $baseQuery->count(),
+                'active' => (clone $audienceQuery)->where('is_active', true)->count(),
+                'inactive' => (clone $audienceQuery)->where('is_active', false)->count(),
+            ];
+        });
+
+        $audienceCounts = cache()->remember('user_audience_counts', 300, function () {
+            return [
+                'staff' => User::whereDoesntHave('roles', fn($q) => $q->where('name', 'student'))->count(),
+                'students' => User::whereHas('roles', fn($q) => $q->where('name', 'student'))->count(),
+                'ict_students' => User::whereHas('roles', fn($q) => $q->where('name', 'student'))
+                    ->where('student_type', 'ict')
+                    ->count(),
             ];
         });
 
@@ -145,6 +178,7 @@ class Index extends Component
             'users' => $users,
             'stats' => $stats,
             'roles' => $roles,
+            'audienceCounts' => $audienceCounts,
         ]);
     }
 }

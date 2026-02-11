@@ -48,7 +48,7 @@ class OperationsManagerDashboard extends Component
             
             // Student Attendance
             fputcsv($file, ['Student Attendance Today']);
-            fputcsv($file, ['Student ID', 'Name', 'Status', 'Reason', 'Time']);
+            fputcsv($file, ['Student ID', 'Name', 'Category', 'Status', 'Reason', 'Time']);
             
             $attendance = StudentAttendance::with('studentProfile')
                 ->where('attendance_date', today())
@@ -58,6 +58,7 @@ class OperationsManagerDashboard extends Component
                 fputcsv($file, [
                     $record->studentProfile->student_id,
                     $record->studentProfile->full_name,
+                    $this->formatStudentCategory($record->studentProfile),
                     ucfirst($record->status),
                     $record->reason ?? '-',
                     $record->created_at->format('H:i'),
@@ -85,7 +86,7 @@ class OperationsManagerDashboard extends Component
             
             // Student Attendance CSV
             fputcsv($file, ['Student Attendance Records']);
-            fputcsv($file, ['Date', 'Student ID', 'Student Name', 'Class', 'Status', 'Reason', 'Recorded By', 'Time']);
+            fputcsv($file, ['Date', 'Student ID', 'Student Name', 'Category', 'Class', 'Status', 'Reason', 'Recorded By', 'Time']);
             
             $records = StudentAttendance::with(['studentProfile', 'recorder'])
                 ->where('attendance_date', today())
@@ -96,6 +97,7 @@ class OperationsManagerDashboard extends Component
                     $record->attendance_date->format('Y-m-d'),
                     $record->studentProfile->student_id,
                     $record->studentProfile->full_name,
+                    $this->formatStudentCategory($record->studentProfile),
                     $record->studentProfile->class_grade ?? 'N/A',
                     ucfirst($record->status),
                     $record->reason ?? '-',
@@ -147,5 +149,16 @@ class OperationsManagerDashboard extends Component
             'recentAttendance' => $recentAttendance,
             'uniformPending' => $uniformPending,
         ]);
+    }
+
+    private function formatStudentCategory(?StudentProfile $profile): string
+    {
+        $category = $profile?->student_category ?? 'codecamp';
+
+        return match ($category) {
+            'school_club' => 'School Club',
+            'ict_school' => 'ICT School',
+            default => 'Codecamp',
+        };
     }
 }

@@ -45,7 +45,20 @@ class Index extends Component
 
     public function render()
     {
+        $user = Auth::user();
+        $userId = $user?->id;
+        $userCourseIds = $user?->enrollments()->pluck('course_id')->filter()->unique() ?? collect();
+
         $query = DailyChallenge::query()->where('is_active', true);
+
+        // Only show general challenges or those tied to the student's enrolled courses
+        $query->where(function ($q) use ($userCourseIds) {
+            $q->whereNull('course_id');
+
+            if ($userCourseIds->isNotEmpty()) {
+                $q->orWhereIn('course_id', $userCourseIds);
+            }
+        });
 
         // Search
         if ($this->search) {
@@ -72,35 +85,54 @@ class Index extends Component
             $query->where('date', '>=', $today);
         }
 
-        $challenges = $query->orderBy('date', 'desc')->paginate(12);
+        $challenges = $query->with('course')->orderBy('date', 'desc')->paginate(12);
 
         // Get user attempts for challenges
-        $userAttempts = DailyChallengeAttempt::where('user_id', Auth::id())
+        $userAttempts = DailyChallengeAttempt::where('user_id', $userId)
             ->whereIn('challenge_id', $challenges->pluck('id'))
             ->get()
             ->keyBy('challenge_id');
 
         // Calculate stats
+        $baseAccessibleQuery = DailyChallenge::where('is_active', true)
+            ->where(function ($q) use ($userCourseIds) {
+                $q->whereNull('course_id');
+
+                if ($userCourseIds->isNotEmpty()) {
+                    $q->orWhereIn('course_id', $userCourseIds);
+                }
+            });
+
         $stats = [
-            'total' => DailyChallenge::where('is_active', true)->count(),
-            'completed' => DailyChallengeAttempt::where('user_id', Auth::id())
+            'total' => (clone $baseAccessibleQuery)->count(),
+            'completed' => DailyChallengeAttempt::where('user_id', $userId)
                 ->where('is_completed', true)
                 ->count(),
-            'active' => DailyChallenge::where('is_active', true)
+            'active' => (clone $baseAccessibleQuery)
                 ->where('date', '<=', $today)
                 ->count(),
-            'totalPoints' => DailyChallengeAttempt::where('user_id', Auth::id())
+            'totalPoints' => DailyChallengeAttempt::where('user_id', $userId)
                 ->where('is_completed', true)
                 ->sum('points_earned') ?? 0,
         ];
 
         // Get today's challenges
         $todayChallenges = DailyChallenge::where('is_active', true)
+            ->where(function ($q) use ($userCourseIds) {
+                $q->whereNull('course_id');
+
+                if ($userCourseIds->isNotEmpty()) {
+                    $q->orWhereIn('course_id', $userCourseIds);
+                }
+            })
             ->where(function ($q) use ($today) {
                 $q->where('date', $today)
                   ->orWhereNull('date');
             })
-            ->with(['attempts' => fn($q) => $q->where('user_id', Auth::id())])
+            ->with([
+                'attempts' => fn($q) => $q->where('user_id', $userId),
+                'course',
+            ])
             ->get();
 
         return view('livewire.daily-challenges.index', [

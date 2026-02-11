@@ -33,6 +33,7 @@ class CreateNewUser implements CreatesNewUsers
         $user = User::create([
             'name' => $input['name'],
             'email' => $input['email'],
+            'student_type' => 'codecamp',
             'password' => $input['password'],
         ]);
 

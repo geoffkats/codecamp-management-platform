@@ -72,28 +72,9 @@ class Index extends Component
             'progress_percentage' => 0,
         ]);
 
-        // Ensure UserPoints exists
-        $user = Auth::user();
-        if (!$user->points) {
-            \App\Models\UserPoint::create([
-                'user_id' => $user->id,
-                'total_points' => 0,
-                'level' => 1,
-                'points_to_next_level' => 100,
-            ]);
-            $user->refresh();
-        }
-
-        // Award points for enrollment
-        $user->points->increment('total_points', 50);
-
-        // Create user progress entry
-        \App\Models\UserProgress::create([
-            'user_id' => Auth::id(),
-            'course_id' => $invitation->course_id,
-            'type' => 'course_enrolled',
-            'points_earned' => 50,
-        ]);
+        // Award enrollment points (safe from duplicates)
+        $pointsService = app(\App\Services\PointsService::class);
+        $pointsService->awardEnrollmentPoints(Auth::id(), $invitation->course_id);
 
         session()->flash('message', 'Invitation accepted! You are now enrolled in "' . $course->title . '"');
         $this->dispatch('invitation-accepted');

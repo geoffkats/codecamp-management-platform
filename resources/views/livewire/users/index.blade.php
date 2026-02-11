@@ -10,9 +10,9 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                         </svg>
                     </div>
-                    <h1 class="text-4xl font-bold">User Management</h1>
+                    <h1 class="text-4xl font-bold">Staff & System Users</h1>
                 </div>
-                <p class="text-blue-100 text-lg">Manage all platform users, roles, and permissions</p>
+                <p class="text-blue-100 text-lg">Manage staff accounts, roles, and permissions</p>
                 <div class="flex items-center gap-4 mt-4">
                     <div class="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2">
                         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -28,6 +28,39 @@
         </div>
     </div>
 
+    {{-- Audience Filters --}}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+        <div class="flex flex-wrap items-center gap-3">
+            @php
+                $audienceOptions = [
+                    'staff' => ['label' => 'Staff', 'count' => $audienceCounts['staff'] ?? 0],
+                    'students' => ['label' => 'Students', 'count' => $audienceCounts['students'] ?? 0],
+                    'ict_students' => ['label' => 'ICT Students', 'count' => $audienceCounts['ict_students'] ?? 0],
+                ];
+            @endphp
+            @foreach($audienceOptions as $key => $option)
+                <button type="button"
+                        wire:click="$set('filterAudience', '{{ $key }}')"
+                        class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold border transition
+                            {{ $filterAudience === $key ? 'bg-blue-600 text-white border-blue-600 shadow' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                    <span>{{ $option['label'] }}</span>
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold
+                        {{ $filterAudience === $key ? 'bg-white/20 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300' }}">
+                        {{ number_format($option['count']) }}
+                    </span>
+                </button>
+            @endforeach
+        </div>
+    </div>
+
+    @php
+        $audienceLabel = match ($filterAudience) {
+            'students' => 'Students',
+            'ict_students' => 'ICT Students',
+            default => 'Staff & System Users',
+        };
+    @endphp
+
     {{-- Stats Cards --}}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {{-- Total Users Card --}}
@@ -42,11 +75,11 @@
                     </div>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Users</p>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total {{ $audienceLabel }}</p>
                     <p class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ number_format($stats['total']) }}</p>
                     <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                         <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-                        <span>All platform users</span>
+                        <span>{{ $filterAudience === 'staff' ? 'Staff accounts only' : 'Filtered view' }}</span>
                     </div>
                 </div>
             </div>
@@ -65,7 +98,7 @@
                     <span class="text-xs font-semibold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-full">{{ number_format(($stats['active'] / max($stats['total'], 1)) * 100, 1) }}%</span>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Active Users</p>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Active {{ $audienceLabel }}</p>
                     <p class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ number_format($stats['active']) }}</p>
                     <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                         <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
@@ -88,7 +121,7 @@
                     <span class="text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-2 py-1 rounded-full">{{ number_format(($stats['inactive'] / max($stats['total'], 1)) * 100, 1) }}%</span>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Inactive Users</p>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Inactive {{ $audienceLabel }}</p>
                     <p class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ number_format($stats['inactive']) }}</p>
                     <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                         <span class="w-2 h-2 rounded-full bg-red-500"></span>
@@ -147,7 +180,7 @@
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Users List</h2>
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ $audienceLabel }} List</h2>
                     <span class="text-sm text-gray-600 dark:text-gray-400">{{ $users->total() }} total</span>
                 </div>
             </div>
