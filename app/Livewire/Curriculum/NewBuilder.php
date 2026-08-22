@@ -105,6 +105,20 @@ class NewBuilder extends Component
         $this->computeViewState();
     }
 
+    public function hydrate(): void
+    {
+        $user = Auth::user();
+        if ($user) {
+            $this->isAdmin = $user->isAdmin();
+            $this->isSupervisor = $user->isSupervisor();
+            $this->isApprover = $this->isAdmin || $this->isSupervisor;
+        }
+
+        if ($this->courseId && ! $this->course) {
+            $this->loadCourse(false);
+        }
+    }
+
     /**
      * Compute view state from current properties
      * This is the single source of truth for determining which view to show
@@ -118,10 +132,9 @@ class NewBuilder extends Component
             return;
         }
 
-        // Course not found
+        // $course is protected (not in the snapshot). Keep the current
+        // view until loadCourse() has actually run for this request.
         if (!$this->course) {
-            $this->viewState = 'not-found';
-            $this->showForm = false;
             return;
         }
 
@@ -191,7 +204,7 @@ class NewBuilder extends Component
         }
     }
     
-    public function loadCourse()
+    public function loadCourse(bool $recomputeView = true)
     {
         if (!$this->courseId) {
             return;
@@ -238,7 +251,16 @@ class NewBuilder extends Component
         
         $this->course = $query->first();
         $this->canManageCourse = $this->course ? $this->userCanManageCourse() : false;
-        $this->computeViewState();
+
+        if (! $this->course) {
+            $this->viewState = 'not-found';
+            $this->showForm = false;
+            return;
+        }
+
+        if ($recomputeView) {
+            $this->computeViewState();
+        }
     }
 
     public function handleLessonSaved($lessonId = null): void
@@ -359,6 +381,12 @@ class NewBuilder extends Component
         }
         
         $this->showForm = true;
+        $this->viewState = match ($this->selectedType) {
+            'lesson' => 'lesson-form',
+            'module' => 'module-form',
+            'assessment' => 'assessment-form',
+            default => 'other-form',
+        };
         $this->computeViewState();
     }
     

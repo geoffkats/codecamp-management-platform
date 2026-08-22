@@ -21,8 +21,8 @@ class LessonForm extends Component
     public $lessonId = null;
     public $moduleId = null;
     public $selectedId = null;
-    public $course;
-    public $lesson;
+    protected $course;
+    protected $lesson;
     public $formData = [];
     public $pdfUpload = null;
     public $slideUpload = null;
@@ -44,6 +44,12 @@ class LessonForm extends Component
         $this->cacheUserRoles();
         $this->loadCourse();
         $this->initializeFormData();
+    }
+
+    public function hydrate(): void
+    {
+        $this->cacheUserRoles();
+        $this->loadCourse();
     }
 
     protected function cacheUserRoles(): void
@@ -771,6 +777,8 @@ class LessonForm extends Component
     public function render()
     {
         return view('livewire.curriculum.forms.lesson-form', [
+            'course' => $this->course,
+            'lesson' => $this->lesson,
             'selectedLessonAssessments' => $this->selectedLessonAssessments,
         ]);
     }
