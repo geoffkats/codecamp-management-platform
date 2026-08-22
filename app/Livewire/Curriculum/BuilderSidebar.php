@@ -8,10 +8,8 @@ use App\Models\CourseModule;
 use App\Models\Lesson;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Livewire\Attributes\Isolate;
 use Livewire\Component;
 
-#[Isolate]
 class BuilderSidebar extends Component
 {
     use ComputesBuilderStructure;
@@ -23,7 +21,6 @@ class BuilderSidebar extends Component
     public $selectedType = null;
     public $selectedId = null;
     public $selectedModuleId = null;
-    public $sidebarCollapsed = false;
     public $structureTab = 'active';
 
     protected $listeners = [
@@ -31,19 +28,19 @@ class BuilderSidebar extends Component
         'lesson-saved' => 'refreshCourse',
     ];
 
-    public function mount($courseId = null, $course = null, $courses = null, $canManageCourse = false, $selectedType = null, $selectedId = null, $selectedModuleId = null, $sidebarCollapsed = false)
+    public function mount($courseId = null, $canManageCourse = false, $selectedType = null, $selectedId = null, $selectedModuleId = null)
     {
-        $this->courseId = $courseId;
-        $this->course = $course;
-        $this->courses = $courses;
-        $this->canManageCourse = $canManageCourse;
+        $this->courseId = $courseId ? (int) $courseId : null;
+        $this->canManageCourse = (bool) $canManageCourse;
         $this->selectedType = $selectedType;
         $this->selectedId = $selectedId;
         $this->selectedModuleId = $selectedModuleId;
-        $this->sidebarCollapsed = $sidebarCollapsed;
+        $this->courses = collect();
 
-        if (!$this->course && $this->courseId) {
+        if ($this->courseId) {
             $this->refreshCourse();
+        } else {
+            $this->loadCourseList();
         }
     }
 
@@ -55,12 +52,37 @@ class BuilderSidebar extends Component
 
         $this->course = Course::withTrashed()->with([
             'modules' => function ($q) {
-                $q->withTrashed()->orderBy('order_index');
+                $q->withTrashed()
+                    ->orderBy('order_index')
+                    ->select('id', 'course_id', 'title', 'order_index', 'deleted_at');
             },
             'modules.lessons' => function ($q) {
-                $q->withTrashed()->orderBy('order_index');
+                $q->withTrashed()
+                    ->orderBy('order_index')
+                    ->select('id', 'module_id', 'title', 'order_index', 'lesson_type', 'approval_status', 'is_locked', 'deleted_at');
             },
         ])->find($this->courseId);
+    }
+
+    protected function loadCourseList(): void
+    {
+        $user = Auth::user();
+        $isAdmin = $user->isAdmin();
+        $isSupervisor = $user->isSupervisor();
+
+        $this->courses = Course::withCount('modules')
+            ->where(function ($query) use ($isAdmin, $isSupervisor) {
+                if (! $isAdmin && ! $isSupervisor) {
+                    $query->where('instructor_id', Auth::id())
+                        ->orWhereHas('collaborators', function ($q) {
+                            $q->where('user_id', Auth::id());
+                        });
+                }
+            })
+            ->where('approval_status', '!=', 'deleted')
+            ->orderBy('title')
+            ->select('id', 'title', 'instructor_id')
+            ->get();
     }
 
     public function setStructureTab(string $tab): void
@@ -172,6 +194,10 @@ class BuilderSidebar extends Component
 
     public function render()
     {
+        if ($this->courses === null) {
+            $this->courses = collect();
+        }
+
         return view('livewire.curriculum.builder-sidebar');
     }
 }

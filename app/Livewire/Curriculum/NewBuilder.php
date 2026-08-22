@@ -950,7 +950,8 @@ class NewBuilder extends Component
     
     public function toggleSidebar()
     {
-        $this->sidebarCollapsed = !$this->sidebarCollapsed;
+        $this->sidebarCollapsed = ! $this->sidebarCollapsed;
+        $this->skipRender();
     }
 
     private function approvalService(): ApprovalService
