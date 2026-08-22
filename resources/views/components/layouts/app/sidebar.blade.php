@@ -150,6 +150,19 @@
         {{ $slot }}
 
         @livewireScripts
+        <script>
+            document.addEventListener('livewire:init', () => {
+                if (!window.Livewire || window.__codecamp419Hook) return;
+                window.__codecamp419Hook = true;
+                Livewire.hook('request', ({ fail }) => {
+                    fail(({ status, preventDefault }) => {
+                        if (status !== 419) return;
+                        preventDefault();
+                        window.location.replace('/login');
+                    });
+                });
+            });
+        </script>
         @fluxScripts
         @stack('scripts')
     </body>

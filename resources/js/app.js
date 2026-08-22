@@ -314,6 +314,16 @@ document.addEventListener('livewire:init', () => {
     Livewire.hook('commit', ({ succeed }) => {
         succeed(() => queueMicrotask(mountLessonEditors));
     });
+    Livewire.hook('request', ({ fail }) => {
+        fail(({ status, preventDefault }) => {
+            if (status !== 419) {
+                return;
+            }
+            preventDefault();
+            const path = window.location.pathname || '/';
+            window.location.replace(path.startsWith('/livewire') ? '/dashboard' : (path + window.location.search));
+        });
+    });
 });
 
 if (document.readyState !== 'loading') {

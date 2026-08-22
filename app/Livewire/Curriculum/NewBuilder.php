@@ -345,64 +345,16 @@ class NewBuilder extends Component
                 $this->initializeFormData();
             }
         } elseif ($type === 'lesson') {
+            $this->lesson = null;
+            $this->formData = ['module_id' => $parentId ?: ($this->formData['module_id'] ?? null)];
             if ($id) {
-                // Load existing lesson
-                $this->lesson = Lesson::with('assessments')->find($id);
-                if ($this->lesson) {
-                    // Convert lesson_steps array to text format for editing
-                    $stepsText = '';
-                    if ($this->lesson->lesson_steps && is_array($this->lesson->lesson_steps)) {
-                        foreach ($this->lesson->lesson_steps as $index => $step) {
-                            $stepNum = $index + 1;
-                            $title = $step['title'] ?? "Step {$stepNum}";
-                            $desc = $step['description'] ?? '';
-                            $stepsText .= "{$title}\n{$desc}\n\n";
-                        }
-                    }
-                    
-                    // Convert scratch_blocks array to text format for editing
-                    $codeExamplesText = '';
-                    if ($this->lesson->scratch_blocks && is_array($this->lesson->scratch_blocks)) {
-                        foreach ($this->lesson->scratch_blocks as $block) {
-                            $text = $block['text'] ?? '';
-                            if ($text) {
-                                $codeExamplesText .= $text . "\n";
-                            }
-                        }
-                    }
-                    
-                    $this->formData = [
-                        'title' => $this->lesson->title,
-                        'module_id' => $this->lesson->module_id,
-                        'lesson_type' => $this->lesson->lesson_type,
-                        'content' => $this->lesson->content,
-                        'summary' => $this->lesson->summary,
-                        'objectives' => $this->lesson->objectives,
-                        'video_url' => $this->lesson->video_url,
-                        'video_duration' => $this->lesson->video_duration,
-                        'difficulty_level' => $this->lesson->difficulty_level ?? 'beginner',
-                        'duration_minutes' => $this->lesson->duration_minutes,
-                        'order_index' => $this->lesson->order_index,
-                        'is_published' => $this->lesson->is_published ?? false,
-                        'is_active' => $this->lesson->is_active ?? true,
-                        'is_free_preview' => $this->lesson->is_free_preview ?? false,
-                        'is_locked' => $this->lesson->is_locked ?? false,
-                        'approval_status' => $this->lesson->approval_status ?? 'draft',
-                        'lesson_steps_text' => trim($stepsText),
-                        'scratch_project_id' => $this->lesson->scratch_project_id ?? '',
-                        'code_examples_text' => trim($codeExamplesText),
-                        'attachments' => $this->lesson->attachments ?? [],
-                        'slide_file_path' => $this->lesson->slide_file_path ?? null,
-                        'html_content' => $this->lesson->html_content ?? null,
-                    ];
+                $moduleId = Lesson::where('id', $id)->value('module_id');
+                if ($moduleId) {
+                    $this->formData['module_id'] = $moduleId;
+                    $this->selectedModuleId = (int) $moduleId;
                 }
-            } else {
-                $this->lesson = null;
-                // New lesson - set module if provided
-                $this->initializeFormData();
-                if ($parentId) {
-                    $this->formData['module_id'] = $parentId;
-                }
+            } elseif ($parentId) {
+                $this->formData['module_id'] = $parentId;
             }
         }
         

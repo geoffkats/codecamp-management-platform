@@ -31,5 +31,11 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (\Illuminate\Session\TokenMismatchException $e, \Illuminate\Http\Request $request) {
+            if ($request->is('livewire/*') || $request->header('X-Livewire')) {
+                return response()->json(['message' => 'Session expired'], 419);
+            }
+
+            return redirect('/login');
+        });
     })->create();
