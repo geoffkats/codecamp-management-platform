@@ -550,9 +550,7 @@
                                             <x-storage-image :path="$option->image_url" alt="Option image" class="max-w-xs rounded border border-gray-200 dark:border-gray-700" />
                                         </div>
                                     @endif
-                                    @if($option->explanation)
-                                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ $option->explanation }}</p>
-                                    @endif
+                                    {{-- Hide option explanations while answering --}}
                                 </div>
                             </label>
                         @endforeach
@@ -886,13 +884,7 @@
                     </div>
                 @endif
 
-                @if($currentQuestion->explanation)
-                    <div class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <p class="text-sm text-blue-800 dark:text-blue-200">
-                            <span class="font-semibold">Hint:</span> {{ $currentQuestion->explanation }}
-                        </p>
-                    </div>
-                @endif
+                {{-- Explanations are not shown while the student is answering --}}
             </div>
         @elseif(!$currentQuestion)
             <div class="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-6 text-sm text-amber-900 dark:text-amber-200 mb-6">

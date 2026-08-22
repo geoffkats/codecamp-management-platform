@@ -132,9 +132,6 @@
                                     @endif
                                     <div class="flex-1">
                                         <p class="font-medium text-gray-900 dark:text-white">{{ $option->option_text }}</p>
-                                        @if($option->explanation)
-                                            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ $option->explanation }}</p>
-                                        @endif
                                     </div>
                                 </label>
                             @endforeach
@@ -221,9 +218,6 @@
                                     @endif
                                     <div class="flex-1">
                                         <p class="font-medium text-gray-900 dark:text-white">{{ $option->option_text }}</p>
-                                        @if($option->explanation)
-                                            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ $option->explanation }}</p>
-                                        @endif
                                     </div>
                                 </label>
                             @endforeach
@@ -236,13 +230,7 @@
                         </div>
                     @endif
 
-                    @if($currentQuestion->explanation)
-                        <div class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                            <p class="text-sm text-blue-800 dark:text-blue-200">
-                                <span class="font-semibold">Hint:</span> {{ $currentQuestion->explanation }}
-                            </p>
-                        </div>
-                    @endif
+                    {{-- Explanations are not shown while the student is answering --}}
                 </div>
 
                 <!-- Navigation Buttons -->
