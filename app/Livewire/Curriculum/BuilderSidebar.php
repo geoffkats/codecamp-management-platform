@@ -15,8 +15,8 @@ class BuilderSidebar extends Component
     use ComputesBuilderStructure;
 
     public $courseId;
-    public $course;
-    public $courses;
+    protected $course;
+    protected $courses;
     public $canManageCourse = false;
     public $selectedType = null;
     public $selectedId = null;
@@ -35,33 +35,37 @@ class BuilderSidebar extends Component
         $this->selectedType = $selectedType;
         $this->selectedId = $selectedId;
         $this->selectedModuleId = $selectedModuleId;
-        $this->courses = collect();
 
-        if ($this->courseId) {
-            $this->refreshCourse();
-        } else {
-            $this->loadCourseList();
-        }
+        $this->hydrateStructure();
     }
 
     public function refreshCourse(): void
     {
-        if (!$this->courseId) {
+        $this->hydrateStructure();
+    }
+
+    protected function hydrateStructure(): void
+    {
+        if ($this->courseId) {
+            $this->course = Course::withTrashed()->with([
+                'modules' => function ($q) {
+                    $q->withTrashed()
+                        ->orderBy('order_index')
+                        ->select('id', 'course_id', 'title', 'order_index', 'deleted_at');
+                },
+                'modules.lessons' => function ($q) {
+                    $q->withTrashed()
+                        ->orderBy('order_index')
+                        ->select('id', 'module_id', 'title', 'order_index', 'lesson_type', 'approval_status', 'is_locked', 'deleted_at');
+                },
+            ])->find($this->courseId);
+            $this->courses = collect();
+
             return;
         }
 
-        $this->course = Course::withTrashed()->with([
-            'modules' => function ($q) {
-                $q->withTrashed()
-                    ->orderBy('order_index')
-                    ->select('id', 'course_id', 'title', 'order_index', 'deleted_at');
-            },
-            'modules.lessons' => function ($q) {
-                $q->withTrashed()
-                    ->orderBy('order_index')
-                    ->select('id', 'module_id', 'title', 'order_index', 'lesson_type', 'approval_status', 'is_locked', 'deleted_at');
-            },
-        ])->find($this->courseId);
+        $this->course = null;
+        $this->loadCourseList();
     }
 
     protected function loadCourseList(): void
@@ -194,10 +198,11 @@ class BuilderSidebar extends Component
 
     public function render()
     {
-        if ($this->courses === null) {
-            $this->courses = collect();
-        }
+        $this->hydrateStructure();
 
-        return view('livewire.curriculum.builder-sidebar');
+        return view('livewire.curriculum.builder-sidebar', [
+            'course' => $this->course,
+            'courses' => $this->courses ?? collect(),
+        ]);
     }
 }

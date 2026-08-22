@@ -29,7 +29,7 @@ class NewBuilder extends Component
     use HandlesBuilderArchiving;
 
     public $courseId;
-    public $course;
+    protected $course;
     
     // State machine - single source of truth for UI state
     public $viewState = 'welcome'; // welcome | lesson-form | module-form | assessment-form | build-empty | not-found
@@ -41,8 +41,8 @@ class NewBuilder extends Component
     public $formData = [];
     public $showRejectModal = false;
     public $rejectionReason = '';
-    public $lesson = null;
-    public $selectedAssessment = null;
+    protected $lesson = null;
+    protected $selectedAssessment = null;
     public $lessonId = null;  // For creating assessments
     public $sidebarCollapsed = false; // Toggle sidebar visibility
     public $pdfUpload = null;
@@ -961,21 +961,22 @@ class NewBuilder extends Component
     
     public function render()
     {
-        // Ensure course is loaded if courseId is set but course is null
-        if ($this->courseId && !$this->course) {
+        if ($this->courseId) {
             $this->loadCourse();
         }
 
-        // Full course list is only needed on the welcome / picker screen.
-        // Skip this query while editing (Add Quiz, lessons, etc.).
+        if ($this->selectedType === 'assessment' && $this->selectedId && ! $this->selectedAssessment) {
+            $this->selectedAssessment = Assessment::find($this->selectedId);
+        }
+
         $courses = collect();
-        if (!$this->courseId) {
+        if (! $this->courseId) {
             $authUser = Auth::user();
             $isAdmin = $authUser->isAdmin();
             $isSupervisor = $authUser->isSupervisor();
             $courses = Course::withCount('modules')
                 ->where(function ($query) use ($isAdmin, $isSupervisor) {
-                    if (!$isAdmin && !$isSupervisor) {
+                    if (! $isAdmin && ! $isSupervisor) {
                         $query->where('instructor_id', Auth::id())
                               ->orWhereHas('collaborators', function ($q) {
                                   $q->where('user_id', Auth::id());
@@ -990,6 +991,8 @@ class NewBuilder extends Component
 
         return view('livewire.curriculum.new-builder', [
             'courses' => $courses,
+            'course' => $this->course,
+            'selectedAssessment' => $this->selectedAssessment,
         ]);
     }
 }
