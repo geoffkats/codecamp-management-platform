@@ -9,7 +9,7 @@
         outline-color: #c2410c;
     }
 </style>
-<div class="h-screen bg-white dark:bg-gray-900 flex flex-col overflow-hidden select-none">
+<div class="flex h-full min-h-0 flex-col overflow-hidden bg-white select-none dark:bg-gray-900">
 
     @if(!$courseId)
         {{-- ═══════════════════════════════════════

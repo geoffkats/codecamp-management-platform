@@ -8,8 +8,10 @@ use App\Models\CourseModule;
 use App\Models\Lesson;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Isolate;
 use Livewire\Component;
 
+#[Isolate]
 class BuilderSidebar extends Component
 {
     use ComputesBuilderStructure;
