@@ -28,21 +28,6 @@ class StudentProfile extends Model
         });
     }
 
-    protected static function booted(): void
-    {
-        static::creating(function (self $profile) {
-            if (empty($profile->student_id)) {
-                $profile->student_id = self::generateStudentId();
-            }
-        });
-
-        static::updating(function (self $profile) {
-            if ($profile->isDirty('student_id')) {
-                $profile->student_id = $profile->getOriginal('student_id');
-            }
-        });
-    }
-
     protected $fillable = [
         'user_id',
         'school_id',
