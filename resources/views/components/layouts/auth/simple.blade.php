@@ -4,6 +4,7 @@
         @include('partials.head')
     </head>
     <body class="min-h-screen bg-white dark:bg-neutral-950 antialiased overflow-hidden">
+        @include('partials.analytics.body')
         @php
             $appName = \App\Models\SystemSetting::get('app_name', config('app.name'));
             $appTagline = \App\Models\SystemSetting::get('app_tagline', 'E-Learning Platform');

@@ -23,33 +23,49 @@ class RequireDailyReport
             return $next($request);
         }
 
-        $routeName = $request->route()?->getName();
-        $allowedRoutes = [
-            'daily-reports.submit',
-            'logout',
-        ];
-
-        if (in_array($routeName, $allowedRoutes, true)) {
+        // Skip daily report enforcement for club-only facilitators or dual-access users in Code Club context
+        if ($user->hasCodeClubAccess() && ! $user->isCodecampTrainer()) {
             return $next($request);
         }
 
-        $cutoff = config('reports.cutoff_time', '17:00');
-        $now = Carbon::now();
-        $todayCutoff = Carbon::parse($now->toDateString() . ' ' . $cutoff);
-
-        if ($now->lt($todayCutoff)) {
+        if ($user->hasDualProgramAccess() && $user->activeProgramContext() === 'codeclub') {
             return $next($request);
         }
 
-        $hasReport = DailyReport::whereDate('report_date', $now->toDateString())
-            ->where('instructor_id', $user->id)
-            ->exists();
+        // Only enforce daily reports for instructors - skip students and ICT teachers
+        if ($user->hasRole('instructor') || $user->isCodecampTrainer()) {
+            $routeName = $request->route()?->getName();
+            $allowedRoutes = [
+                'daily-reports.submit',
+                'club-session-reports.submit',
+                'logout',
+            ];
 
-        if ($hasReport) {
-            return $next($request);
+            if (in_array($routeName, $allowedRoutes, true)) {
+                return $next($request);
+            }
+
+            $cutoff = config('reports.cutoff_time', '17:00');
+            $now = Carbon::now();
+            $todayCutoff = Carbon::parse($now->toDateString() . ' ' . $cutoff);
+
+            if ($now->lt($todayCutoff)) {
+                return $next($request);
+            }
+
+            $hasReport = DailyReport::whereDate('report_date', $now->toDateString())
+                ->where('instructor_id', $user->id)
+                ->exists();
+
+            if ($hasReport) {
+                return $next($request);
+            }
+
+            return redirect()->route('daily-reports.submit')
+                ->with('error', 'Daily report required before continuing.');
         }
 
-        return redirect()->route('daily-reports.submit')
-            ->with('error', 'Daily report required before continuing.');
+        // Students and other roles bypass the daily report requirement
+        return $next($request);
     }
 }

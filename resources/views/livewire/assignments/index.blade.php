@@ -1,101 +1,162 @@
-<div class="flex flex-col gap-6 p-6">
+<div class="max-w-4xl mx-auto px-4 py-8 space-y-6">
+
     {{-- Header --}}
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Assignments</h1>
-            <p class="text-gray-600 dark:text-gray-400 mt-1">Manage and complete your assignments</p>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Assignments</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                @if($isTeacher) View and grade student assignment submissions.
+                @else Assignments from your enrolled courses.
+                @endif
+            </p>
         </div>
-        @can('create', \App\Models\Assignment::class)
-            <flux:button href="{{ route('assignments.create') }}" icon="plus" variant="primary" wire:navigate>
-                Create Assignment
-            </flux:button>
-        @endcan
+        @if($isTeacher)
+            <a href="{{ route('assessments.create') }}?type=assignment" wire:navigate
+               class="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold bg-orange-600 hover:bg-orange-700 text-white rounded-xl transition-colors shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+                </svg>
+                New Assignment
+            </a>
+        @endif
     </div>
 
     {{-- Filters --}}
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <flux:input wire:model.live.debounce.300ms="search" placeholder="Search assignments..." />
-            <flux:select wire:model.live="filter" label="Filter">
-                <option value="all">All Assignments</option>
-                <option value="pending">Pending</option>
-                <option value="submitted">Submitted</option>
-                <option value="graded">Graded</option>
-            </flux:select>
+    <div class="flex flex-wrap items-center gap-3">
+        <div class="relative flex-1 min-w-48">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+            </svg>
+            <input type="text" wire:model.live.debounce.300ms="search"
+                   placeholder="Search assignments…"
+                   class="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors">
         </div>
+        @if(!$isTeacher)
+            <div class="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+                @foreach(['all' => 'All', 'pending' => 'To Do', 'submitted' => 'Submitted'] as $val => $lbl)
+                    <button type="button" wire:click="$set('filter', '{{ $val }}')"
+                            class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors
+                                {{ $filter === $val
+                                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300' }}">
+                        {{ $lbl }}
+                    </button>
+                @endforeach
+            </div>
+        @endif
     </div>
 
-    {{-- Assignments List --}}
+    {{-- List --}}
     @if($assignments->count() > 0)
-        <div class="space-y-4">
+        <div class="space-y-3">
             @foreach($assignments as $assignment)
-                <a href="{{ route('assignments.show', $assignment) }}" class="block">
-                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer">
-                        <div class="p-6">
-                            <div class="flex items-start justify-between">
-                                <div class="flex-1">
-                                    <div class="flex items-center gap-3 mb-2">
-                                        <h3 class="text-xl font-bold text-gray-900 dark:text-white">{{ $assignment->title }}</h3>
-                                        @if($assignment->due_date)
-                                            @if($assignment->due_date < now())
-                                                <flux:badge variant="danger" size="sm">Overdue</flux:badge>
-                                            @elseif($assignment->due_date < now()->addDays(2))
-                                                <flux:badge variant="warning" size="sm">Due Soon</flux:badge>
-                                            @endif
-                                        @endif
-                                    </div>
-                                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">{{ Str::limit($assignment->description, 150) }}</p>
-                                    
-                                    <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                                        <div class="flex items-center gap-1">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                            </svg>
-                                            <span>{{ $assignment->course->title }}</span>
-                                        </div>
-                                        @if($assignment->due_date)
-                                            <div class="flex items-center gap-1">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                                <span>Due: {{ $assignment->due_date->format('M d, Y') }}</span>
-                                            </div>
-                                        @endif
-                                    </div>
-                                </div>
-                                <div class="flex flex-col items-end gap-2 ml-4">
-                                    @if($assignment->submission)
-                                        @if($assignment->submission->graded_at)
-                                            <flux:badge variant="success">Graded</flux:badge>
-                                            <span class="text-sm font-semibold text-gray-900 dark:text-white">
-                                                {{ $assignment->submission->grade ?? 'N/A' }}%
-                                            </span>
-                                        @else
-                                            <flux:badge variant="primary">Submitted</flux:badge>
-                                        @endif
-                                    @else
-                                        <flux:badge variant="warning">Not Submitted</flux:badge>
-                                    @endif
-                                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                    </svg>
-                                </div>
+                @php
+                    $attempt = $assignment->myAttempt ?? null;
+                    $isSubmitted = $attempt && $attempt->completed_at;
+                    $isPending   = $isSubmitted && $attempt->score === null;
+                    $isGraded    = $isSubmitted && $attempt->score !== null;
+                    $maxScore    = $attempt?->maxScore() ?? ($assignment->max_points ?? 100);
+                    $pct         = $isGraded ? $attempt?->scorePercentage() : null;
+                @endphp
+                <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md hover:border-orange-200 dark:hover:border-orange-800 transition-all">
+                    <div class="flex items-center gap-4 p-4">
+
+                        {{-- Status dot --}}
+                        <div class="w-2.5 h-2.5 rounded-full flex-shrink-0
+                            {{ $isTeacher ? ($assignment->pendingCount > 0 ? 'bg-amber-400' : 'bg-green-400') :
+                               ($isGraded ? 'bg-green-400' : ($isPending ? 'bg-amber-400 animate-pulse' : 'bg-gray-300 dark:bg-gray-600')) }}">
+                        </div>
+
+                        {{-- Info --}}
+                        <div class="flex-1 min-w-0">
+                            <p class="font-semibold text-gray-900 dark:text-white leading-tight">{{ $assignment->title }}</p>
+                            <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                                <span>{{ $assignment->course->title }}</span>
+                                @if($assignment->lesson)
+                                    <span>· {{ $assignment->lesson->title }}</span>
+                                @endif
+                                @if($assignment->is_required)
+                                    <span class="text-red-500 font-semibold">Required</span>
+                                @endif
                             </div>
                         </div>
+
+                        {{-- Teacher view: submission count --}}
+                        @if($isTeacher)
+                            <div class="text-center flex-shrink-0">
+                                <p class="text-lg font-bold text-gray-900 dark:text-white">{{ $assignment->submissionCount }}</p>
+                                <p class="text-xs text-gray-400">submitted</p>
+                            </div>
+                            @if($assignment->pendingCount > 0)
+                                <span class="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                    {{ $assignment->pendingCount }} to grade
+                                </span>
+                            @endif
+                        @else
+                            {{-- Student view: status badge --}}
+                            @if($isGraded)
+                                <div class="text-center flex-shrink-0">
+                                    <p class="text-xl font-bold {{ $attempt->is_passed ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">{{ $pct }}%</p>
+                                    <p class="text-xs {{ $attempt->is_passed ? 'text-green-500' : 'text-red-500' }}">{{ $attempt->is_passed ? 'Passed' : 'Failed' }}</p>
+                                </div>
+                            @elseif($isPending)
+                                <span class="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                    Awaiting grade
+                                </span>
+                            @else
+                                <span class="flex-shrink-0 inline-flex px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                                    Not submitted
+                                </span>
+                            @endif
+                        @endif
+
+                        {{-- Action button --}}
+                        @if($isTeacher)
+                            <a href="{{ route('assessments.show', $assignment) }}" wire:navigate
+                               class="flex-shrink-0 px-4 py-2 text-sm font-bold border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 rounded-xl hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors">
+                                View Submissions
+                            </a>
+                        @elseif($isGraded || $isPending)
+                            <a href="{{ route('assessments.results', [$assignment, $attempt]) }}" wire:navigate
+                               class="flex-shrink-0 px-4 py-2 text-sm font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                View
+                            </a>
+                        @else
+                            <a href="{{ route('assessments.take', $assignment) }}" wire:navigate
+                               class="flex-shrink-0 px-4 py-2 text-sm font-bold bg-orange-600 hover:bg-orange-700 text-white rounded-xl transition-colors shadow-sm">
+                                Submit
+                            </a>
+                        @endif
                     </div>
-                </a>
+                </div>
             @endforeach
         </div>
 
-        <div class="mt-6">
-            {{ $assignments->links() }}
-        </div>
+        @if($assignments->hasPages())
+            <div>{{ $assignments->links() }}</div>
+        @endif
+
     @else
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
-            <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        <div class="text-center py-16 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800">
+            <svg class="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
-            <p class="text-gray-600 dark:text-gray-400">No assignments found</p>
+            <p class="font-semibold text-gray-500 dark:text-gray-400">
+                @if($search) No assignments match "{{ $search }}"
+                @elseif($filter === 'submitted') You haven't submitted any assignments yet.
+                @elseif($filter === 'pending') All assignments are done — great work!
+                @else No assignments found.
+                @endif
+            </p>
+            @if($search || $filter !== 'all')
+                <button type="button" wire:click="$set('search', ''); $set('filter', 'all')"
+                        class="mt-3 text-sm text-orange-600 dark:text-orange-400 font-semibold hover:underline">
+                    Clear filters
+                </button>
+            @endif
         </div>
     @endif
+
 </div>

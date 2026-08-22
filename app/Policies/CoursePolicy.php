@@ -26,9 +26,9 @@ class CoursePolicy
                 || $user->enrollments()->where('course_id', $course->id)->exists();
         }
 
-        // Teachers can view their own courses
+        // Teachers can view courses they own or collaborate on
         if ($user->isTeacher()) {
-            return $course->instructor_id === $user->id;
+            return $course->isStaffFor($user);
         }
 
         // Admins and supervisors can view all
@@ -58,9 +58,9 @@ class CoursePolicy
             return true;
         }
 
-        // Teachers without explicit permission fall back to ownership
+        // Teachers without explicit permission: instructor or editor collaborator
         if ($user->isTeacher()) {
-            return $course->instructor_id === $user->id;
+            return $course->canUserEdit($user);
         }
 
         return false;

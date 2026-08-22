@@ -91,6 +91,31 @@
 <script>
     // Store original code for reset
     const originalCode{{ $jsKey }} = `{{ $code }}`;
+
+    function waitForPyodideReady() {
+        if (window.__pyodideReady) {
+            return window.__pyodideReady;
+        }
+
+        window.__pyodideReady = new Promise((resolve, reject) => {
+            let attempts = 0;
+            const timer = setInterval(() => {
+                attempts += 1;
+                if (window.loadPyodide) {
+                    clearInterval(timer);
+                    window.loadPyodide({ stdout: () => {}, stderr: () => {} })
+                        .then(resolve)
+                        .catch(reject);
+                }
+                if (attempts > 40) {
+                    clearInterval(timer);
+                    reject(new Error('Pyodide failed to load.'));
+                }
+            }, 250);
+        });
+
+        return window.__pyodideReady;
+    }
     
     // Update line numbers
     function updateLineNumbers{{ $jsKey }}() {
@@ -105,8 +130,20 @@
     document.addEventListener('DOMContentLoaded', function() {
         updateLineNumbers{{ $jsKey }}();
         const editor = document.getElementById('{{ $editorId }}');
+        const linesDiv = document.getElementById('{{ $editorId }}-lines');
         if (editor) {
             editor.addEventListener('input', updateLineNumbers{{ $jsKey }});
+            editor.addEventListener('scroll', function() {
+                if (linesDiv) {
+                    linesDiv.scrollTop = editor.scrollTop;
+                }
+            });
+            editor.addEventListener('keydown', function(event) {
+                if (event.ctrlKey && event.key === 'Enter') {
+                    event.preventDefault();
+                    runCode{{ $jsKey }}();
+                }
+            });
         }
     });
     
@@ -128,7 +165,7 @@
     }
     
     // Run code
-    function runCode{{ $jsKey }}() {
+    async function runCode{{ $jsKey }}() {
         const editor = document.getElementById('{{ $editorId }}');
         const output = document.getElementById('{{ $outputId }}');
         if (!editor || !output) return;
@@ -137,26 +174,38 @@
         output.innerHTML = '<div class="text-yellow-400">⏳ Running code...</div>';
         
         @if($language === 'python')
-            // Python execution (requires backend API)
-            fetch('/api/execute/python', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                },
-                body: JSON.stringify({ code: code })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    output.innerHTML = `<div class="text-green-400">${escapeHtml(data.output || 'Code executed successfully!')}</div>`;
-                } else {
-                    output.innerHTML = `<div class="text-red-400">❌ Error:\n${escapeHtml(data.error)}</div>`;
+            // Python execution (client-side with Pyodide)
+            try {
+                const pyodide = await waitForPyodideReady();
+                const stdout = [];
+                const stderr = [];
+
+                pyodide.setStdout({
+                    batched: (text) => stdout.push(text),
+                });
+                pyodide.setStderr({
+                    batched: (text) => stderr.push(text),
+                });
+
+                const result = await pyodide.runPythonAsync(code);
+                let outputText = stdout.join('');
+                if (!outputText && stdout.length > 0) {
+                    outputText = stdout.join('\n');
                 }
-            })
-            .catch(error => {
-                output.innerHTML = `<div class="text-red-400">❌ Error: ${escapeHtml(error.message)}</div>`;
-            });
+                if (outputText && !outputText.includes('\n') && stdout.length > 1) {
+                    outputText = stdout.join('\n');
+                }
+                outputText = outputText
+                    || (result !== undefined && result !== null ? String(result) : 'Code executed successfully!');
+
+                if (stderr.length > 0) {
+                    output.innerHTML = `<pre class="text-red-400 whitespace-pre-wrap">❌ Error:\n${escapeHtml(stderr.join(''))}</pre>`;
+                } else {
+                    output.innerHTML = `<pre class="text-green-400 whitespace-pre-wrap">${escapeHtml(outputText)}</pre>`;
+                }
+            } catch (error) {
+                output.innerHTML = `<pre class="text-red-400 whitespace-pre-wrap">❌ Error: ${escapeHtml(error.message || String(error))}</pre>`;
+            }
         @elseif($language === 'javascript')
             // JavaScript execution (client-side) with console capture and DOMContentLoaded safety
             (function() {
@@ -188,8 +237,20 @@
                 }
             })();
         @elseif($language === 'html')
-            // HTML preview
-            output.innerHTML = `<div class="text-blue-400">📄 HTML Preview:</div><div class="mt-2 bg-white p-4 rounded border border-gray-300">${code}</div>`;
+            // HTML preview (sandboxed)
+            output.innerHTML = '<div class="text-blue-400">📄 HTML Preview:</div>';
+            const iframe = document.createElement('iframe');
+            iframe.className = 'mt-2 w-full bg-white rounded border border-gray-300';
+            iframe.style.height = '240px';
+            iframe.setAttribute('sandbox', 'allow-scripts');
+            output.appendChild(iframe);
+
+            const doc = iframe.contentDocument || iframe.contentWindow?.document;
+            if (doc) {
+                doc.open();
+                doc.write(code);
+                doc.close();
+            }
         @elseif($language === 'css')
             // CSS preview
             output.innerHTML = `<div class="text-purple-400">🎨 CSS Code:</div><pre class="mt-2 text-gray-300">${escapeHtml(code)}</pre>`;
@@ -203,6 +264,12 @@
         return div.innerHTML;
     }
 </script>
+
+@once
+    @push('scripts')
+        <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js" defer></script>
+    @endpush
+@endonce
 
 <style>
     #{{ $editorId }} {

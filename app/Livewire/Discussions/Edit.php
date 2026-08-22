@@ -5,6 +5,7 @@ namespace App\Livewire\Discussions;
 use App\Models\Course;
 use App\Models\Discussion;
 use App\Models\Lesson;
+use App\Support\DiscussionSanitizer;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -38,6 +39,8 @@ class Edit extends Component
 
     public function mount(Discussion $discussion)
     {
+        abort_unless(Auth::user()->canAccessDiscussions(), 403);
+
         // Check permissions - only creator or staff can edit
         if ($discussion->user_id !== Auth::id() && !Auth::user()->hasAnyRole(['admin', 'teacher', 'supervisor'])) {
             session()->flash('error', 'You do not have permission to edit this discussion.');
@@ -71,7 +74,7 @@ class Edit extends Component
     {
         $rules = [
             'title' => ['required', 'string', 'min:5', 'max:255'],
-            'content' => ['required', 'string', 'min:10'],
+            'content' => ['required', 'string', 'min:10', 'max:10000'],
             'courseId' => ['nullable', 'exists:courses,id'],
             'lessonId' => ['nullable', 'exists:lessons,id'],
             'isPinned' => ['boolean'],
@@ -165,8 +168,8 @@ class Edit extends Component
         if (!empty($this->codeContent) && !empty($this->codeLanguage)) {
             $codeSnippets[] = [
                 'language' => $this->codeLanguage,
-                'code' => $this->codeContent,
-                'title' => $this->codeTitle ?? null,
+                'code' => DiscussionSanitizer::codeSnippet($this->codeContent),
+                'title' => $this->codeTitle ? DiscussionSanitizer::title($this->codeTitle) : null,
             ];
         }
 
@@ -181,12 +184,14 @@ class Edit extends Component
 
         // Update discussion
         $updateData = [
-            'title' => $validated['title'],
-            'content' => $validated['content'],
+            'title' => DiscussionSanitizer::title($validated['title']),
+            'content' => DiscussionSanitizer::body($validated['content']),
             'course_id' => $this->courseId,
             'lesson_id' => $this->lessonId,
             'subject_tag' => $this->subjectTag ?: null,
-            'scratch_project_id' => $this->scratchProjectId ?: null,
+            'scratch_project_id' => $this->scratchProjectId
+                ? DiscussionSanitizer::scratchProjectId($this->scratchProjectId) ?: null
+                : null,
             'code_snippets' => !empty($codeSnippets) ? $codeSnippets : null,
             'attachments' => !empty($attachments) ? $attachments : null,
         ];

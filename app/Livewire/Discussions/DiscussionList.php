@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Discussions;
 
+use App\Models\Course;
 use App\Models\Discussion;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -10,45 +12,58 @@ class DiscussionList extends Component
 {
     use WithPagination;
 
+    protected $paginationTheme = 'tailwind';
+
     public $courseId;
+
     public $lessonId;
-    public $search = '';
-    public $filterStatus = 'active';
 
-    public function mount($courseId = null, $lessonId = null)
-    {
-        $this->courseId = $courseId;
-        $this->lessonId = $lessonId;
-    }
+    public $compact = false;
 
-    public function updatingSearch()
+    public function mount($courseId = null, $lessonId = null, $compact = false): void
     {
-        $this->resetPage();
+        $this->courseId = $courseId ? (int) $courseId : null;
+        $this->lessonId = $lessonId ? (int) $lessonId : null;
+        $this->compact = (bool) $compact;
+
+        $user = Auth::user();
+
+        abort_unless($user->canAccessDiscussions(), 403);
+
+        if ($this->courseId && ! Discussion::userCanAccessCourse($user, $this->courseId)) {
+            abort(403, 'You must be enrolled in this course to view discussions.');
+        }
     }
 
     public function render()
     {
-        $query = Discussion::with(['user', 'lastReplyBy'])
-            ->when($this->courseId, function ($q) {
-                $q->where('course_id', $this->courseId);
-            })
-            ->when($this->lessonId, function ($q) {
-                $q->where('lesson_id', $this->lessonId);
-            })
-            ->when($this->search, function ($q) {
-                $q->where('title', 'like', '%' . $this->search . '%')
-                  ->orWhere('content', 'like', '%' . $this->search . '%');
-            })
-            ->when($this->filterStatus, function ($q) {
-                $q->where('status', $this->filterStatus);
-            })
+        $user = Auth::user();
+
+        $query = Discussion::query()
+            ->with([
+                'user:id,name',
+                'course:id,title',
+                'lesson:id,title',
+            ])
+            ->withCount('replies')
+            ->where('status', 'active')
+            ->visibleToUser($user)
+            ->when($this->courseId, fn ($q) => $q->where('course_id', $this->courseId))
+            ->when($this->lessonId, fn ($q) => $q->where('lesson_id', $this->lessonId))
             ->orderByDesc('is_pinned')
-            ->orderByDesc('last_reply_at')
-            ->orderByDesc('created_at');
+            ->latest('last_reply_at')
+            ->latest('created_at');
+
+        $discussions = $query->paginate($this->compact ? 5 : 15);
+
+        $createParams = array_filter([
+            'course' => $this->courseId,
+            'lesson' => $this->lessonId,
+        ]);
 
         return view('livewire.discussions.discussion-list', [
-            'discussions' => $query->paginate(15)
+            'discussions' => $discussions,
+            'createParams' => $createParams,
         ]);
     }
 }
-

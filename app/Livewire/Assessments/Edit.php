@@ -19,6 +19,7 @@ class Edit extends Component
     use WithPagination, WithFileUploads;
 
     public Assessment $assessment;
+    public bool $embedded = false;
     public $title;
     public $description;
     public $assessment_type;
@@ -63,7 +64,18 @@ class Edit extends Component
     public $ratingScaleSettings = []; // For rating question type
     public $fillBlankSettings = []; // For fill_blank question type
     public $codeSubmissionSettings = []; // For code_submission question type
-    
+
+    // Assignment-specific fields
+    public string $assignment_instructions = '';
+    public ?string $assignment_due_date = null;
+    public int $assignment_max_points = 100;
+    public bool $assignment_allow_text = true;
+    public bool $assignment_allow_files = true;
+    /** @var array<int, array{path: string, name: string}> */
+    public array $assignment_existing_attachments = [];
+    /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile> */
+    public array $assignmentBriefFiles = [];
+
     protected $rules = [
         'title' => 'required|string|max:255',
         'assessment_type' => 'required|string',
@@ -101,6 +113,18 @@ class Edit extends Component
         $this->shuffle_options = $assessment->shuffle_options ?? false;
         $this->show_correct_answers = $assessment->show_correct_answers ?? true;
         $this->allow_review = $assessment->allow_review ?? true;
+
+        if ($assessment->assessment_type === 'assignment') {
+            $assignmentData = $assessment->assignment_data ?? [];
+            $this->assignment_instructions = (string) ($assignmentData['instructions'] ?? '');
+            $this->assignment_due_date = ! empty($assignmentData['due_date'])
+                ? \Illuminate\Support\Carbon::parse($assignmentData['due_date'])->format('Y-m-d')
+                : null;
+            $this->assignment_max_points = (int) ($assignmentData['max_points'] ?? 100);
+            $this->assignment_allow_text = (bool) ($assignmentData['allow_text'] ?? true);
+            $this->assignment_allow_files = (bool) ($assignmentData['allow_files'] ?? true);
+            $this->assignment_existing_attachments = $assessment->assignmentAttachments();
+        }
         
         // Auto-open attempt if provided
         if ($attempt) {
@@ -110,9 +134,26 @@ class Edit extends Component
 
     public function updateAssessment()
     {
-        $this->validate();
+        $rules = $this->rules;
 
-        $this->assessment->update([
+        if ($this->assessment_type === 'assignment') {
+            $rules['assignment_instructions'] = 'nullable|string';
+            $rules['assignment_due_date'] = 'nullable|date';
+            $rules['assignment_max_points'] = 'required|integer|min:1|max:1000';
+            $rules['assignment_allow_text'] = 'boolean';
+            $rules['assignment_allow_files'] = 'boolean';
+            $rules['assignmentBriefFiles.*'] = 'nullable|file|max:10240';
+        }
+
+        $this->validate($rules);
+
+        if ($this->assessment_type === 'assignment' && ! $this->assignment_allow_text && ! $this->assignment_allow_files) {
+            $this->addError('assignment_allow_files', 'Enable text response, file upload, or both.');
+
+            return;
+        }
+
+        $payload = [
             'title' => $this->title,
             'description' => $this->description,
             'assessment_type' => $this->assessment_type,
@@ -129,9 +170,61 @@ class Edit extends Component
             'approval_status' => 'approved',
             'approved_at' => now(),
             'approved_by' => Auth::id(),
-        ]);
+        ];
+
+        if ($this->assessment_type === 'assignment') {
+            $attachments = $this->assignment_existing_attachments;
+
+            foreach ($this->assignmentBriefFiles as $file) {
+                $path = $file->store('assessments/briefs', 'public');
+                $attachments[] = [
+                    'path' => $path,
+                    'name' => $file->getClientOriginalName(),
+                ];
+            }
+
+            $payload['assignment_data'] = [
+                'instructions' => trim($this->assignment_instructions) ?: null,
+                'due_date' => $this->assignment_due_date ?: null,
+                'max_points' => $this->assignment_max_points,
+                'submission_format' => $this->assignment_allow_files ? 'file' : 'text',
+                'file_types' => ['pdf', 'doc', 'docx', 'txt', 'zip', 'rar', 'jpg', 'jpeg', 'png'],
+                'max_file_size' => 10,
+                'allow_text' => $this->assignment_allow_text,
+                'allow_files' => $this->assignment_allow_files,
+                'attachments' => $attachments,
+            ];
+        }
+
+        $this->assessment->update($payload);
+
+        if ($this->assessment_type === 'assignment') {
+            $this->assignmentBriefFiles = [];
+            $this->assignment_existing_attachments = $this->assessment->fresh()->assignmentAttachments();
+        }
 
         session()->flash('message', 'Assessment updated and approved successfully!');
+    }
+
+    public function removeAssignmentBriefFile(int $index): void
+    {
+        unset($this->assignmentBriefFiles[$index]);
+        $this->assignmentBriefFiles = array_values($this->assignmentBriefFiles);
+    }
+
+    public function removeExistingAssignmentAttachment(int $index): void
+    {
+        $attachment = $this->assignment_existing_attachments[$index] ?? null;
+        if (! $attachment) {
+            return;
+        }
+
+        if (! empty($attachment['path']) && Storage::disk('public')->exists($attachment['path'])) {
+            Storage::disk('public')->delete($attachment['path']);
+        }
+
+        unset($this->assignment_existing_attachments[$index]);
+        $this->assignment_existing_attachments = array_values($this->assignment_existing_attachments);
     }
 
     public function openQuestionModal($questionId = null)
@@ -510,9 +603,9 @@ class Edit extends Component
                 $settings['code_submission'] = $this->codeSubmissionSettings;
                 break;
             case 'file_upload':
-                $settings['allowed_types'] = $this->questionFormData['settings']['allowed_types'] ?? null;
-                $settings['max_size'] = $this->questionFormData['settings']['max_size'] ?? null;
-                $settings['max_files'] = $this->questionFormData['settings']['max_files'] ?? null;
+                $settings['allowed_types'] = $this->questionFormData['settings']['allowed_types'] ?? 'html,htm,css,pdf,doc,docx,txt,jpg,jpeg,png,gif,zip';
+                $settings['max_size'] = $this->questionFormData['settings']['max_size'] ?? 10;
+                $settings['max_files'] = $this->questionFormData['settings']['max_files'] ?? 1;
                 break;
             case 'essay':
             case 'short_answer':
@@ -666,8 +759,8 @@ class Edit extends Component
         
         // Initialize grading fields if assessment type is assignment
         if ($attempt && $attempt->assessment->assessment_type === 'assignment') {
-            $this->attemptScore = $attempt->score ?? 0;
-            $this->attemptMaxScore = $attempt->assessment->max_points ?? 100;
+            $this->attemptMaxScore = $attempt->maxScore();
+            $this->attemptScore = $attempt->scoreAsPoints() ?? 0;
             $answers = $attempt->answers ?? [];
             $this->attemptFeedback = $answers['feedback'] ?? '';
         }
@@ -712,7 +805,7 @@ class Edit extends Component
         $answers['graded_by'] = Auth::id();
         
         $attempt->update([
-            'score' => round($percentage, 2),
+            'score' => (float) $this->attemptScore,
             'is_passed' => $passed,
             'answers' => $answers,
             'auto_scored' => false,
@@ -725,8 +818,8 @@ class Edit extends Component
             [
                 'user_id' => $attempt->user_id,
                 'course_id' => $assessment->course_id,
-                'gradeable_type' => Assessment::class,
-                'gradeable_id' => $attempt->assessment_id,
+                'gradeable_type' => AssessmentAttempt::class,
+                'gradeable_id' => $attempt->id,
             ],
             [
                 'score' => $this->attemptScore,
@@ -750,7 +843,7 @@ class Edit extends Component
                     'level' => 1,
                 ]);
             }
-            $user->points->increment('total_points', $assessment->xp_reward);
+            $user->points->addPoints((int) $assessment->xp_reward);
         }
 
         // Send notification
@@ -786,6 +879,11 @@ class Edit extends Component
         if ($percentage >= 63) return 'D';
         if ($percentage >= 60) return 'D-';
         return 'F';
+    }
+
+    public function backToBuilder(): void
+    {
+        $this->dispatch('close-form')->to(\App\Livewire\Curriculum\NewBuilder::class);
     }
 
     public function render()

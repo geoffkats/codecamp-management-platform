@@ -73,6 +73,13 @@ class Index extends Component
         $this->viewMode = $this->viewMode === 'grid' ? 'list' : 'grid';
     }
 
+    public function mount(): void
+    {
+        if (!Auth::user()?->canAccessCourseCatalog()) {
+            $this->redirect(route('enrollments.index'), navigate: true);
+        }
+    }
+
     public function render()
     {
         $query = Course::query()
@@ -191,17 +198,20 @@ class Index extends Component
 
         $difficulties = ['Beginner', 'Intermediate', 'Advanced'];
 
-        $view = Auth::user()?->isIctTeacher()
-            ? 'livewire.courses.index-ict'
-            : 'livewire.courses.index';
+        $isIctTeacher = Auth::user()?->isIctTeacher() ?? false;
 
-        return view($view, [
+        return view('livewire.courses.index', [
             'courses' => $courses,
             'categories' => $categories,
             'categoryOptions' => $categoryOptions,
             'statusOptions' => $statusOptions,
             'difficultyOptions' => $difficultyOptions,
             'difficulties' => $difficulties,
+            'isIctTeacher' => $isIctTeacher,
+            'pageTitle' => $isIctTeacher ? 'ICT Modules' : 'Courses',
+            'pageSubtitle' => $isIctTeacher
+                ? 'Modules available for your school'
+                : 'Manage the course catalog',
         ]);
     }
 }

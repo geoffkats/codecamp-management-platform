@@ -37,14 +37,14 @@
                     @error('student_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Module *</label>
-                    <select wire:model="module_id" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        <option value="">Select Module</option>
-                        @foreach($modules as $module)
-                            <option value="{{ $module->id }}">{{ $module->title }} — {{ $module->course?->title }}</option>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Course Assigned *</label>
+                    <select wire:model="course_id" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        <option value="">Select Course</option>
+                        @foreach($courses as $course)
+                            <option value="{{ $course->id }}">{{ $course->title }}</option>
                         @endforeach
                     </select>
-                    @error('module_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                    @error('course_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Test Name *</label>
@@ -88,7 +88,7 @@
                     <thead class="bg-gray-50 dark:bg-gray-700">
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Student</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Module</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Course</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Test</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Score</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Result</th>
@@ -103,7 +103,7 @@
                                     {{ $mark->student?->full_name }}
                                 </td>
                                 <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                                    {{ $mark->module?->title }}
+                                    {{ $mark->course?->title }}
                                 </td>
                                 <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
                                     {{ $mark->test_name }}

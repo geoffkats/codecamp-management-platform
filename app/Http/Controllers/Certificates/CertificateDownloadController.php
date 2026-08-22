@@ -31,7 +31,9 @@ class CertificateDownloadController extends Controller
             abort(403);
         }
 
-        if ((int) $certificate->user_id !== (int) $user->id && !$user->hasAnyRole(['admin'])) {
+        if ((int) $certificate->user_id !== (int) $user->id
+            && ! $user->can('generate_certificates')
+            && ! $user->isAdmin()) {
             abort(403);
         }
     }

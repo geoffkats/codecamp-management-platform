@@ -26,7 +26,7 @@
 
     <div class="card">
         <div class="title">Student Login Credentials</div>
-        <div class="subtitle">Keep this safe. Share only with the student/parent.</div>
+        <div class="subtitle">Keep this safe. Share only with the student/parent. Students sign in with Student ID + password.</div>
 
         <div class="row">
             <div class="label">Student Name</div>
@@ -38,7 +38,7 @@
         </div>
         <div class="row">
             <div class="label">Login Username</div>
-            <div class="value">{{ $student->user?->email ?: $student->student_id }}</div>
+            <div class="value">{{ $student->user?->loginIdentifier() ?: $student->student_id }}</div>
         </div>
         <div class="row">
             <div class="label">Password</div>

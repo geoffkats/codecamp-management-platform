@@ -4,8 +4,8 @@ namespace App\Livewire\Submissions;
 
 use App\Models\AssignmentSubmission;
 use App\Models\AssessmentAttempt;
+use App\Support\SubmissionFile;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -28,58 +28,56 @@ class Show extends Component
         
         $this->type = $type;
         
-        // Authorization check
+        // Authorization check — staff identity wins over leftover student role
         $user = Auth::user();
-        
-        if ($user->hasRole('student')) {
-            // Students can only view their own submissions
-            if ($this->submission->user_id !== $user->id) {
-                abort(403, 'You can only view your own submissions.');
-            }
+
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            // full access
         } elseif ($user->isIctTeacher()) {
             if ($type === 'assessment') {
                 $schoolId = $user->ictSchoolId();
-                if (!$schoolId || $this->submission->student_type !== 'ict' || (int) $this->submission->school_id !== (int) $schoolId) {
+                if (! $schoolId || $this->submission->student_type !== 'ict' || (int) $this->submission->school_id !== (int) $schoolId) {
                     abort(403, 'You can only view submissions from your school.');
                 }
             } else {
                 abort(403, 'You can only view submissions from your school.');
             }
         } elseif ($user->isTeacher()) {
-            // Teachers can only view submissions from their courses
             if ($type === 'assessment') {
                 if ($this->submission->student_type !== 'codecamp') {
                     abort(403, 'You can only view submissions from your own courses.');
                 }
 
                 $course = $this->submission->assessment->course ?? null;
-                if (!$course || $course->instructor_id !== $user->id) {
+                if (! $course || ! $course->isStaffFor($user)) {
                     abort(403, 'You can only view submissions from your own courses.');
                 }
             } else {
                 $course = $this->submission->assignment->course ?? null;
-                if (!$course || $course->instructor_id !== $user->id) {
+                if (! $course || ! $course->isStaffFor($user)) {
                     abort(403, 'You can only view submissions from your own courses.');
                 }
             }
-        } elseif (!$user->isAdmin()) {
+        } elseif ($user->isStudent() || $user->hasRole('student')) {
+            if ($this->submission->user_id !== $user->id) {
+                abort(403, 'You can only view your own submissions.');
+            }
+        } else {
             abort(403, 'You do not have permission to view this submission.');
         }
     }
 
-    public function downloadAttachment($filePath)
+    public function downloadAttachment($filePath, $fileName = null)
     {
-        if (!Storage::disk('public')->exists($filePath)) {
-            abort(404, 'File not found.');
-        }
-        
-        // Authorization check
         $user = Auth::user();
         if ($user->hasRole('student') && $this->submission->user_id !== $user->id) {
             abort(403, 'You can only download attachments from your own submissions.');
         }
-        
-        return Storage::disk('public')->download($filePath);
+
+        return SubmissionFile::downloadResponse(
+            (string) $filePath,
+            $fileName ? (string) $fileName : null
+        );
     }
 
     public function render()
@@ -95,15 +93,15 @@ class Show extends Component
                 && !$this->submission->graded_at;
             
             $isGraded = $this->submission->graded_at !== null;
-            $percentage = $this->submission->assignment 
-                && $this->submission->points_earned 
-                && $this->submission->assignment->max_points
-                ? ($this->submission->points_earned / $this->submission->assignment->max_points) * 100
-                : null;
+            $maxPoints = $this->submission->assignment?->max_points ?? 0;
+            $pointsEarned = $this->submission->points_earned;
+            $percentage = ($isGraded && $maxPoints > 0)
+                ? round(((float) $pointsEarned / $maxPoints) * 100, 1)
+                : ($isGraded ? 0.0 : null);
         } else {
             // Assessment attempt
             $isGraded = $this->submission->score !== null;
-            $percentage = $this->submission->score;
+            $percentage = $isGraded ? $this->submission->scorePercentage() : null;
         }
 
         return view('livewire.submissions.show', [

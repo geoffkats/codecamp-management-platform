@@ -16,16 +16,21 @@
         @endphp
         @if($favicon)
             <link rel="icon" href="{{ asset('storage/' . $favicon) }}" type="image/x-icon">
-        @else
-            <link rel="icon" href="/favicon.ico" sizes="any">
-            <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+        @elseif(file_exists(public_path('favicon.ico')))
+            <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
         @endif
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        @if(file_exists(public_path('apple-touch-icon.png')))
+            <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
+        @endif
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700" rel="stylesheet" />
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+        {{-- Zoho PageSense analytics --}}
+        <script src="https://cdn.pagesense.io/js/914121464/af0b8428118c471ea29b7f87bbd5c353.js"></script>
+        @include('partials.analytics.head')
     </head>
     <body class="bg-white dark:bg-blue-950 antialiased">
+        @include('partials.analytics.body')
         <!-- Navigation -->
         <nav class="fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-blue-950/95 backdrop-blur-md border-b border-blue-200 dark:border-blue-900 shadow-sm">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

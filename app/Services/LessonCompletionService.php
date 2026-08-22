@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Models\Assessment;
-use App\Models\Assignment;
 use App\Models\Lesson;
+use App\Models\StudentLessonProgress;
 use App\Models\User;
 use App\Models\VideoProgress;
 
@@ -25,49 +25,49 @@ class LessonCompletionService
         
         $missing = [];
         
-        // Check video completion
-        if ($lesson->video_url || $lesson->lesson_type === 'video') {
-            $videoProgress = VideoProgress::where('user_id', $user->id)
+        // Check all assessments (quizzes, tests, etc)
+        $requiredAssessments = $lesson->assessments()->get();
+        $eligibleAssessments = $requiredAssessments->where('assessment_type', '!=', 'assignment');
+
+        $minimumMinutes = $lesson->duration_minutes ? max(1, (int) $lesson->duration_minutes) : 15;
+
+        if ($eligibleAssessments->isEmpty()) {
+            $progress = StudentLessonProgress::where('user_id', $user->id)
                 ->where('lesson_id', $lesson->id)
                 ->first();
-            
-            $requirements['video_completed'] = $videoProgress?->is_completed ?? false;
-            
-            if (!$requirements['video_completed']) {
+
+            $minutesSpent = $progress && $progress->started_at
+                ? now()->diffInMinutes($progress->started_at)
+                : 0;
+
+            $requirements['minimum_minutes'] = $minimumMinutes;
+            $requirements['time_spent_minutes'] = $minutesSpent;
+
+            if ($minutesSpent < $minimumMinutes) {
+                $remaining = $minimumMinutes - $minutesSpent;
                 $missing[] = [
-                    'type' => 'video',
-                    'message' => 'Complete watching the video',
-                    'progress' => $videoProgress?->progress_percentage ?? 0,
+                    'type' => 'time',
+                    'message' => "Spend at least {$minimumMinutes} minutes on this lesson ({$remaining} min remaining).",
+                    'required_minutes' => $minimumMinutes,
+                    'remaining_minutes' => $remaining,
                 ];
             }
         }
-        
-        // Check all assessments
-        $requiredAssessments = $lesson->assessments()->get();
-        
-        foreach ($requiredAssessments as $assessment) {
+
+        foreach ($eligibleAssessments as $assessment) {
+            if ($assessment->assessment_type === 'assignment') {
+                continue;
+            }
             $hasCompleted = false;
             
-            if ($assessment->assessment_type === 'assignment') {
-                // For assignment-type assessments, check if there's a completed attempt with a score
-                $attempt = $assessment->attempts()
-                    ->where('user_id', $user->id)
-                    ->where('status', 'completed')
-                    ->whereNotNull('score')
-                    ->where('score', '>', 0)
-                    ->first();
-                
-                $hasCompleted = (bool) $attempt;
-            } else {
-                // For quizzes and other assessments, check if there's a passed attempt
-                $bestAttempt = $assessment->attempts()
-                    ->where('user_id', $user->id)
-                    ->where('status', 'completed')
-                    ->where('is_passed', true)
-                    ->first();
-                
-                $hasCompleted = (bool) $bestAttempt;
-            }
+            // For quizzes and other assessments, check if there's a passed attempt
+            $bestAttempt = $assessment->attempts()
+                ->where('user_id', $user->id)
+                ->where('status', 'completed')
+                ->where('is_passed', true)
+                ->first();
+            
+            $hasCompleted = (bool) $bestAttempt;
             
             if (!$hasCompleted) {
                 $requirements['required_assessments'][] = [
@@ -86,32 +86,6 @@ class LessonCompletionService
             }
         }
         
-        // Check assignments (separate Assignment model)
-        $requiredAssignments = $lesson->assignments;
-        
-        foreach ($requiredAssignments as $assignment) {
-            $submission = $assignment->submissions()
-                ->where('user_id', $user->id)
-                ->first();
-            
-            $isGraded = $submission && $submission->status === 'graded';
-            
-            if (!$isGraded) {
-                $requirements['required_assignments'][] = [
-                    'id' => $assignment->id,
-                    'title' => $assignment->title,
-                ];
-                
-                $missing[] = [
-                    'type' => 'assignment',
-                    'id' => $assignment->id,
-                    'title' => $assignment->title,
-                    'type_label' => 'Assignment',
-                    'route' => 'assignments.show',
-                ];
-            }
-        }
-        
         $canComplete = empty($missing);
         
         return [
@@ -120,7 +94,36 @@ class LessonCompletionService
             'missing' => $missing,
         ];
     }
-    
+
+    /**
+     * Whether a student may start an assessment (index "ready" state / take access).
+     *
+     * Code Club students skip lesson-order progression when enrolled in the course.
+     * CodeCamp students must satisfy lesson completion prerequisites first.
+     *
+     * @return array{can_access: bool, missing: array<int, array<string, mixed>>}
+     */
+    public function canAccessAssessment(Assessment $assessment, User $user): array
+    {
+        if ($user->hasAnyRole(['admin', 'supervisor', 'teacher'])) {
+            return ['can_access' => true, 'missing' => []];
+        }
+
+        $course = $assessment->course ?? $assessment->lesson?->course;
+
+        if ($course && ! $course->enrollments()->where('user_id', $user->id)->exists()) {
+            return [
+                'can_access' => false,
+                'missing' => [[
+                    'type' => 'enrollment',
+                    'message' => 'You must be enrolled in this course.',
+                ]],
+            ];
+        }
+
+        return ['can_access' => true, 'missing' => []];
+    }
+
     /**
      * Get completion requirements summary
      */
@@ -134,23 +137,16 @@ class LessonCompletionService
         
         $messages = [];
         
-        if (!$check['requirements']['video_completed']) {
-            $progress = VideoProgress::where('user_id', $user->id)
-                ->where('lesson_id', $lesson->id)
-                ->first();
-            
-            $remainingPercent = 100 - ($progress?->progress_percentage ?? 0);
-            $messages[] = "Complete watching the video ({$remainingPercent}% remaining)";
-        }
-        
         if (!empty($check['requirements']['required_assessments'])) {
             $count = count($check['requirements']['required_assessments']);
             $messages[] = "Complete {$count} required assessment(s)";
         }
-        
-        if (!empty($check['requirements']['required_assignments'])) {
-            $count = count($check['requirements']['required_assignments']);
-            $messages[] = "Complete {$count} required assignment(s)";
+
+        if (!empty($check['requirements']['minimum_minutes']) && isset($check['requirements']['time_spent_minutes'])) {
+            $remaining = max(0, $check['requirements']['minimum_minutes'] - $check['requirements']['time_spent_minutes']);
+            if ($remaining > 0) {
+                $messages[] = "Spend {$remaining} more minute(s) in this lesson";
+            }
         }
         
         return implode(', ', $messages);

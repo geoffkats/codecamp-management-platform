@@ -71,7 +71,7 @@
         {{-- Image (if provided) --}}
         @if($image)
             <div class="mt-3 rounded-lg overflow-hidden border-2 border-purple-200 dark:border-purple-800">
-                <img src="{{ $image }}" alt="{{ $title }}" class="w-full">
+                <img src="{{ $image }}" alt="{{ $title }}" class="w-full" loading="lazy" decoding="async">
             </div>
         @endif
 
@@ -91,10 +91,3 @@
         @endif
     </div>
 </div>
-
-{{-- Alpine.js for interactivity --}}
-@once
-    @push('scripts')
-        <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-    @endpush
-@endonce

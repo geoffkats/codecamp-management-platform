@@ -127,14 +127,27 @@ use Illuminate\Support\Str;
         </div>
 
         @if($courses->count() > 0)
-            <div class="mt-4">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by Course</label>
-                <select wire:model.live="courseId" class="w-full md:w-64 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white">
-                    <option value="">All Courses</option>
-                    @foreach($courses as $course)
-                        <option value="{{ $course->id }}">{{ $course->title }}</option>
-                    @endforeach
-                </select>
+            <div class="mt-4 flex flex-wrap gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by Course</label>
+                    <select wire:model.live="courseId" class="w-full md:w-64 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white">
+                        <option value="">All Courses</option>
+                        @foreach($courses as $course)
+                            <option value="{{ $course->id }}">{{ $course->title }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                @if(($showCampFilter ?? true) && $camps->count() > 0)
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by Camp</label>
+                    <select wire:model.live="campId" class="w-full md:w-64 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white">
+                        <option value="">All Camps</option>
+                        @foreach($camps as $camp)
+                            <option value="{{ $camp->id }}">{{ $camp->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                @endif
             </div>
         @endif
     </div>
@@ -241,14 +254,21 @@ use Illuminate\Support\Str;
 
                                         {{-- Grade Display --}}
                                         @if($sub['graded_at'] && $sub['score'] !== null)
+                                            @php
+                                                $displayPct = $sub['percentage'] ?? (
+                                                    ($sub['max_score'] ?? 0) > 0
+                                                        ? round(((float) $sub['score'] / $sub['max_score']) * 100, 1)
+                                                        : 0
+                                                );
+                                            @endphp
                                             <div class="flex items-center gap-3 mb-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                                                 <div class="flex-1">
                                                     <span class="text-sm text-gray-600 dark:text-gray-400">Grade:</span>
-                                                    <span class="ml-2 text-2xl font-bold {{ ($sub['score'] / $sub['max_score']) * 100 >= 70 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                                                        {{ number_format(($sub['score'] / $sub['max_score']) * 100, 1) }}%
+                                                    <span class="ml-2 text-2xl font-bold {{ $displayPct >= 70 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
+                                                        {{ number_format($displayPct, 1) }}%
                                                     </span>
                                                     <span class="text-sm text-gray-500 dark:text-gray-400">
-                                                        ({{ $sub['score'] }}/{{ $sub['max_score'] }})
+                                                        ({{ number_format((float) $sub['score'], 1) }}/{{ number_format((float) $sub['max_score'], 1) }})
                                                     </span>
                                                 </div>
                                                 @if($sub['grader'])
@@ -265,12 +285,17 @@ use Illuminate\Support\Str;
                                                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">Attachments:</span>
                                                 <div class="flex flex-wrap gap-2">
                                                     @foreach($sub['attachments'] as $file)
-                                                        <a href="{{ Storage::disk('public')->url($file) }}" target="_blank" 
+                                                        @php
+                                                            $filePath = is_array($file) ? ($file['path'] ?? '') : (string) $file;
+                                                            $fileName = is_array($file) ? ($file['name'] ?? basename($filePath)) : basename($filePath);
+                                                        @endphp
+                                                        @if($filePath === '') @continue @endif
+                                                        <a href="{{ \App\Support\SubmissionFile::downloadUrl($filePath, $fileName) }}"
                                                            class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 transition-colors">
                                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                                             </svg>
-                                                            <span>{{ basename($file) }}</span>
+                                                            <span>{{ $fileName }}</span>
                                                         </a>
                                                     @endforeach
                                                 </div>
@@ -301,18 +326,11 @@ use Illuminate\Support\Str;
 
                             {{-- Actions --}}
                             <div class="flex items-center gap-2 ml-4">
-                                @if(auth()->user()->hasRole('teacher') && !$sub['graded_at'])
-                                    @if($sub['type'] === 'assignment')
-                                        <a href="{{ route('grades.grade', $sub['submission']) }}" 
-                                           class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors text-sm">
-                                            Grade
-                                        </a>
-                                    @else
-                                        <a href="{{ route('assessments.edit', ['assessment' => $sub['submission']->assessment_id, 'attempt' => $sub['submission']->id]) }}" 
-                                           class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors text-sm">
-                                            Grade
-                                        </a>
-                                    @endif
+                                @if(auth()->user()->can('grade_submissions'))
+                                    <a href="{{ route('grades.grade', $sub['submission']) }}"
+                                       class="px-4 py-2 {{ $sub['graded_at'] ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700' }} text-white rounded-lg font-medium transition-colors text-sm">
+                                        {{ $sub['graded_at'] ? 'Edit Grade' : 'Grade' }}
+                                    </a>
                                 @endif
                                 @if($sub['type'] === 'assignment')
                                     <a href="{{ route('submissions.show', ['submissionId' => $sub['id'], 'type' => 'assignment']) }}" 

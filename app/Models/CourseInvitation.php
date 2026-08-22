@@ -45,9 +45,59 @@ class CourseInvitation extends Model
         return $this->belongsTo(User::class, 'invited_by');
     }
 
+    public function scopeActivePending($query)
+    {
+        return $query->where('status', 'pending')
+            ->where(function ($q) {
+                $q->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            });
+    }
+
+    public function scopeStalePending($query)
+    {
+        return $query->where('status', 'pending')
+            ->whereNotNull('expires_at')
+            ->where('expires_at', '<=', now());
+    }
+
+    public static function expireStale(): int
+    {
+        return static::stalePending()->update([
+            'status' => 'expired',
+            'responded_at' => now(),
+        ]);
+    }
+
     public function isExpired(): bool
     {
         return $this->expires_at && $this->expires_at->isPast();
+    }
+
+    public function effectiveStatus(): string
+    {
+        if ($this->status === 'pending' && $this->isExpired()) {
+            return 'expired';
+        }
+
+        return $this->status;
+    }
+
+    public function isActionable(): bool
+    {
+        return $this->status === 'pending' && ! $this->isExpired();
+    }
+
+    public function renew(int $days, ?int $invitedBy = null, ?string $message = null): void
+    {
+        $this->update([
+            'status' => 'pending',
+            'invited_by' => $invitedBy ?? $this->invited_by,
+            'invited_at' => now(),
+            'expires_at' => now()->addDays($days),
+            'responded_at' => null,
+            'message' => $message ?? $this->message,
+        ]);
     }
 
     public function accept(): bool

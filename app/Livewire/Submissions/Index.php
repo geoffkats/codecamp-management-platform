@@ -5,7 +5,9 @@ namespace App\Livewire\Submissions;
 use App\Models\AssignmentSubmission;
 use App\Models\AssessmentAttempt;
 use App\Models\Assessment;
-use App\Models\Grade;
+use App\Models\CodeCamp;
+use App\Models\CourseEnrollment;
+use App\Support\ProgramScope;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
@@ -17,12 +19,24 @@ class Index extends Component
 {
     use WithPagination;
 
+    /** Assessment types shown on the submissions page (includes quizzes, not surveys). */
+    private const SUBMISSION_ASSESSMENT_TYPES = [
+        'assignment',
+        'quiz',
+        'pre_project_test',
+        'post_project_test',
+        'rubric_assessment',
+        'peer_review',
+        'self_assessment',
+    ];
+
     protected $paginationTheme = 'tailwind';
 
     public $search = '';
     public $filter = 'all'; // 'all', 'pending', 'graded', 'overdue'
     public $submissionType = 'all'; // 'all', 'assignment', 'assessment'
     public $courseId = null;
+    public $campId = null;
     public $sortBy = 'submitted_at'; // 'submitted_at', 'due_date', 'title'
     public $sortOrder = 'desc';
     public $currentPage = 1;
@@ -64,6 +78,11 @@ class Index extends Component
         $this->currentPage = 1;
     }
 
+    public function updatingCampId()
+    {
+        $this->currentPage = 1;
+    }
+
     public function sort($field)
     {
         if ($this->sortBy === $field) {
@@ -74,22 +93,71 @@ class Index extends Component
         }
     }
 
+    private function applyStaffCourseConstraint($query, string $relation): void
+    {
+        $user = Auth::user();
+
+        $query->whereHas($relation, function ($q) use ($user) {
+            $q->where('instructor_id', $user->id)
+                ->orWhereHas('collaborators', fn ($c) => $c->where('user_id', $user->id))
+                ->orWhereHas('enrollments', fn ($e) => $e->where('user_id', $user->id));
+        });
+    }
+
+    private function scopedStudentUserIds(): ?array
+    {
+        $user = Auth::user();
+
+        // Prefer staff identity over leftover student role on converted accounts.
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            return null;
+        }
+
+        if (! $user->isTeacher()) {
+            return null;
+        }
+
+        return \App\Models\User::query()
+            ->whereHas('studentProfile', fn ($q) => ProgramScope::applyStudentProfileScope($q, $user))
+            ->pluck('id')
+            ->all();
+    }
+
     private function getAssignmentSubmissions()
     {
+        $user = Auth::user();
         $query = AssignmentSubmission::query();
+        $scopedStudentIds = $this->scopedStudentUserIds();
+        $clubContext = ProgramScope::isClubFacilitatorContext($user);
 
-        // Role-based filtering
-        if (Auth::user()->hasRole('teacher')) {
-            $query->whereHas('assignment.course', fn($q) => $q->where('instructor_id', Auth::id()));
+        // Staff checks first — converted accounts may still have the student role.
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            // no course ownership filter
+        } elseif ($clubContext) {
+            $clubStudentIds = ProgramScope::clubStudentUserIds($user);
+            $query->whereIn('user_id', $clubStudentIds ?: [-1]);
+        } elseif ($user->isTeacher()) {
+            $this->applyStaffCourseConstraint($query, 'assignment.course');
+        } elseif ($user->isStudent()) {
+            $query->where('user_id', $user->id);
         } else {
-            $query->where('user_id', Auth::id());
+            $query->where('user_id', $user->id);
+        }
+
+        if ($scopedStudentIds !== null && ! $clubContext && $user->isTeacher()) {
+            // Soft filter: if scope resolves students, apply it; never wipe course results to empty by mistake.
+            if ($scopedStudentIds !== []) {
+                $query->whereIn('user_id', $scopedStudentIds);
+            }
         }
 
         if ($this->search) {
-            $query->whereHas('assignment', function ($q) {
-                $q->where('title', 'like', '%' . $this->search . '%');
-            })->orWhereHas('user', function ($q) {
-                $q->where('name', 'like', '%' . $this->search . '%');
+            $query->where(function ($outer) {
+                $outer->whereHas('assignment', function ($q) {
+                    $q->where('title', 'like', '%' . $this->search . '%');
+                })->orWhereHas('user', function ($q) {
+                    $q->where('name', 'like', '%' . $this->search . '%');
+                });
             });
         }
 
@@ -107,7 +175,18 @@ class Index extends Component
         }
 
         if ($this->courseId) {
-            $query->whereHas('assignment', fn($q) => $q->where('course_id', $this->courseId));
+            $query->whereHas('assignment', fn ($q) => $q->where('course_id', $this->courseId));
+        }
+
+        if ($this->campId) {
+            $query->whereExists(function ($sub) {
+                $sub->selectRaw('1')
+                    ->from('course_enrollments')
+                    ->join('assignments', 'assignments.course_id', '=', 'course_enrollments.course_id')
+                    ->whereColumn('assignments.id', 'assignment_submissions.assignment_id')
+                    ->whereColumn('course_enrollments.user_id', 'assignment_submissions.user_id')
+                    ->where('course_enrollments.camp_id', $this->campId);
+            });
         }
 
         return $query->with(['assignment.course.instructor', 'user', 'grader'])->get();
@@ -115,16 +194,50 @@ class Index extends Component
 
     private function getAssessmentSubmissions()
     {
+        $user = Auth::user();
+        $scopedStudentIds = $this->scopedStudentUserIds();
+        $clubContext = ProgramScope::isClubFacilitatorContext($user);
+
         $query = AssessmentAttempt::query()
-            ->whereHas('assessment', fn($q) => $q->where('assessment_type', 'assignment'))
-            ->where('status', 'completed')
-            ->visibleTo(Auth::user());
+            ->whereHas('assessment', fn ($q) => $q->whereIn('assessment_type', self::SUBMISSION_ASSESSMENT_TYPES))
+            ->where(function ($q) {
+                $q->where('status', 'completed')
+                    ->orWhereNotNull('completed_at');
+            });
+
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            // unscoped
+        } elseif ($clubContext) {
+            $clubStudentIds = ProgramScope::clubStudentUserIds($user);
+            $query->whereIn('user_id', $clubStudentIds ?: [-1]);
+        } elseif ($user->isIctTeacher()) {
+            $query->visibleTo($user);
+        } elseif ($user->isTeacher()) {
+            $query->where(function ($q) use ($user) {
+                $q->where('student_type', 'codecamp')
+                    ->whereHas('assessment.course', function ($courseQuery) use ($user) {
+                        $courseQuery->where('instructor_id', $user->id)
+                            ->orWhereHas('collaborators', fn ($c) => $c->where('user_id', $user->id))
+                            ->orWhereHas('enrollments', fn ($e) => $e->where('user_id', $user->id));
+                    });
+            });
+
+            if ($scopedStudentIds !== null && $scopedStudentIds !== []) {
+                $query->whereIn('user_id', $scopedStudentIds);
+            }
+        } elseif ($user->isStudent()) {
+            $query->where('user_id', $user->id);
+        } else {
+            $query->where('user_id', $user->id);
+        }
 
         if ($this->search) {
-            $query->whereHas('assessment', function ($q) {
-                $q->where('title', 'like', '%' . $this->search . '%');
-            })->orWhereHas('user', function ($q) {
-                $q->where('name', 'like', '%' . $this->search . '%');
+            $query->where(function ($outer) {
+                $outer->whereHas('assessment', function ($q) {
+                    $q->where('title', 'like', '%' . $this->search . '%');
+                })->orWhereHas('user', function ($q) {
+                    $q->where('name', 'like', '%' . $this->search . '%');
+                });
             });
         }
 
@@ -135,7 +248,18 @@ class Index extends Component
         }
 
         if ($this->courseId) {
-            $query->whereHas('assessment', fn($q) => $q->where('course_id', $this->courseId));
+            $query->whereHas('assessment', fn ($q) => $q->where('course_id', $this->courseId));
+        }
+
+        if ($this->campId) {
+            $query->whereExists(function ($sub) {
+                $sub->selectRaw('1')
+                    ->from('course_enrollments')
+                    ->join('assessments', 'assessments.course_id', '=', 'course_enrollments.course_id')
+                    ->whereColumn('assessments.id', 'assessment_attempts.assessment_id')
+                    ->whereColumn('course_enrollments.user_id', 'assessment_attempts.user_id')
+                    ->where('course_enrollments.camp_id', $this->campId);
+            });
         }
 
         return $query->with(['assessment.course.instructor', 'user'])->get();
@@ -161,8 +285,11 @@ class Index extends Component
                     'graded_at' => $sub->graded_at,
                     'score' => $sub->points_earned,
                     'max_score' => $sub->assignment->max_points ?? 100,
+                    'percentage' => ($sub->graded_at && ($sub->assignment->max_points ?? 0) > 0)
+                        ? round(((float) $sub->points_earned / $sub->assignment->max_points) * 100, 1)
+                        : null,
                     'feedback' => $sub->feedback,
-                    'attachments' => $sub->attachments,
+                    'attachments' => $this->normalizeAttachmentList($sub->attachments),
                     'content' => $sub->content,
                     'grader' => $sub->grader,
                     'submission' => $sub,
@@ -175,11 +302,15 @@ class Index extends Component
             $assessmentSubmissions = $this->getAssessmentSubmissions();
             foreach ($assessmentSubmissions as $attempt) {
                 $assessment = $attempt->assessment;
+                if (! $assessment) {
+                    continue;
+                }
+
                 $answers = $attempt->answers ?? [];
-                $submittedAt = isset($answers['submitted_at']) 
+                $submittedAt = isset($answers['submitted_at'])
                     ? \Carbon\Carbon::parse($answers['submitted_at'])
-                    : $attempt->completed_at;
-                
+                    : ($attempt->completed_at ?? $attempt->updated_at);
+
                 $allSubmissions->push([
                     'type' => 'assessment',
                     'id' => $attempt->id,
@@ -187,14 +318,15 @@ class Index extends Component
                     'course' => $assessment->course,
                     'user' => $attempt->user,
                     'submitted_at' => $submittedAt,
-                    'due_date' => null, // Assessments don't have due dates in the same way
+                    'due_date' => $assessment->due_date,
                     'status' => $attempt->score === null ? 'pending' : 'graded',
                     'graded_at' => $attempt->score !== null ? $attempt->updated_at : null,
-                    'score' => $attempt->score,
-                    'max_score' => $assessment->max_points ?? 100,
-                    'feedback' => null,
-                    'attachments' => $answers['files'] ?? [],
-                    'content' => $answers['text'] ?? null,
+                    'score' => $attempt->scoreAsPoints(),
+                    'max_score' => $attempt->maxScore(),
+                    'percentage' => $attempt->scorePercentage(),
+                    'feedback' => $attempt->graderFeedback(),
+                    'attachments' => $this->normalizeAttachmentList($attempt->submissionFiles()),
+                    'content' => $attempt->submissionText() ?: null,
                     'grader' => null,
                     'submission' => $attempt,
                 ]);
@@ -231,9 +363,21 @@ class Index extends Component
         ];
 
         // Get available courses for filter
-        $courses = Auth::user()->hasRole('teacher')
-            ? \App\Models\Course::where('instructor_id', Auth::id())->get()
-            : \App\Models\Course::whereHas('enrollments', fn($q) => $q->where('user_id', Auth::id()))->get();
+        $user = Auth::user();
+        $clubContext = ProgramScope::isClubFacilitatorContext($user);
+        $clubStudentIds = $clubContext ? ProgramScope::clubStudentUserIds($user) : [];
+
+        $courses = $clubContext
+            ? \App\Models\Course::whereHas('enrollments', fn ($q) => $q->whereIn('user_id', $clubStudentIds ?: [-1]))->get()
+            : ($user->hasRole('teacher')
+                ? \App\Models\Course::accessibleBy($user)->get()
+                : \App\Models\Course::whereHas('enrollments', fn($q) => $q->where('user_id', $user->id))->get());
+
+        $showCampFilter = ProgramScope::context($user) !== 'codeclub';
+
+        $camps = $showCampFilter
+            ? CodeCamp::orderByDesc('start_date')->get(['id', 'name'])
+            : collect();
 
         return view('livewire.submissions.index', [
             'submissions' => $items,
@@ -242,6 +386,51 @@ class Index extends Component
             'currentPage' => $currentPage,
             'total' => $total,
             'courses' => $courses,
+            'camps' => $camps,
+            'showCampFilter' => $showCampFilter,
         ]);
+    }
+
+    /**
+     * Normalize mixed attachment payloads (string paths or {path, name} arrays)
+     * into a consistent list for Storage::url() / display.
+     *
+     * @param  mixed  $attachments
+     * @return array<int, array{path: string, name: string}>
+     */
+    private function normalizeAttachmentList($attachments): array
+    {
+        if (! is_array($attachments) || $attachments === []) {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($attachments as $file) {
+            if (is_string($file) && $file !== '') {
+                $normalized[] = [
+                    'path' => $file,
+                    'name' => basename($file),
+                ];
+                continue;
+            }
+
+            if (! is_array($file)) {
+                continue;
+            }
+
+            $path = $file['path'] ?? $file['url'] ?? null;
+            if (! is_string($path) || $path === '') {
+                continue;
+            }
+
+            $name = $file['name'] ?? $file['original_name'] ?? basename($path);
+            $normalized[] = [
+                'path' => $path,
+                'name' => is_string($name) && $name !== '' ? $name : basename($path),
+            ];
+        }
+
+        return $normalized;
     }
 }

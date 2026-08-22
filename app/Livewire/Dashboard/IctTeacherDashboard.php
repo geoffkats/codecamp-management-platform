@@ -89,6 +89,7 @@ class IctTeacherDashboard extends Component
 
         $recentAssessmentResults = AssessmentAttempt::visibleTo($user)
             ->where('status', 'completed')
+            ->whereHas('assessment')
             ->with(['assessment.lesson', 'assessment.course', 'user', 'assessment.questions'])
             ->orderByDesc('completed_at')
             ->take(8)

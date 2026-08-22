@@ -9,13 +9,30 @@
                     Manage your courses and track student progress
                 </p>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <flux:button href="{{ route('courses.create') }}" icon="plus" variant="primary" wire:navigate>
                     Create Course
                 </flux:button>
                 <flux:button href="{{ route('assessments.create') }}" icon="clipboard-document-list" variant="ghost" wire:navigate>
                     New Assessment
                 </flux:button>
+                <a href="{{ route('attendance.dashboard') }}" wire:navigate
+                   class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold transition-colors shadow-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Attendance
+                </a>
+                <a href="{{ route('leaderboards.index') }}" wire:navigate
+                   class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 text-white text-sm font-semibold transition-colors shadow-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+                    Leaderboard
+                </a>
+                <a href="{{ route('daily-challenges.create') }}" wire:navigate
+                   class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors shadow-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    New Challenge
+                </a>
             </div>
         </div>
 
@@ -191,9 +208,14 @@
                                             <flux:button href="{{ route('courses.edit', $course) }}" variant="ghost" size="sm" wire:navigate>
                                                 Edit
                                             </flux:button>
-                                            <flux:button href="{{ route('courses.show', $course) }}" variant="ghost" size="sm" wire:navigate>
-                                                View
-                                            </flux:button>
+                                            <a href="{{ route('courses.preview', $course) }}"
+                                               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold transition-colors">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                                </svg>
+                                                Preview Lessons
+                                            </a>
                                         </div>
                                     </div>
                                 @endforeach
@@ -276,9 +298,9 @@
                         <div class="p-6 space-y-3">
                             @foreach($recentSubmissions->take(5) as $submission)
                                 <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ $submission->assignment->title }}</p>
+                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ $submission->title }}</p>
                                     <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">{{ $submission->user->name }}</p>
-                                    <flux:button href="{{ route('grades.grade', $submission) }}" variant="ghost" size="sm" class="mt-2 w-full" wire:navigate>
+                                    <flux:button href="{{ route('grades.grade', $submission->submission) }}" variant="ghost" size="sm" class="mt-2 w-full" wire:navigate>
                                         Grade
                                     </flux:button>
                                 </div>

@@ -1,7 +1,23 @@
-<div class="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
-    <div class="flex flex-col gap-6 {{ request()->get('embedded') ? 'p-4' : 'p-6' }}">
+<div class="{{ $this->embedded ? 'bg-white dark:bg-gray-900' : 'min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900' }}">
+    {{-- Embedded mode: compact top bar with back button --}}
+    @if($this->embedded)
+    <div class="flex items-center gap-3 px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 sticky top-0 z-10">
+        <button wire:click="backToBuilder" type="button"
+                class="flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
+            </svg>
+            Back to Lesson
+        </button>
+        <div class="h-4 w-px bg-gray-200 dark:bg-gray-700"></div>
+        <span class="text-sm font-bold text-gray-800 dark:text-white truncate">{{ $this->title ?: 'Assessment Editor' }}</span>
+        <span class="ml-auto text-xs text-gray-400 dark:text-gray-500">Assessment Builder</span>
+    </div>
+    @endif
+
+    <div class="flex flex-col gap-6 {{ $this->embedded ? 'p-4' : 'p-6' }}">
         {{-- Header (hidden in embedded mode) --}}
-        @if(!request()->get('embedded'))
+        @if(!$this->embedded)
         <div class="flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
             <div>
                 <div class="flex items-center gap-3 mb-2">
@@ -64,6 +80,45 @@
                         <flux:label>Description</flux:label>
                         <flux:textarea wire:model="description" rows="4" />
                     </flux:field>
+
+                    @if($assessment_type === 'assignment')
+                    <div class="md:col-span-2 border border-purple-200 dark:border-purple-800 rounded-xl p-5 space-y-4 bg-purple-50/50 dark:bg-purple-900/10">
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Assignment Settings</h3>
+                        <flux:field>
+                            <flux:label>Instructions for Students</flux:label>
+                            <flux:textarea wire:model="assignment_instructions" rows="4" />
+                            @error('assignment_instructions') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </flux:field>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <flux:field>
+                                <flux:label>Due Date</flux:label>
+                                <flux:input type="date" wire:model="assignment_due_date" />
+                            </flux:field>
+                            <flux:field>
+                                <flux:label>Max Points</flux:label>
+                                <flux:input type="number" wire:model="assignment_max_points" min="1" max="1000" />
+                            </flux:field>
+                        </div>
+                        <div class="flex flex-wrap gap-x-5 gap-y-2">
+                            <flux:checkbox wire:model="assignment_allow_text">Allow text response</flux:checkbox>
+                            <flux:checkbox wire:model="assignment_allow_files">Allow file uploads</flux:checkbox>
+                        </div>
+                        @if(!empty($assignment_existing_attachments))
+                            <ul class="space-y-2">
+                                @foreach($assignment_existing_attachments as $index => $file)
+                                    <li class="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm">
+                                        <a href="{{ asset('storage/' . $file['path']) }}" target="_blank" class="truncate text-blue-600 hover:underline">{{ $file['name'] }}</a>
+                                        <button type="button" wire:click="removeExistingAssignmentAttachment({{ $index }})" class="text-red-600 text-xs font-semibold">Remove</button>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                        <flux:field>
+                            <flux:label>Add Brief Files</flux:label>
+                            <flux:input type="file" wire:model="assignmentBriefFiles" multiple accept=".pdf,.doc,.docx,.txt,.zip,.jpg,.jpeg,.png" />
+                        </flux:field>
+                    </div>
+                    @endif
 
                     <div class="space-y-4">
                         <flux:field>
@@ -439,7 +494,7 @@
                                         <flux:field>
                                             <flux:label>Allowed File Types (comma separated)</flux:label>
                                             <flux:input wire:model="questionFormData.settings.allowed_types" 
-                                                       placeholder="pdf,doc,docx,jpg,png,jpeg" />
+                                                       placeholder="html,htm,css,pdf,jpg,png,jpeg" />
                                             <flux:description>Specify allowed file extensions (e.g., pdf,doc,docx)</flux:description>
                                         </flux:field>
                                         <div class="grid grid-cols-2 gap-4">
@@ -912,17 +967,20 @@
                                             @endphp
                                             @if(!empty($uploadedFiles))
                                                 <div class="space-y-2">
-                                                    @foreach($uploadedFiles as $filePath)
+                                                    @foreach($uploadedFiles as $file)
+                                                        @php
+                                                            $filePath = is_array($file) ? ($file['path'] ?? '') : (string) $file;
+                                                            $fileName = is_array($file) ? ($file['name'] ?? basename($filePath)) : basename($filePath);
+                                                        @endphp
+                                                        @if($filePath === '') @continue @endif
                                                         <div class="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                                                             <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                                             </svg>
-                                                            <div class="flex-1">
-                                                                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ basename($filePath) }}</p>
-                                                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $filePath }}</p>
+                                                            <div class="flex-1 min-w-0">
+                                                                <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ $fileName }}</p>
                                                             </div>
-                                                            <a href="{{ Storage::disk('public')->url($filePath) }}" 
-                                                               target="_blank" 
+                                                            <a href="{{ \App\Support\SubmissionFile::downloadUrl($filePath, $fileName) }}"
                                                                class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
                                                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -1032,14 +1090,19 @@
                                             <div class="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                                                 <p class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Uploaded Files:</p>
                                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                    @foreach($submissionFiles as $filePath)
-                                                        <a href="{{ Storage::disk('public')->url($filePath) }}" target="_blank"
+                                                    @foreach($submissionFiles as $file)
+                                                        @php
+                                                            $filePath = is_array($file) ? ($file['path'] ?? '') : (string) $file;
+                                                            $fileName = is_array($file) ? ($file['name'] ?? basename($filePath)) : basename($filePath);
+                                                        @endphp
+                                                        @if($filePath === '') @continue @endif
+                                                        <a href="{{ \App\Support\SubmissionFile::downloadUrl($filePath, $fileName) }}"
                                                            class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
                                                             <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                                             </svg>
                                                             <div class="flex-1 min-w-0">
-                                                                <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ basename($filePath) }}</p>
+                                                                <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ $fileName }}</p>
                                                                 <p class="text-xs text-gray-500 dark:text-gray-400">Click to download</p>
                                                             </div>
                                                         </a>

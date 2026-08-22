@@ -10,6 +10,7 @@ use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
@@ -102,59 +103,62 @@ class IctStudentForm extends Component
         $password = $this->password ?: $this->generateSimplePassword();
         $studentId = StudentProfile::generateStudentId();
 
-        $user = User::create([
-            'name' => $this->full_name,
-            'email' => $email,
-            'student_type' => 'ict',
-            'student_id' => $studentId,
-            'password' => Hash::make($password),
-            'initial_password' => $password,
-        ]);
-
-        $role = Role::where('name', 'student')->first();
-        if ($role) {
-            $user->roles()->attach($role->id);
-        }
-
         $receiptPath = null;
         if ($this->payment_receipt) {
             $receiptPath = $this->payment_receipt->store('payment-receipts', 'public');
         }
+        $student = DB::transaction(function () use ($email, $password, $studentId, $receiptPath) {
+            $user = User::create([
+                'name' => $this->full_name,
+                'email' => $email,
+                'student_type' => 'ict',
+                'student_id' => $studentId,
+                'password' => Hash::make($password),
+                'initial_password' => $password,
+            ]);
 
-        $student = StudentProfile::create([
-            'user_id' => $user->id,
-            'school_id' => $this->school_id,
-            'program_type' => 'ict',
-            'student_category' => 'ict_school',
-            'student_id' => $studentId,
-            'icdl_number' => $this->icdl_number ?: null,
-            'exam_readiness_status' => 'not_ready',
-            'is_active' => true,
-            'full_name' => $this->full_name,
-            'date_of_birth' => $this->date_of_birth,
-            'gender' => $this->gender,
-            'nationality' => $this->nationality,
-            'class_grade' => $this->class_grade,
-            'parent_guardian_name' => 'N/A',
-            'parent_guardian_contact' => 'N/A',
-            'address' => null,
-            'scratch_account' => null,
-            'scratch_password' => null,
-            'github_account' => null,
-            'payment_amount' => $this->payment_amount ?: null,
-            'payment_reference' => $this->payment_reference ?: null,
-            'payment_receipt_path' => $receiptPath,
-            'payment_status' => $this->payment_amount ? 'pending' : 'not_submitted',
-            'payment_submitted_at' => $this->payment_amount ? now() : null,
-        ]);
+            $role = Role::where('name', 'student')->first();
+            if ($role) {
+                $user->roles()->attach($role->id);
+            }
 
-        $courseIds = $this->filterAllowedCourses($this->selectedCourses);
-        foreach ($courseIds as $courseId) {
-            CourseEnrollment::firstOrCreate(
-                ['user_id' => $user->id, 'course_id' => $courseId],
-                ['enrolled_at' => now(), 'progress_percentage' => 0]
-            );
-        }
+            $student = StudentProfile::create([
+                'user_id' => $user->id,
+                'school_id' => $this->school_id,
+                'program_type' => 'ict',
+                'student_category' => 'ict_school',
+                'student_id' => $studentId,
+                'icdl_number' => $this->icdl_number ?: null,
+                'exam_readiness_status' => 'not_ready',
+                'is_active' => true,
+                'full_name' => $this->full_name,
+                'date_of_birth' => $this->date_of_birth,
+                'gender' => $this->gender,
+                'nationality' => $this->nationality,
+                'class_grade' => $this->class_grade,
+                'parent_guardian_name' => 'N/A',
+                'parent_guardian_contact' => 'N/A',
+                'address' => null,
+                'scratch_account' => null,
+                'scratch_password' => null,
+                'github_account' => null,
+                'payment_amount' => $this->payment_amount ?: null,
+                'payment_reference' => $this->payment_reference ?: null,
+                'payment_receipt_path' => $receiptPath,
+                'payment_status' => $this->payment_amount ? 'pending' : null,
+                'payment_submitted_at' => $this->payment_amount ? now() : null,
+            ]);
+
+            $courseIds = $this->filterAllowedCourses($this->selectedCourses);
+            foreach ($courseIds as $courseId) {
+                CourseEnrollment::firstOrCreate(
+                    ['user_id' => $user->id, 'course_id' => $courseId],
+                    ['enrolled_at' => now(), 'progress_percentage' => 0]
+                );
+            }
+
+            return $student;
+        });
 
         session()->flash('message', 'ICT student created successfully.');
         redirect()->route('students.show', $student->id);

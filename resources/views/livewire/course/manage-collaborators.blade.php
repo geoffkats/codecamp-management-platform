@@ -89,26 +89,59 @@
                         {{-- Search Users --}}
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Search Teacher
+                                Search Teacher or Trainer
                             </label>
                             <input type="text" 
                                    wire:model.live.debounce.300ms="searchTerm"
-                                   placeholder="Search by name or email..."
+                                   placeholder="Search by name, email, or role..."
                                    class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Type part of a name, email address, or role like trainer.</p>
                         </div>
 
-                        {{-- User Selection --}}
+                        {{-- Smart User Selection --}}
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Select Teacher <span class="text-red-500">*</span>
+                                Select Teacher or Trainer <span class="text-red-500">*</span>
                             </label>
-                            <select wire:model="selectedUserId"
-                                    class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                                <option value="">Choose a teacher...</option>
-                                @foreach($availableUsers as $user)
-                                    <option value="{{ $user->id }}">{{ $user->name }} ({{ $user->email }})</option>
-                                @endforeach
-                            </select>
+                            @if($selectedUser)
+                                <div class="mb-3 flex items-start justify-between gap-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-4 py-3">
+                                    <div>
+                                        <p class="font-medium text-blue-900 dark:text-blue-100">{{ $selectedUser->name }}</p>
+                                        <p class="text-sm text-blue-700 dark:text-blue-300">{{ $selectedUser->email }}</p>
+                                    </div>
+                                    <button type="button" wire:click="clearSelectedUser"
+                                            class="text-sm font-medium text-blue-700 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">
+                                        Clear
+                                    </button>
+                                </div>
+                            @endif
+
+                            <div class="max-h-64 overflow-y-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 divide-y divide-gray-200 dark:divide-gray-600">
+                                @forelse($availableUsers as $user)
+                                    @php
+                                        $primaryRole = $user->roles->pluck('display_name')->filter()->first()
+                                            ?? $user->roles->pluck('name')->map(fn ($role) => str_replace('_', ' ', $role))->first()
+                                            ?? 'User';
+                                    @endphp
+                                    <button type="button"
+                                            wire:click="selectUser({{ $user->id }})"
+                                            class="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-600/50 transition-colors {{ (int) $selectedUserId === $user->id ? 'bg-blue-50 dark:bg-blue-900/20' : '' }}">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div class="min-w-0">
+                                                <p class="font-medium text-gray-900 dark:text-white truncate">{{ $user->name }}</p>
+                                                <p class="text-sm text-gray-600 dark:text-gray-300 truncate">{{ $user->email }}</p>
+                                            </div>
+                                            <span class="shrink-0 rounded-full bg-gray-100 dark:bg-gray-600 px-2.5 py-1 text-xs text-gray-700 dark:text-gray-200 capitalize">
+                                                {{ $primaryRole }}
+                                            </span>
+                                        </div>
+                                    </button>
+                                @empty
+                                    <div class="px-4 py-6 text-sm text-center text-gray-500 dark:text-gray-400">
+                                        No teachers or trainers matched your search.
+                                    </div>
+                                @endforelse
+                            </div>
                             @error('selectedUserId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
 
@@ -119,8 +152,8 @@
                             </label>
                             <select wire:model="selectedRole"
                                     class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                                <option value="editor">Editor - Can modify course content</option>
-                                <option value="viewer">Viewer - Can only view course content</option>
+                                <option value="editor">Editor - Can edit curriculum content and review notes</option>
+                                <option value="viewer">Viewer - Can open the builder and read curriculum notes</option>
                             </select>
                             @error('selectedRole') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>

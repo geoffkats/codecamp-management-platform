@@ -19,9 +19,9 @@
             </div>
         @endif
 
-        {{-- Filters --}}
+        <x-attendance.nav-tabs />
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
                 {{-- Type Toggle --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
@@ -30,6 +30,18 @@
                         <option value="instructor">Instructors</option>
                     </select>
                 </div>
+
+                @if($type === 'student')
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Camp</label>
+                    <select wire:model.live="campId" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        <option value="">All Camps</option>
+                        @foreach($camps as $camp)
+                            <option value="{{ $camp->id }}">{{ $camp->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                @endif
 
                 {{-- Start Date --}}
                 <div>
@@ -74,6 +86,8 @@
                                 {{ $type === 'student' ? 'Student' : 'Instructor' }}
                             </th>
                             @if($type === 'student')
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Clock In</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Source</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Student ID</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Category</th>
                             @endif
@@ -94,6 +108,12 @@
                                 </div>
                             </td>
                             @if($type === 'student')
+                            <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                                {{ $record->formattedClockIn() ?? '—' }}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400 capitalize">
+                                {{ str_replace('_', ' ', $record->source ?? 'manual') }}
+                            </td>
                             <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
                                 {{ $record->studentProfile->student_id }}
                             </td>
@@ -129,7 +149,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="{{ $type === 'student' ? 7 : 5 }}" class="px-6 py-12 text-center">
+                            <td colspan="{{ $type === 'student' ? 9 : 5 }}" class="px-6 py-12 text-center">
                                 <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                                 </svg>

@@ -94,13 +94,31 @@
                         @foreach($grades as $grade)
                             @php
                                 $url = null;
+                                $title = 'N/A';
+                                $typeLabel = class_basename($grade->gradeable_type);
+
                                 if ($grade->gradeable) {
-                                    if ($grade->gradeable_type === \App\Models\Assignment::class) {
+                                    if ($grade->gradeable_type === \App\Models\AssessmentAttempt::class) {
+                                        $title = $grade->gradeable->assessment?->title ?? 'N/A';
+                                        $typeLabel = 'Assessment';
+                                    } elseif ($grade->gradeable_type === \App\Models\AssignmentSubmission::class) {
+                                        $title = $grade->gradeable->assignment?->title ?? 'N/A';
+                                        $typeLabel = 'Assignment';
+                                        $url = isset($grade->gradeable->assignment) ? route('assignments.show', $grade->gradeable->assignment) : null;
+                                    } elseif ($grade->gradeable_type === \App\Models\Assignment::class) {
+                                        $title = $grade->gradeable->title ?? 'N/A';
+                                        $typeLabel = 'Assignment';
                                         $url = route('assignments.show', $grade->gradeable);
                                     } elseif ($grade->gradeable_type === \App\Models\Quiz::class) {
+                                        $title = $grade->gradeable->title ?? 'N/A';
+                                        $typeLabel = 'Quiz';
                                         $url = route('quizzes.show', $grade->gradeable);
                                     } elseif ($grade->gradeable_type === \App\Models\Assessment::class) {
+                                        $title = $grade->gradeable->title ?? 'N/A';
+                                        $typeLabel = 'Assessment';
                                         $url = route('assessments.show', $grade->gradeable);
+                                    } else {
+                                        $title = $grade->gradeable->title ?? 'N/A';
                                     }
                                 }
                             @endphp
@@ -108,26 +126,23 @@
                                 <td class="px-6 py-4">
                                     @if($url)
                                         <a href="{{ $url }}" wire:navigate class="font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors inline-block">
-                                            {{ $grade->gradeable->title ?? 'N/A' }}
+                                            {{ $title }}
                                         </a>
                                     @else
-                                        <span class="font-semibold text-gray-900 dark:text-white">
-                                            {{ $grade->gradeable->title ?? 'N/A' }}
-                                        </span>
+                                        <span class="font-semibold text-gray-900 dark:text-white">{{ $title }}</span>
                                     @endif
                                 </td>
                                 <td class="px-6 py-4">
-                                    <flux:badge size="sm" variant="primary">
-                                        {{ class_basename($grade->gradeable_type) }}
-                                    </flux:badge>
+                                    <flux:badge size="sm" variant="primary">{{ $typeLabel }}</flux:badge>
                                 </td>
                                 <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
                                     {{ $grade->course->title ?? 'N/A' }}
                                 </td>
                                 <td class="px-6 py-4 text-right">
-                                    <span class="text-lg font-bold {{ $grade->score >= 70 ? 'text-green-600' : ($grade->score >= 50 ? 'text-yellow-600' : 'text-red-600') }}">
-                                        {{ number_format($grade->score, 1) }}%
+                                    <span class="text-lg font-bold {{ ($grade->percentage ?? 0) >= 70 ? 'text-green-600' : (($grade->percentage ?? 0) >= 50 ? 'text-yellow-600' : 'text-red-600') }}">
+                                        {{ number_format($grade->percentage ?? 0, 1) }}%
                                     </span>
+                                    <p class="text-xs text-gray-500">{{ number_format($grade->score ?? 0, 1) }}/{{ number_format($grade->max_score ?? 0, 1) }} pts</p>
                                 </td>
                                 <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
                                     {{ $grade->created_at->format('M d, Y') }}

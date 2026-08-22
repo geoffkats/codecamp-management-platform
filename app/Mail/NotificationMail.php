@@ -14,7 +14,7 @@ class NotificationMail extends Mailable
 
     public function __construct(
         public string $title,
-        public string $message,
+        public string $bodyMessage,
         public string $type = 'info',
         public array $data = []
     ) {}
@@ -38,7 +38,7 @@ class NotificationMail extends Mailable
             view: 'emails.notification',
             with: [
                 'title' => $this->title,
-                'message' => $this->message,
+                'bodyMessage' => $this->bodyMessage,
                 'type' => $this->type,
                 'data' => $this->data,
             ],

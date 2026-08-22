@@ -2,17 +2,21 @@
 
 namespace App\Livewire\Curriculum;
 
+use App\Livewire\Curriculum\Concerns\ComputesBuilderStatus;
+use App\Livewire\Curriculum\Concerns\ComputesBuilderStructure;
+use App\Livewire\Curriculum\Concerns\HandlesBuilderArchiving;
 use App\Models\Course;
 use App\Models\CourseModule;
 use App\Models\Lesson;
 use App\Models\Assessment;
 use App\Models\Assignment;
-use App\Models\Notification;
 use App\Models\ContentApproval;
+use App\Services\Curriculum\ApprovalService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -20,29 +24,51 @@ use Livewire\WithFileUploads;
 class NewBuilder extends Component
 {
     use WithFileUploads;
+    use ComputesBuilderStructure;
+    use ComputesBuilderStatus;
+    use HandlesBuilderArchiving;
 
     public $courseId;
     public $course;
+    
+    // State machine - single source of truth for UI state
+    public $viewState = 'welcome'; // welcome | lesson-form | module-form | assessment-form | build-empty | not-found
+    
+    // Supporting data for current view state
     public $selectedType = null; // 'module', 'lesson', 'assessment'
     public $selectedId = null;
-    public $showForm = false;
+    public $selectedModuleId = null;
     public $formData = [];
     public $showRejectModal = false;
     public $rejectionReason = '';
     public $lesson = null;
+    public $selectedAssessment = null;
     public $lessonId = null;  // For creating assessments
     public $sidebarCollapsed = false; // Toggle sidebar visibility
     public $pdfUpload = null;
+    public $slideUpload = null;
     public $restoreWindowDays = 30;
-    public $mode = 'build'; // build | manage
     public $structureTab = 'active'; // active | archived
     public $canManageCourse = false;
+    public $isApprover = false;
+    
+    // Computed property for backward compatibility
+    public $showForm = false;
     
     // Cache user permissions to avoid N+1 queries
     protected $isAdmin;
     protected $isSupervisor;
+    protected $listeners = [
+        'lesson-saved' => 'handleLessonSaved',
+        'close-form' => 'closeForm',
+        'flash-message' => 'handleFlashMessage',
+        'archive-lesson' => 'deleteLesson',
+        'archive-module' => 'deleteModule',
+        'restore-module' => 'restoreModule',
+        'restore-lesson' => 'restoreLesson',
+        'structure-reordered' => 'reloadStructure',
+    ];
     protected $queryString = [
-        'mode' => ['except' => 'build'],
         'structureTab' => ['except' => 'active'],
     ];
 
@@ -53,10 +79,11 @@ class NewBuilder extends Component
         $user->load('roles'); // Eager load roles
         $this->isAdmin = $user->isAdmin();
         $this->isSupervisor = $user->isSupervisor();
+        $this->isApprover = $this->isAdmin || $this->isSupervisor;
         $this->restoreWindowDays = (int) config('app.restore_window_days', 30);
         
         if ($course) {
-            $this->courseId = $course;
+            $this->courseId = is_object($course) ? (int) $course->id : (int) $course;
             $this->loadCourse();
             
             // Auto-select lesson if provided in query string
@@ -75,23 +102,50 @@ class NewBuilder extends Component
             }
         }
         $this->initializeFormData();
+        $this->computeViewState();
     }
 
-    public function setMode(string $mode): void
+    /**
+     * Compute view state from current properties
+     * This is the single source of truth for determining which view to show
+     */
+    protected function computeViewState(): void
     {
-        if (!in_array($mode, ['build', 'manage'], true)) {
+        // No course selected
+        if (!$this->courseId) {
+            $this->viewState = 'welcome';
+            $this->showForm = false;
             return;
         }
 
-        $this->mode = $mode;
-
-        if ($mode === 'manage') {
+        // Course not found
+        if (!$this->course) {
+            $this->viewState = 'not-found';
             $this->showForm = false;
-            $this->selectedType = null;
-            $this->selectedId = null;
+            return;
         }
 
-        $this->loadCourse();
+        // Form is being shown
+        if ($this->showForm && $this->selectedType) {
+            $this->viewState = match($this->selectedType) {
+                'lesson' => 'lesson-form',
+                'module' => 'module-form',
+                'assessment' => 'assessment-form',
+                default => 'other-form',
+            };
+            return;
+        }
+
+        // Debug state (shouldn't happen but handle gracefully)
+        if ($this->showForm && !$this->selectedType) {
+            $this->viewState = 'build-empty';
+            $this->showForm = false;
+            return;
+        }
+
+        // Default: empty state
+        $this->viewState = 'build-empty';
+        $this->showForm = false;
     }
 
     public function setStructureTab(string $tab): void
@@ -131,6 +185,8 @@ class NewBuilder extends Component
                 'lesson_steps_text' => '',
                 'scratch_project_id' => '',
                 'code_examples_text' => '',
+                'slide_file_path' => null,
+                'html_content' => null,
             ];
         }
     }
@@ -145,8 +201,9 @@ class NewBuilder extends Component
         $user = Auth::user();
         $this->isAdmin = $user->hasRole('admin');
         $this->isSupervisor = $user->hasRole('supervisor');
+        $this->isApprover = $this->isAdmin || $this->isSupervisor;
         
-        $loadAssessments = $this->mode === 'manage';
+        $loadAssessments = false;
 
         // Optimize query with selective eager loading
         $query = Course::withTrashed()->with([
@@ -158,7 +215,7 @@ class NewBuilder extends Component
             'modules.lessons' => function($q) use ($loadAssessments) {
                 $q->orderBy('order_index')
                   ->withTrashed()
-                  ->select('id', 'module_id', 'title', 'order_index', 'approval_status', 'is_locked', 'deleted_at')
+                  ->select('id', 'module_id', 'title', 'order_index', 'lesson_type', 'approval_status', 'is_locked', 'deleted_at')
                   ->withCount('assessments');
 
                 if ($loadAssessments) {
@@ -181,6 +238,33 @@ class NewBuilder extends Component
         
         $this->course = $query->first();
         $this->canManageCourse = $this->course ? $this->userCanManageCourse() : false;
+        $this->computeViewState();
+    }
+
+    public function handleLessonSaved($lessonId = null): void
+    {
+        if ($lessonId) {
+            $this->selectedId = $lessonId;
+        }
+
+        $this->loadCourse();
+        $this->computeViewState();
+        $this->dispatch('course-structure-updated');
+    }
+
+    public function reloadStructure(): void
+    {
+        $this->loadCourse();
+        $this->computeViewState();
+    }
+
+    public function handleFlashMessage(string $type, string $message): void
+    {
+        if (!in_array($type, ['message', 'error'], true)) {
+            $type = 'message';
+        }
+
+        session()->flash($type, $message);
     }
     
     public function approveCourse()
@@ -189,20 +273,8 @@ class NewBuilder extends Component
             session()->flash('error', 'You do not have permission to approve courses.');
             return;
         }
-        
-        $this->course->update([
-            'approval_status' => 'approved',
-            'approved_at' => now(),
-            'approved_by' => Auth::id(),
-        ]);
-        
-        // Notify instructor
-        \App\Models\Notification::create([
-            'user_id' => $this->course->instructor_id,
-            'title' => 'Course Approved',
-            'message' => 'Your course "' . $this->course->title . '" has been approved and is now published.',
-            'type' => 'success',
-        ]);
+
+        $this->approvalService()->approveCourse($this->course, Auth::id());
         
         session()->flash('message', 'Course approved successfully!');
         $this->loadCourse();
@@ -224,19 +296,8 @@ class NewBuilder extends Component
             session()->flash('error', 'Please provide a reason for rejection.');
             return;
         }
-        
-        $this->course->update([
-            'approval_status' => 'rejected',
-            'rejection_reason' => $this->rejectionReason,
-        ]);
-        
-        // Notify instructor
-        \App\Models\Notification::create([
-            'user_id' => $this->course->instructor_id,
-            'title' => 'Course Rejected',
-            'message' => 'Your course "' . $this->course->title . '" has been rejected. Reason: ' . $this->rejectionReason,
-            'type' => 'error',
-        ]);
+
+        $this->approvalService()->rejectCourse($this->course, $this->rejectionReason, Auth::id());
         
         session()->flash('message', 'Course rejected.');
         $this->showRejectModal = false;
@@ -244,17 +305,29 @@ class NewBuilder extends Component
         $this->loadCourse();
     }
     
+    #[On('select-item')]
     public function selectItem($type, $id = null, $parentId = null)
     {
         // Simple approach: just update the values directly
         $this->selectedType = $type;
         $this->selectedId = $id;
-        $this->showForm = true;
-        
+        $this->selectedAssessment = null;
+        $this->lessonId = null;
+
+        // Track the active module so "Add Lesson" button in header knows which module to target
+        if ($type === 'module' && $id) {
+            $this->selectedModuleId = (int) $id;
+        } elseif ($type === 'lesson') {
+            $this->selectedModuleId = $parentId ? (int) $parentId : $this->selectedModuleId;
+        }
+
         if ($type === 'assessment') {
             // Store lesson ID for creating new assessments
             if (!$id && $parentId) {
                 $this->lessonId = $parentId;
+            }
+            if ($id) {
+                $this->selectedAssessment = Assessment::find($id);
             }
             // Assessment editing is handled by the dedicated assessment builder
         } elseif ($type === 'module') {
@@ -274,7 +347,7 @@ class NewBuilder extends Component
         } elseif ($type === 'lesson') {
             if ($id) {
                 // Load existing lesson
-                $this->lesson = Lesson::find($id);
+                $this->lesson = Lesson::with('assessments')->find($id);
                 if ($this->lesson) {
                     // Convert lesson_steps array to text format for editing
                     $stepsText = '';
@@ -319,6 +392,8 @@ class NewBuilder extends Component
                         'scratch_project_id' => $this->lesson->scratch_project_id ?? '',
                         'code_examples_text' => trim($codeExamplesText),
                         'attachments' => $this->lesson->attachments ?? [],
+                        'slide_file_path' => $this->lesson->slide_file_path ?? null,
+                        'html_content' => $this->lesson->html_content ?? null,
                     ];
                 }
             } else {
@@ -330,6 +405,9 @@ class NewBuilder extends Component
                 }
             }
         }
+        
+        $this->showForm = true;
+        $this->computeViewState();
     }
     
     public function closeForm()
@@ -337,10 +415,14 @@ class NewBuilder extends Component
         $this->showForm = false;
         $this->selectedType = null;
         $this->selectedId = null;
+        $this->selectedModuleId = null;
         $this->lesson = null;
+        $this->selectedAssessment = null;
         $this->lessonId = null;
         $this->pdfUpload = null;
+        $this->slideUpload = null;
         $this->initializeFormData();
+        $this->computeViewState();
     }
     
     public function saveLesson()
@@ -356,12 +438,13 @@ class NewBuilder extends Component
             'formData.video_duration' => 'nullable|integer|min:1',
             'formData.difficulty_level' => 'nullable|in:beginner,intermediate,advanced',
             'formData.duration_minutes' => 'nullable|integer|min:1',
-            'formData.order_index' => 'required|integer|min:0',
+            'formData.order_index' => 'nullable|integer|min:0',
             'formData.is_published' => 'boolean',
             'formData.is_active' => 'boolean',
             'formData.is_free_preview' => 'boolean',
             'formData.is_locked' => 'boolean',
             'pdfUpload' => 'nullable|file|mimes:pdf|max:51200',
+            'slideUpload' => 'nullable|file|mimes:pdf|max:51200',
         ];
         
         $this->validate($rules);
@@ -390,7 +473,6 @@ class NewBuilder extends Component
             'video_duration' => !empty($this->formData['video_duration']) ? $this->formData['video_duration'] : null,
             'difficulty_level' => $this->formData['difficulty_level'],
             'duration_minutes' => !empty($this->formData['duration_minutes']) ? $this->formData['duration_minutes'] : null,
-            'order_index' => $this->formData['order_index'],
             'is_published' => $this->formData['is_published'],
             'is_active' => $this->formData['is_active'],
             'is_free_preview' => $this->formData['is_free_preview'],
@@ -398,6 +480,7 @@ class NewBuilder extends Component
             'lesson_steps' => $lessonSteps,
             'scratch_project_id' => !empty($this->formData['scratch_project_id']) ? $this->formData['scratch_project_id'] : null,
             'scratch_blocks' => $codeBlocks,
+            'html_content' => $this->formData['html_content'] ?: null,
         ];
 
         // Preserve and append PDF attachments
@@ -422,59 +505,70 @@ class NewBuilder extends Component
         if (!empty($attachments)) {
             $lessonData['attachments'] = $attachments;
         }
-        
+
+        // Handle slide file upload — replaces the previous slide file
+        if ($this->slideUpload) {
+            if ($this->selectedId) {
+                $existing = Lesson::find($this->selectedId);
+                if ($existing && $existing->slide_file_path) {
+                    Storage::disk('public')->delete($existing->slide_file_path);
+                }
+            }
+            $lessonData['slide_file_path'] = $this->slideUpload->store("lessons/slides/{$this->courseId}", 'public');
+        }
+
         if ($this->selectedId) {
             // Update existing lesson
             $lesson = $existingLesson ?? Lesson::find($this->selectedId);
             $wasApproved = $lesson->approval_status === 'approved';
-            
-            // If lesson was previously approved and user is not admin/supervisor, reset to pending
+
             $user = Auth::user();
             $isAdminOrSupervisor = $user->isAdmin() || $user->isSupervisor();
-            
+
             if ($wasApproved && !$isAdminOrSupervisor) {
+                // Teacher edited an approved lesson — reset to pending for re-approval
                 $lessonData['approval_status'] = 'pending';
                 $lessonData['submitted_for_approval_at'] = now();
                 $lessonData['approved_at'] = null;
                 $lessonData['approved_by'] = null;
-                
+
                 $lesson->update($lessonData);
-                
-                // Create ContentApproval record for re-approval
+
                 ContentApproval::create([
                     'approvable_type' => Lesson::class,
                     'approvable_id' => $lesson->id,
                     'status' => 'pending',
                     'submitted_by' => $user->id,
                     'submitted_at' => now(),
-                    'notes' => 'Lesson updated - requires re-approval',
+                    'notes' => 'Lesson updated — requires re-approval',
                     'priority' => 'normal',
                     'category' => 'update',
                 ]);
-                
-                // Notify admins and supervisors
-                $this->notifyApprovers($lesson, 'updated');
-                
-                session()->flash('message', 'Lesson updated and sent for re-approval!');
+
+                $this->approvalService()->notifyApprovers($lesson, 'updated', $user);
+                session()->flash('message', 'Lesson updated and sent back for approval.');
             } else {
-                session()->flash('message', 'Lesson updated successfully!');
+                // Admin/supervisor update, or updating a non-approved lesson
                 $lesson->update($lessonData);
+                session()->flash('message', 'Lesson saved successfully!');
             }
         } else {
-            // Create new lesson - set to pending approval
+            // Create new lesson — auto-assign order position
+            $maxOrder = Lesson::where('module_id', $this->formData['module_id'])->max('order_index') ?? 0;
+            $lessonData['order_index'] = $maxOrder + 1;
+
             $user = Auth::user();
             $isAdminOrSupervisor = $user->isAdmin() || $user->isSupervisor();
-            
+
             if (!$isAdminOrSupervisor) {
                 $lessonData['approval_status'] = 'pending';
                 $lessonData['submitted_for_approval_at'] = now();
             } else {
-                // Admins/supervisors can auto-approve their own lessons
                 $lessonData['approval_status'] = 'approved';
                 $lessonData['approved_at'] = now();
                 $lessonData['approved_by'] = $user->id;
             }
-            
+
             $lesson = Lesson::create($lessonData);
             
             if (!$isAdminOrSupervisor) {
@@ -491,7 +585,7 @@ class NewBuilder extends Component
                 ]);
                 
                 // Notify admins and supervisors
-                $this->notifyApprovers($lesson, 'created');
+                $this->approvalService()->notifyApprovers($lesson, 'created', $user);
                 session()->flash('message', 'Lesson created and sent for approval!');
             } else {
                 session()->flash('message', 'Lesson created successfully!');
@@ -513,334 +607,33 @@ class NewBuilder extends Component
         $this->closeForm();
     }
 
-    public function deleteLesson($lessonId)
-    {
-        $lesson = Lesson::where('course_id', $this->courseId)->find($lessonId);
-
-        if (!$lesson) {
-            session()->flash('error', 'Lesson not found.');
-            return;
-        }
-
-        if (!$this->userCanManageCourse()) {
-            session()->flash('error', 'You do not have permission to remove this lesson.');
-            return;
-        }
-
-        DB::transaction(function () use ($lesson) {
-            $this->archiveLessonWithChildren($lesson);
-        });
-
-        session()->flash('message', 'Lesson removed. You can restore it within the restore window.');
-        $this->loadCourse();
-    }
-
-    public function restoreLesson($lessonId)
-    {
-        $lesson = Lesson::withTrashed()->where('course_id', $this->courseId)->find($lessonId);
-
-        if (!$lesson || !$lesson->trashed()) {
-            session()->flash('error', 'This lesson is not in the recycle window.');
-            return;
-        }
-
-        if (!$this->userCanManageCourse()) {
-            session()->flash('error', 'You do not have permission to restore this lesson.');
-            return;
-        }
-
-        try {
-            DB::transaction(function () use ($lesson) {
-                $this->restoreLessonWithChildren($lesson);
-            });
-
-            session()->flash('message', 'Lesson restored.');
-            $this->loadCourse();
-        } catch (\RuntimeException $e) {
-            session()->flash('error', $e->getMessage());
-        }
-    }
-
-    public function deleteAssessment($assessmentId)
-    {
-        $assessment = Assessment::with('lesson')->find($assessmentId);
-
-        if (!$assessment || !$assessment->lesson || $assessment->lesson->course_id !== $this->courseId) {
-            session()->flash('error', 'Quiz not found for this course.');
-            return;
-        }
-
-        if (!$this->userCanManageCourse()) {
-            session()->flash('error', 'You do not have permission to remove this quiz.');
-            return;
-        }
-
-        $assessment->delete();
-
-        session()->flash('message', 'Quiz archived. You can restore it within the restore window.');
-        $this->loadCourse();
-    }
-
-    public function deleteCourse()
-    {
-        if (!$this->course) {
-            session()->flash('error', 'Course not found.');
-            return;
-        }
-
-        if (!$this->userCanManageCourse(true)) {
-            session()->flash('error', 'You do not have permission to delete this course.');
-            return;
-        }
-
-        DB::transaction(function () {
-            $this->archiveCourseWithChildren($this->course);
-        });
-
-        session()->flash('message', 'Course archived. You can restore it within the restore window.');
-        $this->loadCourse();
-    }
-
-    public function restoreCourse()
-    {
-        $course = Course::withTrashed()->find($this->courseId);
-
-        if (!$course || !$course->trashed()) {
-            session()->flash('error', 'Course is not archived.');
-            return;
-        }
-
-        if (!$this->userCanManageCourse(true)) {
-            session()->flash('error', 'You do not have permission to restore this course.');
-            return;
-        }
-
-        try {
-            DB::transaction(function () use ($course) {
-                $this->restoreCourseWithChildren($course);
-            });
-
-            $this->course = $course;
-            session()->flash('message', 'Course restored.');
-            $this->loadCourse();
-        } catch (\RuntimeException $e) {
-            session()->flash('error', $e->getMessage());
-        }
-    }
-
-    public function deleteModule($moduleId)
-    {
-        $module = CourseModule::withTrashed()->with('lessons')->find($moduleId);
-
-        if (!$module || $module->course_id !== $this->courseId) {
-            session()->flash('error', 'Module not found for this course.');
-            return;
-        }
-
-        if (!$this->userCanManageCourse()) {
-            session()->flash('error', 'You do not have permission to remove this module.');
-            return;
-        }
-
-        DB::transaction(function () use ($module) {
-            $this->archiveModuleWithChildren($module);
-        });
-
-        session()->flash('message', 'Module archived. You can restore it within the restore window.');
-        $this->loadCourse();
-    }
-
-    public function restoreModule($moduleId)
-    {
-        $module = CourseModule::withTrashed()->find($moduleId);
-
-        if (!$module || $module->course_id !== $this->courseId || !$module->trashed()) {
-            session()->flash('error', 'Module is not archived.');
-            return;
-        }
-
-        if (!$this->userCanManageCourse()) {
-            session()->flash('error', 'You do not have permission to restore this module.');
-            return;
-        }
-
-        try {
-            DB::transaction(function () use ($module) {
-                $this->restoreModuleWithChildren($module);
-            });
-
-            session()->flash('message', 'Module restored.');
-            $this->loadCourse();
-        } catch (\RuntimeException $e) {
-            session()->flash('error', $e->getMessage());
-        }
-    }
-
-    public function forceDeleteModule($moduleId)
-    {
-        $module = CourseModule::withTrashed()
-            ->where('course_id', $this->courseId)
-            ->find($moduleId);
-
-        if (!$module) {
-            session()->flash('error', 'Module not found for this course.');
-            return;
-        }
-
-        if (!$this->userCanManageCourse()) {
-            session()->flash('error', 'You do not have permission to remove this module.');
-            return;
-        }
-
-        $lessonCount = Lesson::withTrashed()->where('module_id', $module->id)->count();
-
-        if ($lessonCount > 0) {
-            session()->flash('error', 'Module has lessons. Archive it instead.');
-            return;
-        }
-
-        DB::transaction(function () use ($module) {
-            $module->forceDelete();
-        });
-
-        session()->flash('message', 'Module permanently deleted.');
-        $this->loadCourse();
-    }
-
-    private function userCanManageCourse(bool $requireOwner = false): bool
-    {
-        $user = Auth::user();
-
-        // Refresh role flags in case session role cache changed mid-request
-        $this->isAdmin = method_exists($user, 'isAdmin') ? $user->isAdmin() : ($this->isAdmin ?? false);
-        $this->isSupervisor = method_exists($user, 'isSupervisor') ? $user->isSupervisor() : ($this->isSupervisor ?? false);
-
-        $hasEditPermission = method_exists($user, 'hasPermission')
-            ? ($user->hasPermission('edit_courses') || $user->hasPermission('review_content'))
-            : false;
-
-        if ($this->isAdmin || $this->isSupervisor || $hasEditPermission) {
-            return true;
-        }
-
-        if (!$this->course) {
-            return false;
-        }
-
-        if ($requireOwner) {
-            return $this->course->instructor_id === $user->id;
-        }
-
-        return $this->course->canUserEdit($user);
-    }
-
-    private function archiveCourseWithChildren(Course $course): void
-    {
-        $course->modules()->withTrashed()->each(function ($module) {
-            $this->archiveModuleWithChildren($module);
-        });
-
-        $course->delete();
-    }
-
-    private function restoreCourseWithChildren(Course $course): void
-    {
-        if ($course->deleted_at && $course->deleted_at->addDays($this->restoreWindowDays)->isPast()) {
-            throw new \RuntimeException('Restore period has expired for this course.');
-        }
-
-        $course->modules()->withTrashed()->get()->each(function ($module) {
-            $this->restoreModuleWithChildren($module, false);
-        });
-
-        $course->restore();
-    }
-
-    private function archiveModuleWithChildren(CourseModule $module): void
-    {
-        $module->lessons()->withTrashed()->each(function ($lesson) {
-            $this->archiveLessonWithChildren($lesson);
-        });
-
-        $module->delete();
-    }
-
-    private function restoreModuleWithChildren(CourseModule $module, bool $enforceWindow = true): void
-    {
-        if ($enforceWindow && $module->deleted_at && $module->deleted_at->addDays($this->restoreWindowDays)->isPast()) {
-            throw new \RuntimeException('Restore period has expired for this module.');
-        }
-
-        $module->lessons()->withTrashed()->get()->each(function ($lesson) use ($enforceWindow) {
-            $this->restoreLessonWithChildren($lesson, $enforceWindow);
-        });
-
-        $module->restore();
-    }
-
-    private function archiveLessonWithChildren(Lesson $lesson): void
-    {
-        Assessment::where('lesson_id', $lesson->id)->withTrashed()->get()->each(function ($assessment) {
-            $assessment->delete();
-        });
-
-        Assignment::where('lesson_id', $lesson->id)->withTrashed()->get()->each(function ($assignment) {
-            $assignment->delete();
-        });
-
-        $lesson->delete();
-    }
-
-    private function restoreLessonWithChildren(Lesson $lesson, bool $enforceWindow = true): void
-    {
-        if ($enforceWindow && $lesson->deleted_at && $lesson->deleted_at->addDays($this->restoreWindowDays)->isPast()) {
-            throw new \RuntimeException('Restore period has expired for this lesson.');
-        }
-
-        Assessment::withTrashed()->where('lesson_id', $lesson->id)->get()->each(function ($assessment) use ($enforceWindow) {
-            if (!$enforceWindow || !$assessment->deleted_at || !$assessment->deleted_at->addDays($this->restoreWindowDays)->isPast()) {
-                $assessment->restore();
-            }
-        });
-
-        Assignment::withTrashed()->where('lesson_id', $lesson->id)->get()->each(function ($assignment) use ($enforceWindow) {
-            if (!$enforceWindow || !$assignment->deleted_at || !$assignment->deleted_at->addDays($this->restoreWindowDays)->isPast()) {
-                $assignment->restore();
-            }
-        });
-
-        $lesson->restore();
-    }
     
     public function saveModule()
     {
-        $rules = [
+        $this->validate([
             'formData.title' => 'required|string|max:255',
             'formData.description' => 'nullable|string',
-            'formData.order_index' => 'required|integer|min:0',
-        ];
-        
-        $this->validate($rules);
-        
+        ]);
+
         $moduleData = [
             'course_id' => $this->courseId,
             'title' => $this->formData['title'],
             'description' => $this->formData['description'],
-            'order_index' => $this->formData['order_index'],
         ];
-        
+
         if ($this->selectedId) {
-            // Update existing module
             $module = CourseModule::find($this->selectedId);
             $module->update($moduleData);
             session()->flash('message', 'Module updated successfully!');
         } else {
-            // Create new module
+            // Auto-assign position at the end
+            $moduleData['order_index'] = (CourseModule::where('course_id', $this->courseId)->max('order_index') ?? 0) + 1;
             CourseModule::create($moduleData);
             session()->flash('message', 'Module created successfully!');
         }
-        
+
         $this->loadCourse();
+        $this->dispatch('course-structure-updated');
         $this->closeForm();
     }
     
@@ -850,355 +643,248 @@ class NewBuilder extends Component
             session()->flash('error', 'Please save the lesson first before submitting for approval.');
             return;
         }
-        
+
         $lesson = Lesson::find($this->selectedId);
-        
         if (!$lesson) {
             session()->flash('error', 'Lesson not found.');
             return;
         }
-        
-        // Check if user owns this lesson
+
         if ($lesson->course->instructor_id !== Auth::id() && !$this->isAdmin && !$this->isSupervisor) {
             session()->flash('error', 'You do not have permission to submit this lesson.');
             return;
         }
-        
-        $lesson->update([
-            'approval_status' => 'pending',
-            'submitted_for_approval_at' => now(),
-        ]);
-        
+
+        $this->approvalService()->submitLessonForApproval($lesson);
+
         $this->formData['approval_status'] = 'pending';
         session()->flash('message', 'Lesson submitted for approval successfully!');
         $this->loadCourse();
     }
-    
+    public function removeSlideFile()
+    {
+        if (!$this->selectedId) {
+            return;
+        }
+
+        $lesson = Lesson::find($this->selectedId);
+        if ($lesson && $lesson->slide_file_path) {
+            Storage::disk('public')->delete($lesson->slide_file_path);
+            $lesson->update(['slide_file_path' => null]);
+            $this->formData['slide_file_path'] = null;
+            session()->flash('message', 'Slide file removed.');
+        }
+    }
+
     public function removeAttachment($index)
     {
         if (!isset($this->formData['attachments'][$index])) {
             return;
         }
-        
+
         $attachment = $this->formData['attachments'][$index];
-        
-        // Delete the file from storage
+
         if (isset($attachment['path']) && Storage::exists($attachment['path'])) {
             Storage::delete($attachment['path']);
         }
-        
-        // Remove from array
+
         unset($this->formData['attachments'][$index]);
-        $this->formData['attachments'] = array_values($this->formData['attachments']); // Reindex
-        
-        // Update lesson in database if editing existing lesson
+        $this->formData['attachments'] = array_values($this->formData['attachments']);
+
         if ($this->selectedId) {
             $lesson = Lesson::find($this->selectedId);
             if ($lesson) {
                 $lesson->update(['attachments' => $this->formData['attachments']]);
             }
         }
-        
+
         session()->flash('message', 'Attachment removed successfully!');
     }
-    
+
     public function approveLesson()
     {
         if (!$this->selectedId) {
             session()->flash('error', 'No lesson selected.');
             return;
         }
-        
+
         $lesson = Lesson::find($this->selectedId);
-        
+
         if (!$lesson) {
             session()->flash('error', 'Lesson not found.');
             return;
         }
-        
-        $lesson->approval_status = 'approved';
-        $lesson->approved_at = now();
-        $lesson->approved_by = Auth::id();
-        $lesson->rejection_reason = null;
-        $lesson->save();
-        
+
+        $this->approvalService()->approveLesson($lesson, Auth::user());
+
         $this->formData['approval_status'] = 'approved';
-        
-        // Update ContentApproval record
-        $contentApproval = ContentApproval::where('approvable_type', Lesson::class)
-            ->where('approvable_id', $lesson->id)
-            ->where('status', 'pending')
-            ->latest()
-            ->first();
-        
-        if ($contentApproval) {
-            $contentApproval->update([
-                'status' => 'approved',
-                'reviewed_by' => Auth::id(),
-                'reviewed_at' => now(),
-            ]);
-        }
-        
-        // Notify the teacher
-        $teacher = $lesson->course->instructor;
-        if ($teacher) {
-            Notification::create([
-                'user_id' => $teacher->id,
-                'title' => 'Lesson Approved',
-                'message' => "Your lesson \"{$lesson->title}\" has been approved by " . Auth::user()->name,
-                'type' => 'lesson_approved',
-                'data' => [
-                    'lesson_id' => $lesson->id,
-                    'lesson_title' => $lesson->title,
-                    'course_id' => $lesson->course_id,
-                    'approved_by' => Auth::user()->name,
-                    'url' => route('curriculum.builder', ['course' => $lesson->course_id]),
-                ],
-            ]);
-        }
-        
+
         session()->flash('message', 'Lesson approved successfully!');
-        
-        // Reload the course
+
         $this->course = Course::with(['modules.lessons.assessments'])
             ->find($this->courseId);
     }
-    
+
     public function disapproveLesson()
     {
         if (!$this->selectedId) {
             session()->flash('error', 'No lesson selected.');
             return;
         }
-        
+
         $lesson = Lesson::find($this->selectedId);
-        
+
         if (!$lesson) {
             session()->flash('error', 'Lesson not found.');
             return;
         }
-        
-        // Validate rejection reason
+
         if (empty($this->rejectionReason)) {
             session()->flash('error', 'Please provide a reason for disapproval.');
             return;
         }
-        
-        // Set back to pending so teacher can revise and it stays in approval queue
-        $lesson->approval_status = 'pending';
-        $lesson->rejection_reason = $this->rejectionReason;
-        $lesson->approved_at = null;
-        $lesson->approved_by = null;
-        $lesson->submitted_for_approval_at = now(); // Update submission time
-        $lesson->save();
-        
+
+        $this->approvalService()->disapproveLesson($lesson, Auth::user(), $this->rejectionReason);
+
         $this->formData['approval_status'] = 'pending';
         $this->formData['rejection_reason'] = $this->rejectionReason;
-        
-        // Update or create ContentApproval record
-        $contentApproval = ContentApproval::where('approvable_type', Lesson::class)
-            ->where('approvable_id', $lesson->id)
-            ->latest()
-            ->first();
-        
-        if ($contentApproval) {
-            // Update existing record - keep as pending with rejection notes
-            $contentApproval->update([
-                'status' => 'pending',
-                'reviewed_by' => Auth::id(),
-                'reviewed_at' => now(),
-                'rejection_reason' => $this->rejectionReason,
-                'notes' => 'Needs revision: ' . $this->rejectionReason,
-            ]);
-        } else {
-            // Create new ContentApproval record if none exists
-            ContentApproval::create([
-                'approvable_type' => Lesson::class,
-                'approvable_id' => $lesson->id,
-                'status' => 'pending',
-                'submitted_by' => $lesson->course->instructor_id,
-                'submitted_at' => now(),
-                'reviewed_by' => Auth::id(),
-                'reviewed_at' => now(),
-                'rejection_reason' => $this->rejectionReason,
-                'notes' => 'Needs revision: ' . $this->rejectionReason,
-                'priority' => 'high',
-                'category' => 'revision',
-            ]);
-        }
-        
-        // Notify the teacher
-        $teacher = $lesson->course->instructor;
-        if ($teacher) {
-            Notification::create([
-                'user_id' => $teacher->id,
-                'title' => 'Lesson Needs Revision',
-                'message' => "Your lesson \"{$lesson->title}\" needs revision. Reason: {$this->rejectionReason}",
-                'type' => 'lesson_rejected',
-                'data' => [
-                    'lesson_id' => $lesson->id,
-                    'lesson_title' => $lesson->title,
-                    'course_id' => $lesson->course_id,
-                    'rejected_by' => Auth::user()->name,
-                    'rejection_reason' => $this->rejectionReason,
-                    'url' => route('curriculum.builder', ['course' => $lesson->course_id]),
-                ],
-            ]);
-        }
-        
+
         $this->showRejectModal = false;
         $this->rejectionReason = '';
-        
+
         session()->flash('message', 'Lesson sent back for revision. Teacher has been notified to make changes.');
-        
-        // Reload the course
+
         $this->course = Course::with(['modules.lessons.assessments'])
             ->find($this->courseId);
     }
-    
+
     public function openRejectModal()
     {
         $this->showRejectModal = true;
         $this->rejectionReason = '';
     }
-    
+
     public function closeRejectModal()
     {
         $this->showRejectModal = false;
         $this->rejectionReason = '';
     }
-    
+
     public function toggleLessonLock($lessonId)
     {
         $lesson = Lesson::find($lessonId);
-        
+
         if (!$lesson) {
             session()->flash('error', 'Lesson not found.');
             return;
         }
-        
-        // Toggle the lock status
+
         $lesson->is_locked = !$lesson->is_locked;
         $lesson->save();
-        
+
         $status = $lesson->is_locked ? 'locked' : 'unlocked';
         session()->flash('message', "Lesson {$status} successfully!");
-        
-        // Update form data if this is the selected lesson
+
         if ($this->selectedId === $lessonId && isset($this->formData['is_locked'])) {
             $this->formData['is_locked'] = $lesson->is_locked;
         }
-        
-        // Reload the course
+
         $this->loadCourse();
     }
-    
+
     public function toggleAssessmentLock($assessmentId)
     {
         $assessment = Assessment::find($assessmentId);
-        
+
         if (!$assessment) {
             session()->flash('error', 'Assessment not found.');
             return;
         }
-        
-        // Toggle the lock status
+
         $assessment->is_locked = !$assessment->is_locked;
         $assessment->save();
-        
+
         $status = $assessment->is_locked ? 'locked' : 'unlocked';
         session()->flash('message', "Quiz/Assessment {$status} successfully!");
-        
-        // Reload the course
+
         $this->loadCourse();
     }
-    
+
     public function toggleAssignmentLock($assignmentId)
     {
-        $assignment = \App\Models\Assignment::find($assignmentId);
-        
+        $assignment = Assignment::find($assignmentId);
+
         if (!$assignment) {
             session()->flash('error', 'Assignment not found.');
             return;
         }
-        
-        // Toggle the lock status
+
         $assignment->is_locked = !$assignment->is_locked;
         $assignment->save();
-        
+
         $status = $assignment->is_locked ? 'locked' : 'unlocked';
         session()->flash('message', "Assignment {$status} successfully!");
-        
-        // Reload the course
+
         $this->loadCourse();
     }
-    
+
     public function rejectLesson()
     {
         if (!$this->isAdmin && !$this->isSupervisor) {
             session()->flash('error', 'You do not have permission to reject lessons.');
             return;
         }
-        
+
         $this->validate([
             'rejectionReason' => 'required|string|min:10',
         ]);
-        
+
         if (!$this->selectedId) {
             session()->flash('error', 'No lesson selected.');
             return;
         }
-        
+
         $lesson = Lesson::find($this->selectedId);
-        
+
         if (!$lesson) {
             session()->flash('error', 'Lesson not found.');
             return;
         }
-        
-        $lesson->update([
-            'approval_status' => 'rejected',
-            'rejection_reason' => $this->rejectionReason,
-            'approved_at' => null,
-            'approved_by' => null,
-        ]);
-        
+
+        $this->approvalService()->rejectLesson($lesson, Auth::user(), $this->rejectionReason);
+
         $this->formData['approval_status'] = 'rejected';
         $this->showRejectModal = false;
         $this->rejectionReason = '';
         session()->flash('message', 'Lesson rejected. Teacher has been notified.');
         $this->loadCourse();
     }
-    
+
     private function parseStepsText($text)
     {
         if (empty($text)) {
             return null;
         }
-        
+
         $lines = explode("\n", $text);
         $steps = [];
         $currentStep = null;
-        
+
         foreach ($lines as $line) {
             $line = trim($line);
-            
+
             if (empty($line)) {
                 continue;
             }
-            
-            // Check if this line starts a new step (starts with "Step", number, or is first line)
+
             if (preg_match('/^(Step\s*\d+:|^\d+[\.\):]|^-\s*)/i', $line) || $currentStep === null) {
-                // Save previous step if exists
                 if ($currentStep !== null) {
                     $steps[] = $currentStep;
                 }
-                
-                // Clean up the step title
+
                 $title = preg_replace('/^(Step\s*\d+:|^\d+[\.\):]|^-\s*)/i', '', $line);
                 $title = trim($title);
-                
-                // Start new step
+
                 $currentStep = [
                     'title' => $title ?: $line,
                     'description' => '',
@@ -1206,40 +892,37 @@ class NewBuilder extends Component
                     'code' => null,
                 ];
             } else {
-                // Add to description of current step
                 if ($currentStep !== null) {
                     $currentStep['description'] .= ($currentStep['description'] ? ' ' : '') . $line;
                 }
             }
         }
-        
-        // Add the last step
+
         if ($currentStep !== null) {
             $steps[] = $currentStep;
         }
-        
+
         return !empty($steps) ? $steps : null;
     }
-    
+
     private function parseCodeExamplesText($text)
     {
         if (empty($text)) {
             return null;
         }
-        
+
         $lines = explode("\n", $text);
         $blocks = [];
-        
+
         foreach ($lines as $line) {
             $line = trim($line);
-            
+
             if (empty($line)) {
                 continue;
             }
-            
-            // Auto-detect category based on content
-            $category = 'operators'; // default
-            
+
+            $category = 'operators';
+
             if (preg_match('/^(move|turn|go to|glide|point|change|set x|set y)/i', $line)) {
                 $category = 'motion';
             } elseif (preg_match('/^(say|think|show|hide|switch costume|next costume|change size)/i', $line)) {
@@ -1255,13 +938,13 @@ class NewBuilder extends Component
             } elseif (preg_match('/^(set|change)\s+\[.*\]\s+(to|by)/i', $line)) {
                 $category = 'variables';
             }
-            
+
             $blocks[] = [
                 'category' => $category,
                 'text' => $line,
             ];
         }
-        
+
         return !empty($blocks) ? $blocks : null;
     }
     
@@ -1269,34 +952,10 @@ class NewBuilder extends Component
     {
         $this->sidebarCollapsed = !$this->sidebarCollapsed;
     }
-    
-    protected function notifyApprovers($lesson, $action = 'created')
+
+    private function approvalService(): ApprovalService
     {
-        // Get all admins and supervisors
-        $approvers = \App\Models\User::whereHas('roles', function($q) {
-            $q->whereIn('name', ['admin', 'supervisor']);
-        })->get();
-        
-        $teacher = Auth::user();
-        $actionText = $action === 'updated' ? 'updated and needs re-approval' : 'created and needs approval';
-        
-        foreach ($approvers as $approver) {
-            Notification::create([
-                'user_id' => $approver->id,
-                'title' => 'Lesson Approval Required',
-                'message' => "{$teacher->name} has {$actionText}: \"{$lesson->title}\"",
-                'type' => 'lesson_approval',
-                'data' => [
-                    'lesson_id' => $lesson->id,
-                    'lesson_title' => $lesson->title,
-                    'course_id' => $lesson->course_id,
-                    'teacher_id' => $teacher->id,
-                    'teacher_name' => $teacher->name,
-                    'action' => $action,
-                    'url' => route('curriculum.builder', ['course' => $lesson->course_id]),
-                ],
-            ]);
-        }
+        return app(ApprovalService::class);
     }
     
     public function render()
@@ -1305,23 +964,29 @@ class NewBuilder extends Component
         if ($this->courseId && !$this->course) {
             $this->loadCourse();
         }
-        
-        // Only load module count for course list (not full modules)
-        $courses = Course::withCount('modules')
-            ->where(function($query) {
-                if (!$this->isAdmin && !$this->isSupervisor) {
-                    // Show courses where user is instructor OR collaborator
-                    $query->where('instructor_id', Auth::id())
-                          ->orWhereHas('collaborators', function($q) {
-                              $q->where('user_id', Auth::id());
-                          });
-                }
-            })
-            ->where('approval_status', '!=', 'deleted')
-            ->orderBy('title')
-            ->select('id', 'title', 'instructor_id')
-            ->get();
-            
+
+        // Full course list is only needed on the welcome / picker screen.
+        // Skip this query while editing (Add Quiz, lessons, etc.).
+        $courses = collect();
+        if (!$this->courseId) {
+            $authUser = Auth::user();
+            $isAdmin = $authUser->isAdmin();
+            $isSupervisor = $authUser->isSupervisor();
+            $courses = Course::withCount('modules')
+                ->where(function ($query) use ($isAdmin, $isSupervisor) {
+                    if (!$isAdmin && !$isSupervisor) {
+                        $query->where('instructor_id', Auth::id())
+                              ->orWhereHas('collaborators', function ($q) {
+                                  $q->where('user_id', Auth::id());
+                              });
+                    }
+                })
+                ->where('approval_status', '!=', 'deleted')
+                ->orderBy('title')
+                ->select('id', 'title', 'instructor_id')
+                ->get();
+        }
+
         return view('livewire.curriculum.new-builder', [
             'courses' => $courses,
         ]);

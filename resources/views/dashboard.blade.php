@@ -10,7 +10,13 @@
     @elseif($user->isIctTeacher())
         <livewire:dashboard.ict-teacher-dashboard />
     @elseif($user->isTeacher())
-        <livewire:dashboard.instructor-dashboard />
+        @if(config('features.code_club', false) && $user->hasCodeClubAccess() && !$user->isCodecampTrainer())
+            <livewire:dashboard.club-facilitator-dashboard />
+        @elseif(config('features.code_club', false) && $user->hasDualProgramAccess() && $user->activeProgramContext() === 'codeclub')
+            <livewire:dashboard.club-facilitator-dashboard />
+        @else
+            <livewire:dashboard.instructor-dashboard />
+        @endif
     @elseif($user->isSupervisor())
         <livewire:dashboard.supervisor-dashboard />
     @else
@@ -76,7 +82,11 @@
                 </div>
             </div>
         @else
-            <livewire:dashboard.student-dashboard />
+            @if(config('features.code_club', false) && $user->isCodeClubStudent())
+                <livewire:dashboard.codeclub-student-dashboard />
+            @else
+                <livewire:dashboard.student-dashboard />
+            @endif
         @endif
     @endif
 </x-layouts.app>

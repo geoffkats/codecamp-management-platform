@@ -153,6 +153,7 @@ class SchoolShow extends Component
             ->where('student_type', 'ict')
             ->where('status', 'completed')
             ->where('school_id', $this->school->id)
+            ->whereHas('assessment')
             ->with(['assessment.lesson', 'assessment.course', 'assessment.questions', 'user'])
             ->orderByDesc('completed_at')
             ->limit(10)

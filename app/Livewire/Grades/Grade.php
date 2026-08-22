@@ -5,6 +5,7 @@ namespace App\Livewire\Grades;
 use App\Models\AssignmentSubmission;
 use App\Models\AssessmentAttempt;
 use App\Models\Grade as GradeModel;
+use App\Support\ProgramScope;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -45,38 +46,16 @@ class Grade extends Component
             $this->submissionType = 'assessment';
             $this->submission = $submission->load(['assessment.course', 'assessment.questions', 'user']);
             
-            // Check if it's an assignment-type assessment
-            if ($this->submission->assessment->assessment_type !== 'assignment') {
-                abort(404, 'This grading interface is only for assignment-type submissions.');
-            }
+            // Allow any assessment attempt that requires manual grading
+            // (assignment-type OR mixed assessments with file/essay questions)
             
             $assignment = $this->submission->assessment; // Treat assessment as assignment
             $course = $assignment->course ?? null;
             
             // Extract content and files from answers JSON
-            $answers = $this->submission->answers ?? [];
-            $this->submissionContent = $answers['text'] ?? '';
-            $this->submissionFiles = $answers['files'] ?? [];
-            
-            // Load questions for file_upload question types
+            $this->submissionContent = $this->submission->submissionText();
+            $this->submissionFiles = $this->submission->submissionFiles();
             $this->assessmentQuestions = $this->submission->assessment->questions ?? collect();
-            
-            // Extract files from file_upload question types
-            foreach ($this->assessmentQuestions as $question) {
-                if ($question->question_type === 'file_upload' && isset($answers[$question->id])) {
-                    $questionAnswer = $answers[$question->id];
-                    if (isset($questionAnswer['files']) && is_array($questionAnswer['files'])) {
-                        foreach ($questionAnswer['files'] as $file) {
-                            $this->submissionFiles[] = [
-                                'path' => $file,
-                                'name' => basename($file),
-                                'question_id' => $question->id,
-                                'question_text' => $question->question_text,
-                            ];
-                        }
-                    }
-                }
-            }
         } else {
             // Try to find by ID - could be either type
             $assignmentSubmission = AssignmentSubmission::find($submission);
@@ -85,8 +64,8 @@ class Grade extends Component
                 return;
             }
             
-            $assessmentAttempt = AssessmentAttempt::find($submission);
-            if ($assessmentAttempt && $assessmentAttempt->assessment->assessment_type === 'assignment') {
+            $assessmentAttempt = AssessmentAttempt::with(['assessment.questions'])->find($submission);
+            if ($assessmentAttempt && $this->attemptCanBeGraded($assessmentAttempt)) {
                 $this->mount($assessmentAttempt);
                 return;
             }
@@ -103,16 +82,21 @@ class Grade extends Component
             } else {
                 abort(403, 'You can only grade submissions from your school.');
             }
+        } elseif (ProgramScope::isClubFacilitatorContext($user)) {
+            $clubStudentIds = ProgramScope::clubStudentUserIds($user);
+            if (! in_array($this->submission->user_id, $clubStudentIds, true)) {
+                abort(403, 'You can only grade submissions from your club students.');
+            }
         } elseif ($user->isTeacher()) {
             // Teachers can only grade submissions from their own courses
             if ($this->submissionType === 'assessment' && $this->submission->student_type !== 'codecamp') {
                 abort(403, 'You can only grade submissions from your own courses.');
             }
 
-            if (!$course || $course->instructor_id !== $user->id) {
+            if (!$course || !$course->isStaffFor($user)) {
                 abort(403, 'You can only grade submissions from your own courses.');
             }
-        } elseif (!$user->isAdmin()) {
+        } elseif (!$user->isAdmin() && !$user->isSupervisor()) {
             abort(403, 'You do not have permission to grade submissions.');
         }
         
@@ -158,9 +142,9 @@ class Grade extends Component
             ->first();
 
         if ($existingGrade) {
-            $this->totalScore = $existingGrade->score;
-            $this->maxScore = $existingGrade->max_score;
-            $this->percentage = $existingGrade->percentage;
+            $this->totalScore = (float) $existingGrade->score;
+            $this->maxScore = (float) $existingGrade->max_score;
+            $this->percentage = (float) $existingGrade->percentage;
             $this->letterGrade = $existingGrade->letter_grade;
             
             // Extract feedback from JSON
@@ -175,6 +159,12 @@ class Grade extends Component
             } else {
                 $this->feedback = $existingGrade->feedback;
             }
+        } elseif ($this->submissionType === 'assessment' && $this->submission->isGraded()) {
+            $this->maxScore = $this->submission->maxScore();
+            $this->totalScore = (float) ($this->submission->scoreAsPoints() ?? 0);
+            $this->percentage = (float) ($this->submission->scorePercentage() ?? 0);
+            $this->letterGrade = $this->calculateLetterGrade($this->percentage);
+            $this->feedback = $this->submission->graderFeedback() ?? '';
         } else {
             // Set max score based on assignment/assessment
             if ($this->submissionType === 'assignment') {
@@ -191,6 +181,12 @@ class Grade extends Component
         $this->calculateTotal();
     }
 
+    public function updatedTotalScore()
+    {
+        $this->totalScore = (float) ($this->totalScore ?? 0);
+        $this->calculateTotal();
+    }
+
     public function updatedRubricScores()
     {
         $this->calculateTotal();
@@ -202,10 +198,10 @@ class Grade extends Component
             // Calculate from rubric
             $total = 0;
             $maxTotal = 0;
-            
+
             foreach ($this->rubricScores as $index => $score) {
-                $total += $score['score'] ?? 0;
-                $maxTotal += $score['max_points'] ?? 0;
+                $total += (float) ($score['score'] ?? 0);
+                $maxTotal += (float) ($score['max_points'] ?? 0);
             }
             
             $this->totalScore = $total;
@@ -230,6 +226,11 @@ class Grade extends Component
 
         // Calculate letter grade
         $this->letterGrade = $this->calculateLetterGrade($this->percentage);
+    }
+
+    private function attemptCanBeGraded(AssessmentAttempt $attempt): bool
+    {
+        return $attempt->status === 'completed' || $attempt->completed_at !== null;
     }
 
     private function calculateLetterGrade($percentage)
@@ -309,29 +310,34 @@ class Grade extends Component
             $answers['feedback'] = $this->feedback;
             $answers['graded_at'] = now()->toIso8601String();
             $answers['graded_by'] = Auth::id();
-            
+
+            $isPassed = $this->percentage >= ($assignment->passing_score ?? 70);
+
             $this->submission->update([
-                'score' => $this->percentage,
-                'is_passed' => $this->percentage >= ($assignment->passing_score ?? 70),
+                'score' => (float) $this->totalScore, // always points
+                'is_passed' => $isPassed,
                 'answers' => $answers,
                 'auto_scored' => false,
                 'is_locked' => true,
                 'teacher_id' => Auth::id(),
+                'status' => 'completed',
+                'completed_at' => $this->submission->completed_at ?? now(),
             ]);
         }
 
-        // Award XP if passed (70% or above)
-        $xpReward = $assignment->xp_reward ?? ($assignment->lesson->xp_reward ?? null);
-        if ($this->percentage >= 70 && $xpReward) {
+        // Award XP once when first passed (avoid re-awarding on grade edits)
+        $xpReward = $assignment->xp_reward ?? ($assignment->lesson?->xp_reward ?? null);
+        $answersForXp = $this->submissionType === 'assessment' ? ($this->submission->answers ?? []) : [];
+        $alreadyAwarded = ! empty($answersForXp['xp_awarded']);
+        if ($this->percentage >= 70 && $xpReward && ! $alreadyAwarded) {
             $user = $this->submission->user;
-            if (!$user->points) {
-                \App\Models\UserPoint::create([
-                    'user_id' => $user->id,
-                    'total_points' => 0,
-                    'level' => 1,
-                ]);
+            $points = app(\App\Services\PointsService::class)->ensureUserPoints($user);
+            $points->addPoints((int) $xpReward);
+
+            if ($this->submissionType === 'assessment') {
+                $answersForXp['xp_awarded'] = true;
+                $this->submission->update(['answers' => $answersForXp]);
             }
-            $user->points->increment('total_points', $xpReward);
         }
 
         // Send notification to student

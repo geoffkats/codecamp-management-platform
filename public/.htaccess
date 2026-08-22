@@ -5,6 +5,11 @@
 
     RewriteEngine On
 
+    # Force HTTPS using 308 to preserve POST method (prevents /livewire/update 405)
+    RewriteCond %{HTTPS} off
+    RewriteCond %{HTTP_HOST} !^localhost
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=308]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

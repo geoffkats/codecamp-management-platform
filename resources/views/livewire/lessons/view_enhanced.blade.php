@@ -58,9 +58,21 @@
                     @if($isLessonCompleted)
                         <flux:badge variant="success" size="sm">✓ Completed</flux:badge>
                     @else
-                        <flux:button wire:click="completeLesson" variant="primary" size="sm">
-                            Mark Complete
-                        </flux:button>
+                        <div class="text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-md border border-gray-200">
+                            @if($autoCompleting)
+                                Auto-completing lesson...
+                            @else
+                                @php
+                                    $completionCheck = app(\App\Services\LessonCompletionService::class)->canCompleteLesson($lesson);
+                                    $missingReqs = $completionCheck['missing'];
+                                @endphp
+                                @if(count($missingReqs) > 0)
+                                    {{ implode(' ', $missingReqs) }}
+                                @else
+                                    This lesson completes automatically.
+                                @endif
+                            @endif
+                        </div>
                     @endif
                 </div>
             </div>
@@ -641,7 +653,7 @@
                                                                 ? $assessment->questions->sum('points') 
                                                                 : 100;
                                                             $attemptScore = $bestAttempt->score ?? 0;
-                                                            $percentage = $maxScore > 0 ? ($attemptScore / $maxScore) * 100 : 0;
+                                                            $percentage = min($maxScore > 0 ? ($attemptScore / $maxScore) * 100 : 0, 100);
                                                         @endphp
                                                         <span class="font-bold {{ $bestAttempt->is_passed ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
                                                             {{ number_format($percentage, 1) }}%

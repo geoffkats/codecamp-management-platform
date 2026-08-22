@@ -226,6 +226,7 @@ class Take extends Component
             'score' => $this->score,
             'is_passed' => $this->isPassed,
             'completed_at' => now(),
+            'status' => 'completed',
             'auto_scored' => true,
             'is_locked' => true,
         ]);
@@ -240,7 +241,7 @@ class Take extends Component
                 'level' => 1,
             ]);
 
-            $points->increment('total_points', $this->assessment->lesson->xp_reward);
+            $points->addPoints((int) $this->assessment->lesson->xp_reward);
         }
 
         // Check and award badges for perfect quiz scores

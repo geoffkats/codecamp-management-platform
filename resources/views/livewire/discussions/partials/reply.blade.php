@@ -5,8 +5,8 @@
     $isEditing = ($editingReplyId ?? null) === $reply->id;
 @endphp
 
-<div class="reply-item {{ $level > 0 ? 'ml-8 border-l-2 border-indigo-200 dark:border-indigo-800 pl-6' : '' }}" wire:key="reply-{{ $reply->id }}">
-    <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 {{ $reply->is_solution ? 'border-2 border-green-500 dark:border-green-600' : 'border border-gray-200 dark:border-gray-700' }}">
+<div class="reply-item {{ $level > 0 ? 'ml-6 border-l-2 border-slate-200 pl-4 dark:border-slate-600' : '' }}" wire:key="reply-{{ $reply->id }}">
+    <div class="rounded-lg border p-4 {{ $reply->is_solution ? 'border-green-500 bg-green-50/50 dark:border-green-700 dark:bg-green-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50' }}">
         @if($reply->is_solution)
             <div class="flex items-center gap-2 mb-3 p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
                 <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -18,7 +18,7 @@
 
         <div class="flex items-start gap-4">
             <div class="flex-shrink-0">
-                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold shadow-lg">
+                <div class="flex h-9 w-9 items-center justify-center rounded-full bg-[#1a3a8f] text-sm font-bold text-white">
                     {{ substr($reply->user->name, 0, 1) }}
                 </div>
             </div>
@@ -102,7 +102,7 @@
                     </div>
                 @else
                     <div class="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 mb-3">
-                        {!! nl2br(e($reply->content)) !!}
+                        <x-discussion-text :text="$reply->content" />
                     </div>
 
                     {{-- Attached Images --}}

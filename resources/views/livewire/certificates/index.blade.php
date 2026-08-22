@@ -4,7 +4,7 @@
         <div>
             <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Certificates</h1>
             <p class="mt-2 text-gray-600 dark:text-gray-400">
-                View and download your earned certificates of completion 🎓
+                Certificates issued to your account by your teacher or admin
             </p>
         </div>
     </div>
@@ -65,44 +65,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Completed Courses Without Certificates -->
-    @if($completedCourses->count() > 0)
-        <div class="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg shadow-lg overflow-hidden border-2 border-blue-200 dark:border-blue-800">
-            <div class="p-6">
-                <div class="flex items-start justify-between">
-                    <div class="flex-1">
-                        <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Earn Certificates! 🎓</h2>
-                        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                            You've completed {{ $completedCourses->count() }} {{ $completedCourses->count() === 1 ? 'course' : 'courses' }} that qualify for certificates
-                        </p>
-                    </div>
-                </div>
-                <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                    @foreach($completedCourses->take(3) as $enrollment)
-                        <div class="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-blue-200 dark:border-blue-800">
-                            <div class="flex-1 min-w-0">
-                                <h3 class="font-medium text-gray-900 dark:text-white truncate">{{ $enrollment->course->title }}</h3>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    Completed {{ $enrollment->completed_at->diffForHumans() }}
-                                </p>
-                            </div>
-                            <flux:button href="{{ route('certificates.generate', $enrollment->course) }}" variant="primary" size="sm" wire:navigate>
-                                Generate
-                            </flux:button>
-                        </div>
-                    @endforeach
-                </div>
-                @if($completedCourses->count() > 3)
-                    <div class="mt-4">
-                        <flux:button href="{{ route('enrollments.index') }}" variant="ghost" size="sm" wire:navigate>
-                            View All Completed Courses
-                        </flux:button>
-                    </div>
-                @endif
-            </div>
-        </div>
-    @endif
 
     <!-- Filters -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
@@ -257,12 +219,12 @@
                     @if($this->search || $this->filterCourse !== 'all')
                         Try adjusting your filters
                     @else
-                        Complete courses to earn certificates
+                        When a teacher or admin issues a certificate to your account, it will appear here.
                     @endif
                 </p>
                 <div class="mt-6">
-                    <flux:button href="{{ route('courses.index') }}" variant="primary" wire:navigate>
-                        Browse Courses
+                    <flux:button href="{{ route('enrollments.index') }}" variant="primary" wire:navigate>
+                        My Courses
                     </flux:button>
                 </div>
             </div>

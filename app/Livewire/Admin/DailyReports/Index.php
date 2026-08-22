@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin\DailyReports;
 
+use App\Models\CodeCamp;
 use App\Models\Course;
 use App\Models\DailyReport;
 use App\Models\User;
@@ -17,6 +18,7 @@ class Index extends Component
 
     public $date;
     public $courseId;
+    public $campId;
     public $instructorId;
     public $status;
 
@@ -31,14 +33,14 @@ class Index extends Component
 
     public function updating($field): void
     {
-        if (in_array($field, ['date', 'courseId', 'instructorId', 'status'], true)) {
+        if (in_array($field, ['date', 'courseId', 'campId', 'instructorId', 'status'], true)) {
             $this->resetPage();
         }
     }
 
     public function render()
     {
-        $query = DailyReport::with(['course:id,title', 'instructor:id,name'])
+        $query = DailyReport::with(['course:id,title', 'instructor:id,name', 'camp:id,name'])
             ->orderByDesc('report_date')
             ->orderByDesc('submitted_at');
 
@@ -48,6 +50,9 @@ class Index extends Component
         if ($this->courseId) {
             $query->where('course_id', $this->courseId);
         }
+        if ($this->campId) {
+            $query->where('camp_id', $this->campId);
+        }
         if ($this->instructorId) {
             $query->where('instructor_id', $this->instructorId);
         }
@@ -56,8 +61,9 @@ class Index extends Component
         }
 
         return view('livewire.admin.daily-reports.index', [
-            'reports' => $query->paginate(15),
-            'courses' => Course::orderBy('title')->get(['id', 'title']),
+            'reports'     => $query->paginate(15),
+            'courses'     => Course::orderBy('title')->get(['id', 'title']),
+            'camps'       => CodeCamp::orderByDesc('start_date')->get(['id', 'name']),
             'instructors' => User::whereHas('roles', function ($q) {
                 $q->whereIn('name', ['teacher', 'ict_teacher'])->orWhere('name', 'instructor');
             })->orderBy('name')->get(['id', 'name']),

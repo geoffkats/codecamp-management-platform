@@ -4,6 +4,7 @@ namespace App\Livewire\Discussions;
 
 use App\Models\Discussion;
 use App\Models\DiscussionReply;
+use App\Support\DiscussionSanitizer;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -24,13 +25,13 @@ class DiscussionThread extends Component
     public function addReply()
     {
         $this->validate([
-            'replyContent' => 'required|string|min:3',
+            'replyContent' => 'required|string|min:3|max:5000',
         ]);
 
         DiscussionReply::create([
             'discussion_id' => $this->discussion->id,
             'user_id' => auth()->id(),
-            'content' => $this->replyContent,
+            'content' => DiscussionSanitizer::reply($this->replyContent),
         ]);
 
         $this->discussion->increment('replies_count');

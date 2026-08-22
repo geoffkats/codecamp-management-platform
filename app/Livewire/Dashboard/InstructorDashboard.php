@@ -6,6 +6,7 @@ use App\Models\ContentApproval;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
 use App\Models\DailyChallenge;
+use App\Support\ProgramScope;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\Layout;
@@ -66,10 +67,18 @@ class InstructorDashboard extends Component
         ]);
     }
 
+    private function enrollmentQuery($user)
+    {
+        return ProgramScope::applyCourseEnrollmentScope(
+            CourseEnrollment::query()->whereHas('course', fn ($q) => $q->where('instructor_id', $user->id)),
+            $user
+        );
+    }
+
     private function getStats($user): array
     {
         $courses = Course::where('instructor_id', $user->id);
-        $totalEnrollments = CourseEnrollment::whereHas('course', fn($q) => $q->where('instructor_id', $user->id))->count();
+        $totalEnrollments = $this->enrollmentQuery($user)->count();
         
         return [
             'totalCourses' => $courses->count(),
@@ -77,7 +86,7 @@ class InstructorDashboard extends Component
             'draftCourses' => $courses->where('approval_status', 'draft')->count(),
             'pendingApprovals' => $courses->where('approval_status', 'pending')->count(),
             'totalEnrollments' => $totalEnrollments,
-            'activeStudents' => (int) (CourseEnrollment::whereHas('course', fn($q) => $q->where('instructor_id', $user->id))
+            'activeStudents' => (int) ($this->enrollmentQuery($user)
                 ->whereNotNull('enrolled_at')
                 ->selectRaw('COUNT(DISTINCT user_id) as count')
                 ->first()
@@ -119,7 +128,7 @@ class InstructorDashboard extends Component
 
     private function getRecentEnrollments($user)
     {
-        return CourseEnrollment::whereHas('course', fn($q) => $q->where('instructor_id', $user->id))
+        return $this->enrollmentQuery($user)
             ->with(['user', 'course'])
             ->latest('enrolled_at')
             ->take(10)
@@ -141,19 +150,49 @@ class InstructorDashboard extends Component
 
     private function getRecentSubmissions($user)
     {
-        // Get assignment submissions that need grading
-        return \App\Models\AssignmentSubmission::whereHas('assignment.course', fn($q) => $q->where('instructor_id', $user->id))
+        $enrolledUserIds = $this->enrollmentQuery($user)->pluck('user_id');
+
+        $assessmentSubmissions = \App\Models\AssessmentAttempt::query()
+            ->whereHas('assessment', fn ($q) => $q
+                ->where('assessment_type', 'assignment')
+                ->whereHas('course', fn ($cq) => $cq->where('instructor_id', $user->id))
+            )
+            ->whereIn('user_id', $enrolledUserIds)
+            ->where('status', 'completed')
+            ->whereNull('score')
+            ->with(['assessment', 'user'])
+            ->latest('completed_at')
+            ->take(10)
+            ->get()
+            ->map(fn ($attempt) => (object) [
+                'title' => $attempt->assessment->title,
+                'user' => $attempt->user,
+                'submission' => $attempt,
+            ]);
+
+        $legacySubmissions = \App\Models\AssignmentSubmission::whereHas('assignment.course', fn ($q) => $q->where('instructor_id', $user->id))
+            ->whereIn('user_id', $enrolledUserIds)
             ->whereNull('graded_at')
             ->with(['assignment', 'user'])
             ->latest()
             ->take(10)
-            ->get();
+            ->get()
+            ->map(fn ($submission) => (object) [
+                'title' => $submission->assignment->title,
+                'user' => $submission->user,
+                'submission' => $submission,
+            ]);
+
+        return $assessmentSubmissions
+            ->concat($legacySubmissions)
+            ->sortByDesc(fn ($item) => $item->submission->completed_at ?? $item->submission->created_at ?? now())
+            ->take(10)
+            ->values();
     }
 
     private function getStudentAnalytics($user)
     {
-        $enrollments = CourseEnrollment::whereHas('course', fn($q) => $q->where('instructor_id', $user->id))
-            ->get();
+        $enrollments = $this->enrollmentQuery($user)->get();
 
         $total = $enrollments->count();
         $completed = $enrollments->whereNotNull('completed_at')->count();
@@ -173,7 +212,7 @@ class InstructorDashboard extends Component
 
     private function getAverageCompletionTime($user)
     {
-        $completions = CourseEnrollment::whereHas('course', fn($q) => $q->where('instructor_id', $user->id))
+        $completions = $this->enrollmentQuery($user)
             ->whereNotNull('completed_at')
             ->whereNotNull('enrolled_at')
             ->get()
@@ -186,7 +225,7 @@ class InstructorDashboard extends Component
 
     private function getEnrollmentTrends($user)
     {
-        return CourseEnrollment::whereHas('course', fn($q) => $q->where('instructor_id', $user->id))
+        return $this->enrollmentQuery($user)
             ->where('created_at', '>=', now()->subDays(30))
             ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
             ->groupBy('date')
@@ -197,7 +236,7 @@ class InstructorDashboard extends Component
 
     private function getTopPerformers($user)
     {
-        return CourseEnrollment::whereHas('course', fn($q) => $q->where('instructor_id', $user->id))
+        return $this->enrollmentQuery($user)
             ->with('user')
             ->whereNotNull('completed_at')
             ->orderByDesc('average_quiz_score')

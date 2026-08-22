@@ -3,41 +3,91 @@
 namespace App\Services;
 
 use App\Models\Certificate;
-use Illuminate\Support\Arr;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Log;
 
 class CertificatePdfService
 {
+    public function __construct(
+        private CertificateDataService $dataService,
+    ) {}
+
     public function render(Certificate $certificate, bool $download = true)
     {
-        $name = $certificate->user?->name ?? 'Student';
-        $courseTitle = $certificate->course?->title ?? 'Course';
-        $issueDate = ($certificate->issued_at ?? $certificate->created_at)?->format('F d, Y') ?? now()->format('F d, Y');
-        $certificateNumber = $certificate->certificate_number ?? 'CERT-' . $certificate->id;
-        $version = data_get($certificate->completion_data, 'version', 'v1');
-        $layout = config('certificate.layout');
-        $backgroundImage = config('certificate.background_image');
-        $page = config('certificate.page');
-        $unit = config('certificate.unit', 'mm');
-
-        $view = config('certificate.html_template', 'certificates.ict');
-        $filename = 'certificate-' . $certificate->id . '.pdf';
-
-        $pdf = app('snappy.pdf.wrapper');
-        $pdf->setOption('enable-local-file-access', true);
-        $pdf->loadView($view, [
+        $view = config('certificate.html_template', 'certificates.profile');
+        $viewData = $this->dataService->resolve($certificate) + [
             'certificate' => $certificate,
-            'studentName' => $name,
-            'candidateNo' => $certificateNumber,
-            'module' => $courseTitle,
-            'version' => $version,
-            'date' => $issueDate,
-            'footerDate' => $issueDate,
-            'layout' => $layout,
-            'backgroundImage' => $backgroundImage,
-            'page' => $page,
-            'unit' => $unit,
-        ]);
+        ];
 
-        return $download ? $pdf->download($filename) : $pdf->inline($filename);
+        $filename = 'certificate-' . ($certificate->certificate_number ?? $certificate->id) . '.pdf';
+
+        if ($this->shouldUseDomPdf()) {
+            return $this->renderWithDomPdf($view, $viewData, $filename, $download);
+        }
+
+        if ($this->canUseSnappyBinary()) {
+            try {
+                $pdf = app('snappy.pdf.wrapper');
+                $pdf->setOption('enable-local-file-access', true);
+                $pdf->loadView($view, $viewData);
+
+                return $download ? $pdf->download($filename) : $pdf->inline($filename);
+            } catch (\Throwable $e) {
+                Log::error('Certificate PDF generation failed (snappy), falling back to DomPDF', [
+                    'certificate_id' => $certificate->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $this->renderWithDomPdf($view, $viewData, $filename, $download);
+    }
+
+    public function renderPreview(array $data, bool $download = false)
+    {
+        $view = config('certificate.html_template', 'certificates.profile');
+        $filename = 'certificate-preview.pdf';
+
+        return $this->renderWithDomPdf($view, $data, $filename, $download);
+    }
+
+    private function renderWithDomPdf(string $view, array $viewData, string $filename, bool $download)
+    {
+        $pdf = Pdf::loadView($view, $viewData)
+            ->setPaper('a4', 'portrait')
+            ->setOptions([
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled'      => false,
+                'defaultFont'          => 'DejaVu Sans',
+                'dpi'                  => 150,
+            ]);
+
+        return $download ? $pdf->download($filename) : $pdf->stream($filename);
+    }
+
+    private function shouldUseDomPdf(): bool
+    {
+        return (bool) config('certificate.use_dompdf', true);
+    }
+
+    private function canUseSnappyBinary(): bool
+    {
+        if (! app()->bound('snappy.pdf.wrapper')) {
+            return false;
+        }
+
+        $binary = (string) config('snappy.pdf.binary', '');
+
+        if ($binary === '') {
+            return false;
+        }
+
+        $looksLikePath = str_contains($binary, '\\') || str_contains($binary, '/');
+
+        if (! $looksLikePath) {
+            return true;
+        }
+
+        return file_exists($binary);
     }
 }

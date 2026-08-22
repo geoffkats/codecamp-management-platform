@@ -13,11 +13,8 @@
                         <p class="text-purple-100 text-lg">Manage all course enrollments, invitations, and requests across the platform</p>
                     </div>
                     <div class="flex gap-2">
-                        <flux:button wire:click="$set('showInviteModal', true)" variant="primary" size="sm" class="bg-white/20 hover:bg-white/30 text-white border-2 border-white/30 backdrop-blur-sm">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                            Send Invitations
+                        <flux:button wire:click="$set('showInviteModal', true)" variant="primary">
+                            Enroll or Invite Students
                         </flux:button>
                     </div>
                 </div>
@@ -57,7 +54,18 @@
         @endif
 
         {{-- Filters Bar --}}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 space-y-4">
+            @if(config('features.code_club', false))
+                <div class="flex flex-wrap gap-2">
+                    @foreach(['all' => 'All Programs', 'codecamp' => 'CodeCamp', 'codeclub' => 'Code Club', 'ict' => 'ICT'] as $value => $label)
+                        <button type="button" wire:click="$set('filterProgram', '{{ $value }}')"
+                            class="px-3 py-1.5 rounded-lg text-xs font-semibold transition {{ $filterProgram === $value ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' }}">
+                            {{ $label }}
+                        </button>
+                    @endforeach
+                </div>
+            @endif
+
             <div class="flex flex-wrap items-center gap-4">
                 <div class="flex-1 min-w-64">
                     <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Filter by Course</label>
@@ -81,7 +89,48 @@
                     </div>
                 @endif
 
+                @if($activeTab === 'invitations')
+                    <div class="min-w-48">
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Invitation Status</label>
+                        <flux:select wire:model.live="invitationFilter">
+                            <option value="active">Active (awaiting response)</option>
+                            <option value="expired">Expired / cancelled</option>
+                            <option value="accepted">Accepted</option>
+                            <option value="declined">Declined</option>
+                            <option value="all">All history</option>
+                        </flux:select>
+                    </div>
+                @endif
+
                 @if($activeTab === 'enrollments')
+                    <div class="min-w-48">
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Enrollment Status</label>
+                        <flux:select wire:model.live="enrollmentFilter">
+                            <option value="active">In progress</option>
+                            <option value="completed">Completed</option>
+                            <option value="all">All</option>
+                        </flux:select>
+                    </div>
+                    <div class="min-w-48">
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Filter by Camp</label>
+                        <flux:select wire:model.live="selectedCampId">
+                            <option value="">All Camps</option>
+                            @foreach($camps as $camp)
+                                <option value="{{ $camp->id }}">{{ $camp->name }}</option>
+                            @endforeach
+                        </flux:select>
+                    </div>
+                    @if(config('features.code_club', false) && ($filterProgram === 'all' || $filterProgram === 'codeclub'))
+                        <div class="min-w-48">
+                            <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Filter by Club</label>
+                            <flux:select wire:model.live="selectedClubId">
+                                <option value="">All Clubs</option>
+                                @foreach($clubs as $club)
+                                    <option value="{{ $club->id }}">{{ $club->name }}</option>
+                                @endforeach
+                            </flux:select>
+                        </div>
+                    @endif
                     <div class="flex-1 min-w-64">
                         <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Search Students</label>
                         <flux:input wire:model.live.debounce.300ms="searchStudent" placeholder="Search by name or email..." />
@@ -344,9 +393,17 @@
                 {{-- Invitations Tab --}}
                 @if($activeTab === 'invitations')
                     <div class="space-y-4">
+                        @if($invitationFilter === 'active')
+                            <p class="text-sm text-gray-600 dark:text-gray-400">
+                                Showing invitations that are still valid and awaiting a student response.
+                                Expired invitations are moved to the archive automatically.
+                            </p>
+                        @endif
+
                         @if($invitations->count() > 0)
                             <div class="grid gap-4">
                                 @foreach($invitations as $invitation)
+                                    @php($displayStatus = $invitation->effectiveStatus())
                                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md border-2 border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 transition-all">
                                         <div class="p-6">
                                             <div class="flex items-start gap-4">
@@ -360,11 +417,11 @@
                                                             <p class="text-sm text-gray-600 dark:text-gray-400">{{ $invitation->user->email }}</p>
                                                         </div>
                                                         <span class="px-3 py-1 rounded-full text-xs font-bold
-                                                            {{ $invitation->status === 'accepted' ? 'bg-green-100 text-green-800' : 
-                                                               ($invitation->status === 'declined' ? 'bg-red-100 text-red-800' : 
-                                                               ($invitation->status === 'expired' ? 'bg-gray-100 text-gray-800' : 
-                                                               'bg-yellow-100 text-yellow-800')) }}">
-                                                            {{ ucfirst($invitation->status) }}
+                                                            {{ $displayStatus === 'accepted' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                                                               ($displayStatus === 'declined' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                                                               ($displayStatus === 'expired' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' :
+                                                               'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400')) }}">
+                                                            {{ ucfirst($displayStatus) }}
                                                         </span>
                                                     </div>
 
@@ -391,12 +448,21 @@
                                                         <span>By: {{ $invitation->inviter->name }}</span>
                                                     </div>
 
-                                                    @if($invitation->status === 'pending' && !$invitation->isExpired())
-                                                        <div class="mt-3">
-                                                            <flux:button wire:click="cancelInvitation({{ $invitation->id }})" 
-                                                                        variant="ghost" 
+                                                    @if($invitation->isActionable())
+                                                        <div class="mt-3 flex flex-wrap gap-2">
+                                                            <flux:button wire:click="cancelInvitation({{ $invitation->id }})"
+                                                                        wire:confirm="Cancel this invitation?"
+                                                                        variant="ghost"
                                                                         size="sm">
                                                                 Cancel Invitation
+                                                            </flux:button>
+                                                        </div>
+                                                    @elseif($displayStatus === 'expired')
+                                                        <div class="mt-3 flex flex-wrap gap-2">
+                                                            <flux:button wire:click="resendInvitation({{ $invitation->id }})"
+                                                                        variant="primary"
+                                                                        size="sm">
+                                                                Resend Invitation
                                                             </flux:button>
                                                         </div>
                                                     @endif
@@ -415,8 +481,22 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                     </svg>
                                 </div>
-                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">No invitations sent</h3>
-                                <p class="text-gray-500 dark:text-gray-400 mt-1 mb-4">Start inviting students to join courses</p>
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                                    @if($invitationFilter === 'active')
+                                        No active invitations
+                                    @elseif($invitationFilter === 'expired')
+                                        No expired invitations
+                                    @else
+                                        No invitations found
+                                    @endif
+                                </h3>
+                                <p class="text-gray-500 dark:text-gray-400 mt-1 mb-4">
+                                    @if($invitationFilter === 'active')
+                                        Send a new invitation or enroll students directly from the button above.
+                                    @else
+                                        Try a different filter or send new invitations.
+                                    @endif
+                                </p>
                                 <flux:button wire:click="$set('showInviteModal', true)" variant="primary">
                                     Send Your First Invitation
                                 </flux:button>
@@ -457,7 +537,7 @@
 
                                                     {{-- Course --}}
                                                     <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 mb-3">
-                                                        <a href="{{ route('courses.show', $enrollment->course) }}" 
+                                                        <a href="{{ route('courses.show', $enrollment->course) }}"
                                                            wire:navigate
                                                            class="text-sm font-semibold text-green-600 dark:text-green-400 hover:underline flex items-center gap-1">
                                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -465,6 +545,16 @@
                                                             </svg>
                                                             {{ $enrollment->course->title }}
                                                         </a>
+                                                        @if($enrollment->camp)
+                                                            <p class="text-xs text-orange-600 dark:text-orange-400 mt-1.5 font-semibold">
+                                                                Camp: {{ $enrollment->camp->name }}
+                                                            </p>
+                                                        @endif
+                                                        @if($enrollment->club)
+                                                            <p class="text-xs text-blue-600 dark:text-blue-400 mt-1.5 font-semibold">
+                                                                Club: {{ $enrollment->club->name }}
+                                                            </p>
+                                                        @endif
                                                     </div>
 
                                                     {{-- Progress Bar --}}
@@ -533,8 +623,8 @@
                         
                         <div class="relative z-10 flex items-start justify-between">
                             <div class="text-white">
-                                <h3 class="text-3xl font-bold mb-2">Send Course Invitations</h3>
-                                <p class="text-purple-100">Invite students to join exclusive courses</p>
+                                <h3 class="text-3xl font-bold mb-2">Enroll or Invite Students</h3>
+                                <p class="text-purple-100">Enroll directly or send time-limited invitations</p>
                             </div>
                             <button wire:click="$set('showInviteModal', false)" 
                                     class="text-white/80 hover:text-white transition rounded-xl p-2 hover:bg-white/20">
@@ -569,6 +659,28 @@
                         </div>
 
                         @if($selectedCourseId)
+                            {{-- Enroll mode --}}
+                            <div class="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/40">
+                                <p class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">How should students get access?</p>
+                                <div class="flex flex-wrap gap-3">
+                                    <label class="inline-flex items-center gap-2 cursor-pointer rounded-lg border px-4 py-2 text-sm {{ $enrollMode === 'direct' ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300' : 'border-gray-300 dark:border-gray-600' }}">
+                                        <input type="radio" wire:model.live="enrollMode" value="direct" class="text-green-600">
+                                        Enroll directly
+                                    </label>
+                                    <label class="inline-flex items-center gap-2 cursor-pointer rounded-lg border px-4 py-2 text-sm {{ $enrollMode === 'invite' ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300' : 'border-gray-300 dark:border-gray-600' }}">
+                                        <input type="radio" wire:model.live="enrollMode" value="invite" class="text-purple-600">
+                                        Send invitation (expires)
+                                    </label>
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                    @if($enrollMode === 'direct')
+                                        Students are enrolled immediately — no invitation step required.
+                                    @else
+                                        Students must accept the invitation before they are enrolled. Expired invitations are archived automatically.
+                                    @endif
+                                </p>
+                            </div>
+
                             {{-- Search Students --}}
                             <div>
                                 <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
@@ -602,7 +714,13 @@
                                             <p class="text-sm font-bold text-purple-900 dark:text-purple-100">
                                                 <span x-text="selectedCount.length"></span> Student<span x-show="selectedCount.length !== 1">s</span> Selected
                                             </p>
-                                            <p class="text-xs text-purple-700 dark:text-purple-300">Ready to send invitations</p>
+                                            <p class="text-xs text-purple-700 dark:text-purple-300">
+                                                @if($enrollMode === 'direct')
+                                                    Ready to enroll directly
+                                                @else
+                                                    Ready to send invitations
+                                                @endif
+                                            </p>
                                         </div>
                                     </div>
                                     @if(count($selectedStudents) > 0)
@@ -702,6 +820,7 @@
                                 @enderror
                             </div>
 
+                            @if($enrollMode === 'invite')
                             {{-- Invitation Settings --}}
                             <div class="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-xl p-5 border-2 border-indigo-200 dark:border-indigo-800">
                                 <h4 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
@@ -733,7 +852,9 @@
                                     </div>
                                 </div>
                             </div>
+                            @endif
 
+                            @if($enrollMode === 'invite')
                             {{-- Personal Message --}}
                             <div>
                                 <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
@@ -753,6 +874,7 @@
                                     This message will appear in the invitation notification sent to students
                                 </p>
                             </div>
+                            @endif
                         @else
                             <div class="text-center py-12 bg-gray-50 dark:bg-gray-900/50 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700">
                                 <svg class="mx-auto h-16 w-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -771,7 +893,11 @@
                                 Select students and click send
                             </p>
                             <p class="font-bold text-purple-600 dark:text-purple-400" x-show="selectedCount.length > 0">
-                                <span x-text="selectedCount.length"></span> invitation<span x-show="selectedCount.length !== 1">s</span> ready to send 🚀
+                                @if($enrollMode === 'direct')
+                                    <span x-text="selectedCount.length"></span> student<span x-show="selectedCount.length !== 1">s</span> ready to enroll
+                                @else
+                                    <span x-text="selectedCount.length"></span> invitation<span x-show="selectedCount.length !== 1">s</span> ready to send
+                                @endif
                             </p>
                         </div>
                         <div class="flex gap-3">
@@ -782,10 +908,14 @@
                                         variant="primary"
                                         :disabled="count($selectedStudents) === 0 || !$selectedCourseId"
                                         class="relative group">
-                                <svg class="w-5 h-5 mr-2 group-hover:animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                </svg>
-                                <span>Send Invitations</span>
+                                @if($enrollMode === 'direct')
+                                    Enroll Selected
+                                @else
+                                    <svg class="w-5 h-5 mr-2 group-hover:animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                    <span>Send Invitations</span>
+                                @endif
                                 <span x-show="selectedCount.length > 0" class="ml-1 px-2 py-0.5 bg-white/20 rounded-full text-xs">
                                     <span x-text="selectedCount.length"></span>
                                 </span>

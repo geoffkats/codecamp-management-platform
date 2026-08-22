@@ -3,6 +3,7 @@
 namespace App\Livewire\Enrollments;
 
 use App\Models\CourseEnrollment;
+use App\Models\CodeCamp;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -16,7 +17,8 @@ class Index extends Component
     protected $paginationTheme = 'tailwind';
 
     public $search = '';
-    public $filterStatus = 'all'; // 'all', 'active', 'completed', 'in_progress'
+    public $filterStatus = 'all'; // 'all', 'active', 'completed', 'in_progress', 'archived'
+    public $filterCampId = null;
     public $sortBy = 'recent';
 
     protected $queryString = [
@@ -40,8 +42,19 @@ class Index extends Component
         $this->resetPage();
     }
 
+    public function updatedFilterCampId(): void
+    {
+        $this->resetPage();
+    }
+
     public function render()
     {
+        $showCampFilter = Auth::user()->isCodecampStudent();
+
+        if (! $showCampFilter) {
+            $this->filterCampId = null;
+        }
+
         $query = CourseEnrollment::where('user_id', Auth::id())
             ->with(['course' => function ($q) {
                 $q->with(['instructor', 'modules', 'lessons']);
@@ -65,6 +78,13 @@ class Index extends Component
             $query->whereNull('completed_at')
                   ->where('progress_percentage', '>', 0)
                   ->where('progress_percentage', '<', 100);
+        } elseif ($this->filterStatus === 'archived') {
+            $query->whereNull('completed_at')
+                  ->where('progress_percentage', '<=', 0);
+        }
+
+        if ($showCampFilter && $this->filterCampId) {
+            $query->where('camp_id', $this->filterCampId);
         }
 
         // Sorting
@@ -79,6 +99,10 @@ class Index extends Component
         };
 
         $enrollments = $query->paginate(12);
+
+        $camps = $showCampFilter
+            ? CodeCamp::orderByDesc('start_date')->get(['id', 'name'])
+            : collect();
 
         // Calculate stats
         $stats = [
@@ -98,6 +122,8 @@ class Index extends Component
         return view('livewire.enrollments.index', [
             'enrollments' => $enrollments,
             'stats' => $stats,
+            'camps' => $camps,
+            'showCampFilter' => $showCampFilter,
         ]);
     }
 }

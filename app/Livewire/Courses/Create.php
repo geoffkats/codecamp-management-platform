@@ -95,7 +95,7 @@ class Create extends Component
         
         $course = Course::create([
             'title' => $this->title,
-            'slug' => $this->slug ?: Str::slug($this->title),
+            'slug' => $this->uniqueSlug($this->slug ?: Str::slug($this->title)),
             'short_description' => $this->short_description,
             'description' => $this->description,
             'instructor_id' => Auth::id(),
@@ -123,7 +123,7 @@ class Create extends Component
         
         $course = Course::create([
             'title' => $this->title,
-            'slug' => $this->slug ?: Str::slug($this->title),
+            'slug' => $this->uniqueSlug($this->slug ?: Str::slug($this->title)),
             'short_description' => $this->short_description,
             'description' => $this->description,
             'instructor_id' => Auth::id(),
@@ -155,6 +155,20 @@ class Create extends Component
 
         session()->flash('message', 'Course submitted for approval!');
         return $this->redirect(route('courses.show', $course), navigate: true);
+    }
+
+    protected function uniqueSlug(string $base): string
+    {
+        $slug = $base !== '' ? $base : 'course';
+        $original = $slug;
+        $i = 2;
+
+        while (Course::where('slug', $slug)->exists()) {
+            $slug = $original.'-'.$i;
+            $i++;
+        }
+
+        return $slug;
     }
 
     public function render()

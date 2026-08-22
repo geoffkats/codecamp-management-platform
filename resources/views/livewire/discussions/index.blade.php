@@ -1,112 +1,73 @@
-<div class="flex flex-col gap-6 p-6">
+<div class="mx-auto max-w-5xl space-y-6 p-6">
     {{-- Header --}}
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Discussions</h1>
-            <p class="text-gray-600 dark:text-gray-400 mt-1">Join course discussions and help fellow learners</p>
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Course discussions</h1>
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Ask questions, share work, and help classmates — one topic per post.</p>
         </div>
-        <flux:button href="{{ route('discussions.create') }}" icon="plus" variant="primary" wire:navigate>
-            New Discussion
+        <flux:button href="{{ route('discussions.create', array_filter(['course' => $courseId, 'lesson' => $lessonId])) }}" icon="plus" variant="primary" wire:navigate>
+            New post
         </flux:button>
     </div>
 
-    {{-- Stats --}}
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-            <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                    <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Total</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $stats['total'] }}</p>
-                </div>
+    @include('livewire.discussions.partials.guidelines')
+
+    @if(isset($forumChallenges) && $forumChallenges->isNotEmpty())
+        @include('livewire.discussions.partials.challenge-hint', [
+            'challenges' => $forumChallenges,
+            'progress' => $forumChallengeProgress ?? collect(),
+        ])
+    @endif
+
+    {{-- Toolbar --}}
+    <div class="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div class="flex-1">
+                <flux:input wire:model.live.debounce.300ms="search" placeholder="Search by title or content..." />
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <flux:button wire:click="$set('filter', 'all')" variant="{{ $filter === 'all' ? 'primary' : 'ghost' }}" size="sm">All posts</flux:button>
+                <flux:button wire:click="$set('filter', 'my_discussions')" variant="{{ $filter === 'my_discussions' ? 'primary' : 'ghost' }}" size="sm">My posts</flux:button>
             </div>
         </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-            <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                    <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">My Discussions</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $stats['my_discussions'] }}</p>
-                </div>
-            </div>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-            <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                    <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Recent (7 days)</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $stats['recent'] }}</p>
-                </div>
+
+        <div class="mt-4 border-t border-slate-100 pt-4 dark:border-slate-700">
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Category</p>
+            <div class="flex flex-wrap gap-2">
+                @foreach(['all' => 'All', 'question' => 'Questions', 'help' => 'Help', 'project' => 'Projects', 'feedback' => 'Feedback', 'general' => 'General', 'announcement' => 'Announcements'] as $value => $label)
+                    <flux:button
+                        wire:click="$set('categoryFilter', '{{ $value }}')"
+                        variant="{{ ($categoryFilter ?? 'all') === $value ? 'primary' : 'ghost' }}"
+                        size="sm"
+                    >{{ $label }}</flux:button>
+                @endforeach
             </div>
         </div>
     </div>
 
-    {{-- Filters --}}
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <flux:input wire:model.live.debounce.300ms="search" placeholder="Search discussions..." />
-            <div class="flex gap-2">
-                <flux:button wire:click="$set('filter', 'all')" variant="{{ $filter === 'all' ? 'primary' : 'ghost' }}" size="sm">All</flux:button>
-                <flux:button wire:click="$set('filter', 'my_discussions')" variant="{{ $filter === 'my_discussions' ? 'primary' : 'ghost' }}" size="sm">My Discussions</flux:button>
-            </div>
-        </div>
+    {{-- Summary --}}
+    <div class="flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400">
+        <span><strong class="font-semibold text-slate-900 dark:text-white">{{ $stats['total'] }}</strong> total</span>
+        <span><strong class="font-semibold text-slate-900 dark:text-white">{{ $stats['my_discussions'] }}</strong> yours</span>
+        <span><strong class="font-semibold text-slate-900 dark:text-white">{{ $stats['recent'] }}</strong> this week</span>
     </div>
 
-    {{-- Subject Filter Tabs --}}
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
-        <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-sm font-semibold text-gray-700 dark:text-gray-300 mr-2">Filter by Subject:</span>
-            <flux:button wire:click="$set('subjectFilter', 'all')" variant="{{ ($subjectFilter ?? 'all') === 'all' ? 'primary' : 'ghost' }}" size="sm">
-                All
-            </flux:button>
-            <flux:button wire:click="$set('subjectFilter', 'scratch')" variant="{{ ($subjectFilter ?? '') === 'scratch' ? 'primary' : 'ghost' }}" size="sm">
-                🟦 Scratch
-            </flux:button>
-            <flux:button wire:click="$set('subjectFilter', 'python')" variant="{{ ($subjectFilter ?? '') === 'python' ? 'primary' : 'ghost' }}" size="sm">
-                🐍 Python
-            </flux:button>
-            <flux:button wire:click="$set('subjectFilter', 'web')" variant="{{ ($subjectFilter ?? '') === 'web' ? 'primary' : 'ghost' }}" size="sm">
-                🌐 Web Dev
-            </flux:button>
-            <flux:button wire:click="$set('subjectFilter', 'javascript')" variant="{{ ($subjectFilter ?? '') === 'javascript' ? 'primary' : 'ghost' }}" size="sm">
-                ⚡ JavaScript
-            </flux:button>
-        </div>
-    </div>
-
-    {{-- Discussions List --}}
+    {{-- List --}}
     @if($discussions->count() > 0)
-        <div class="space-y-4">
-            @foreach($discussions as $index => $discussion)
-                <a href="{{ route('discussions.show', $discussion) }}" class="block" {{ $index > 2 ? 'loading="lazy"' : '' }}>
-                    <x-discussion-card :discussion="$discussion" :showSubject="true" :showReactions="true" />
+        <div class="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800">
+            @foreach($discussions as $discussion)
+                <a href="{{ route('discussions.show', $discussion) }}" class="block transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/80" wire:navigate>
+                    <x-discussion-card :discussion="$discussion" :showSubject="false" :showReactions="false" />
                 </a>
             @endforeach
         </div>
 
-        <div class="mt-6">
-            {{ $discussions->links() }}
-        </div>
+        <div>{{ $discussions->links() }}</div>
     @else
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
-            <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-            <p class="text-gray-600 dark:text-gray-400">No discussions found</p>
-            <flux:button href="{{ route('discussions.create') }}" variant="primary" class="mt-4" wire:navigate>
-                Start a Discussion
+        <div class="rounded-lg border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-600 dark:bg-slate-800">
+            <p class="text-slate-600 dark:text-slate-400">No discussions match your filters.</p>
+            <flux:button href="{{ route('discussions.create', array_filter(['course' => $courseId, 'lesson' => $lessonId])) }}" variant="primary" class="mt-4" wire:navigate>
+                Start a post
             </flux:button>
         </div>
     @endif

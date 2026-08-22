@@ -12,7 +12,7 @@
             </div>
             <div class="flex flex-wrap gap-2">
                 <a href="{{ route('enrollments.index') }}" wire:navigate class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium">My Modules</a>
-                <a href="{{ route('progress.student') }}" wire:navigate class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">Internal Tests</a>
+                <a href="{{ route('assessments.index') }}" wire:navigate class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">Internal Tests</a>
                 <a href="{{ route('certificates.index') }}" wire:navigate class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">Certificates</a>
             </div>
         </div>
@@ -112,7 +112,7 @@
                                 ? $assessment->questions->sum('points')
                                 : 100;
                             $attemptScore = $attempt->score ?? 0;
-                            $percentage = $maxScore > 0 ? ($attemptScore / $maxScore) * 100 : 0;
+                            $percentage = min($maxScore > 0 ? ($attemptScore / $maxScore) * 100 : 0, 100);
                         @endphp
                         <div class="flex flex-wrap items-center justify-between gap-3 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                             <div>

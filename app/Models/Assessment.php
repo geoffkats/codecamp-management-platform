@@ -88,9 +88,82 @@ class Assessment extends Model
         return $this->hasMany(Question::class);
     }
 
+    // The 'questions' DB column (JSON) and the questions() relationship share the same name.
+    // Eloquent's $casts check always wins over relationship lookup, so ->questions returns null
+    // (the cast column) even after eager loading. This accessor restores correct behaviour.
+    public function getQuestionsAttribute(mixed $value): mixed
+    {
+        if ($this->relationLoaded('questions')) {
+            return $this->relations['questions'];
+        }
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+
+            return collect(is_array($decoded) ? $decoded : []);
+        }
+
+        if (is_array($value)) {
+            return collect($value);
+        }
+
+        return collect($value ?? []);
+    }
+
     public function approvals(): MorphMany
     {
         return $this->morphMany(ContentApproval::class, 'approvable');
+    }
+
+    public function getMaxPointsAttribute(): int
+    {
+        if ($this->assessment_type === 'assignment') {
+            return (int) ($this->assignment_data['max_points'] ?? 100);
+        }
+
+        $fromQuestions = $this->relationLoaded('questions')
+            ? ($this->questions?->sum('points') ?? 0)
+            : $this->questions()->sum('points');
+
+        return (int) ($fromQuestions > 0 ? $fromQuestions : 100);
+    }
+
+    public function getDueDateAttribute(): ?\Illuminate\Support\Carbon
+    {
+        if ($this->assessment_type !== 'assignment') {
+            return null;
+        }
+
+        $due = $this->assignment_data['due_date'] ?? null;
+
+        return $due ? \Illuminate\Support\Carbon::parse($due) : null;
+    }
+
+    /**
+     * @return array<int, array{path: string, name: string}>
+     */
+    public function assignmentAttachments(): array
+    {
+        if ($this->assessment_type !== 'assignment') {
+            return [];
+        }
+
+        $attachments = $this->assignment_data['attachments'] ?? [];
+
+        return collect($attachments)
+            ->map(function ($file) {
+                if (is_string($file)) {
+                    return ['path' => $file, 'name' => basename($file)];
+                }
+
+                return [
+                    'path' => (string) ($file['path'] ?? ''),
+                    'name' => (string) ($file['name'] ?? basename($file['path'] ?? '')),
+                ];
+            })
+            ->filter(fn (array $file) => $file['path'] !== '')
+            ->values()
+            ->all();
     }
 }
 

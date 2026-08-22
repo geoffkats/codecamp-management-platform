@@ -2,15 +2,19 @@
 
 namespace App\Livewire\Dashboard;
 
+use App\Models\AssessmentAttempt;
 use App\Models\Badge;
 use App\Models\Certificate;
+use App\Models\ClubSessionReport;
+use App\Models\CodeClub;
+use App\Models\CodeClubMembership;
 use App\Models\ContentApproval;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
 use App\Models\DailyChallenge;
 use App\Models\Lesson;
 use App\Models\Notification;
-use App\Models\AssessmentAttempt;
+use App\Models\StudentProfile;
 use App\Models\User;
 use App\Models\UserPoint;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +34,8 @@ class AdminDashboard extends Component
     public $sampleCertificate = null;
     public $ictSchoolPerformance = [];
     public $recentIctAssessmentResults = [];
+    public $codeClubStats = [];
+    public $codeClubHighlights = [];
 
     public function mount()
     {
@@ -42,6 +48,10 @@ class AdminDashboard extends Component
         $this->checkSystemHealth();
         $this->loadChartData();
         $this->loadIctSchoolPerformance();
+
+        if (config('features.code_club', false)) {
+            $this->loadCodeClubStats();
+        }
     }
 
     public function loadStats()
@@ -142,12 +152,47 @@ class AdminDashboard extends Component
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
+                    'login_id' => $user->loginIdentifier(),
+                    'student_type' => $user->student_type,
                     'is_active' => $user->is_active,
                     'roles' => $user->roles->pluck('display_name')->join(', '),
                     'created_at' => $user->created_at->diffForHumans(),
                     'last_login' => $user->last_login_at?->diffForHumans() ?? 'Never',
                 ];
             })
+            ->toArray();
+    }
+
+    public function loadCodeClubStats(): void
+    {
+        $this->codeClubStats = [
+            'active_clubs' => CodeClub::where('status', 'active')->count(),
+            'total_members' => CodeClubMembership::where('status', 'active')->count(),
+            'students' => StudentProfile::where('program_type', 'codeclub')->where('is_active', true)->count(),
+            'pending_reports' => ClubSessionReport::where('status', 'submitted')->count(),
+            'follow_up_reports' => ClubSessionReport::where('follow_up_required', true)
+                ->where('status', 'submitted')
+                ->count(),
+            'reports_this_week' => ClubSessionReport::where('session_date', '>=', now()->startOfWeek()->toDateString())->count(),
+            'new_students_month' => StudentProfile::where('program_type', 'codeclub')
+                ->where('created_at', '>=', now()->startOfMonth())
+                ->count(),
+        ];
+
+        $this->codeClubHighlights = CodeClub::query()
+            ->with(['school:id,name'])
+            ->withCount(['activeMemberships'])
+            ->where('status', 'active')
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get()
+            ->map(fn ($club) => [
+                'id' => $club->id,
+                'name' => $club->name,
+                'school' => $club->school?->name ?? '—',
+                'members' => $club->active_memberships_count,
+                'schedule' => $club->schedule_label,
+            ])
             ->toArray();
     }
 
@@ -430,6 +475,11 @@ class AdminDashboard extends Component
         $this->loadSampleCertificate();
         $this->checkSystemHealth();
         $this->loadChartData();
+        $this->loadIctSchoolPerformance();
+
+        if (config('features.code_club', false)) {
+            $this->loadCodeClubStats();
+        }
         
         $this->dispatch('refreshed');
     }

@@ -41,6 +41,8 @@ class Lesson extends Model
         'is_locked',
         'is_active',
         'attachments',
+        'slide_file_path',
+        'html_content',
         'approval_status',
         'submitted_for_approval_at',
         'approved_at',

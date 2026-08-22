@@ -22,10 +22,24 @@ class Show extends Component
 
     public function mount(Course $course)
     {
+        $user = Auth::user();
+
+        if ($user?->isCodeClubStudent()) {
+            $this->enrollment = CourseEnrollment::where('user_id', $user->id)
+                ->where('course_id', $course->id)
+                ->first();
+
+            abort_unless($this->enrollment, 403);
+
+            $this->redirect(route('courses.learn', $course), navigate: true);
+
+            return;
+        }
+
         $this->course = $course->load(['instructor', 'modules.lessons', 'assessments']);
-        
-        if (Auth::check()) {
-            $this->enrollment = CourseEnrollment::where('user_id', Auth::id())
+
+        if ($user) {
+            $this->enrollment = CourseEnrollment::where('user_id', $user->id)
                 ->where('course_id', $course->id)
                 ->first();
             $this->enrolled = $this->enrollment !== null;

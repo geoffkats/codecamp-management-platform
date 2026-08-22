@@ -55,20 +55,20 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             @foreach($submissionFiles as $file)
                                 @php
-                                    // Handle different file formats
                                     if (is_array($file)) {
-                                        $filePath = $file['path'] ?? $file;
-                                        $fileName = $file['name'] ?? basename($filePath);
+                                        $filePath = is_string($file['path'] ?? null) ? $file['path'] : '';
+                                        $fileName = is_string($file['name'] ?? null) ? $file['name'] : basename($filePath);
                                         $questionText = $file['question_text'] ?? null;
                                         $questionId = $file['question_id'] ?? null;
                                     } else {
-                                        $filePath = $file;
+                                        $filePath = (string) $file;
                                         $fileName = basename($filePath);
                                         $questionText = null;
                                         $questionId = null;
                                     }
                                 @endphp
-                                <a href="{{ Storage::disk('public')->url($filePath) }}" target="_blank"
+                                @if($filePath === '') @continue @endif
+                                <a href="{{ \App\Support\SubmissionFile::downloadUrl($filePath, $fileName) }}"
                                    class="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border border-gray-200 dark:border-gray-600">
                                     <div class="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
                                         <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -235,13 +235,13 @@
                     <div>
                         <p class="text-sm text-gray-600 dark:text-gray-400">Score</p>
                         <p class="text-2xl font-bold text-gray-900 dark:text-white">
-                            {{ number_format($totalScore, 2) }} / {{ $maxScore }}
+                            {{ number_format((float) $totalScore, 2) }} / {{ $maxScore }}
                         </p>
                     </div>
                     <div>
                         <p class="text-sm text-gray-600 dark:text-gray-400">Percentage</p>
                         <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                            {{ number_format($percentage, 1) }}%
+                            {{ number_format((float) $percentage, 1) }}%
                         </p>
                     </div>
                     <div>
@@ -261,28 +261,47 @@
                 </div>
             </div>
 
-            {{-- Assignment Info --}}
+            {{-- Submission Info --}}
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Assignment Details</h3>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Submission Details</h3>
                 <div class="space-y-2 text-sm">
-                    <div>
-                        <p class="text-gray-600 dark:text-gray-400">Course</p>
-                        <p class="font-semibold text-gray-900 dark:text-white">{{ $submission->assignment->course->title }}</p>
-                    </div>
-                    @if($submission->assignment->due_date)
+                    @if($submissionType === 'assignment')
                         <div>
-                            <p class="text-gray-600 dark:text-gray-400">Due Date</p>
+                            <p class="text-gray-600 dark:text-gray-400">Course</p>
+                            <p class="font-semibold text-gray-900 dark:text-white">{{ $submission->assignment?->course?->title ?? '—' }}</p>
+                        </div>
+                        @if($submission->assignment?->due_date)
+                            <div>
+                                <p class="text-gray-600 dark:text-gray-400">Due Date</p>
+                                <p class="font-semibold text-gray-900 dark:text-white">
+                                    {{ $submission->assignment->due_date->format('M d, Y H:i') }}
+                                </p>
+                            </div>
+                        @endif
+                        <div>
+                            <p class="text-gray-600 dark:text-gray-400">Submitted</p>
                             <p class="font-semibold text-gray-900 dark:text-white">
-                                {{ $submission->assignment->due_date->format('M d, Y H:i') }}
+                                {{ $submission->submitted_at ? $submission->submitted_at->format('M d, Y H:i') : 'Not submitted' }}
+                            </p>
+                        </div>
+                    @else
+                        <div>
+                            <p class="text-gray-600 dark:text-gray-400">Course</p>
+                            <p class="font-semibold text-gray-900 dark:text-white">{{ $submission->assessment?->course?->title ?? '—' }}</p>
+                        </div>
+                        <div>
+                            <p class="text-gray-600 dark:text-gray-400">Assessment Type</p>
+                            <p class="font-semibold text-gray-900 dark:text-white">
+                                {{ ucfirst(str_replace('_', ' ', $submission->assessment?->assessment_type ?? '—')) }}
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-gray-600 dark:text-gray-400">Submitted</p>
+                            <p class="font-semibold text-gray-900 dark:text-white">
+                                {{ $submission->completed_at ? $submission->completed_at->format('M d, Y H:i') : 'Not submitted' }}
                             </p>
                         </div>
                     @endif
-                    <div>
-                        <p class="text-gray-600 dark:text-gray-400">Submitted</p>
-                        <p class="font-semibold text-gray-900 dark:text-white">
-                            {{ $submission->submitted_at ? $submission->submitted_at->format('M d, Y H:i') : 'Not submitted' }}
-                        </p>
-                    </div>
                 </div>
             </div>
 

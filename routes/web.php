@@ -17,9 +17,14 @@ Route::get('dashboard', function () {
     $user = auth()->user();
 
     if ($user?->isStudent()) {
-        return $user->isIctStudent()
-            ? redirect()->route('icdl.dashboard')
-            : redirect()->route('codecamp.dashboard');
+        if ($user->isIctStudent()) {
+            return redirect()->route('icdl.dashboard');
+        }
+        if ($user->isCodeClubStudent() && config('features.code_club', false)) {
+            return redirect()->route('codeclub.dashboard');
+        }
+
+        return redirect()->route('codecamp.dashboard');
     }
 
     return view('dashboard');
@@ -33,7 +38,29 @@ Route::view('codecamp/dashboard', 'dashboard')
     ->middleware(['auth', 'verified'])
     ->name('codecamp.dashboard');
 
-Route::middleware(['auth', 'require.daily.report'])->group(function () {
+Route::view('codeclub/dashboard', 'dashboard')
+    ->middleware(['auth', 'verified', 'code_club.enabled'])
+    ->name('codeclub.dashboard');
+
+Route::post('program-context/switch', [\App\Http\Controllers\ProgramContextController::class, 'switch'])
+    ->middleware(['auth'])
+    ->name('program-context.switch');
+
+Route::prefix('register')->name('registration.')->group(function () {
+    Route::get('/codecamp', [\App\Http\Controllers\RegistrationController::class, 'showCodecamp'])->name('codecamp');
+    Route::post('/codecamp', [\App\Http\Controllers\RegistrationController::class, 'storeCodecamp'])->name('codecamp.store');
+    Route::get('/school', [\App\Http\Controllers\RegistrationController::class, 'showSchool'])->name('school');
+    Route::post('/school', [\App\Http\Controllers\RegistrationController::class, 'storeSchool'])->name('school.store');
+    Route::get('/icdl', [\App\Http\Controllers\RegistrationController::class, 'showIcdl'])->name('icdl');
+    Route::post('/icdl', [\App\Http\Controllers\RegistrationController::class, 'storeIcdl'])->name('icdl.store');
+    Route::middleware('code_club.enabled')->group(function () {
+        Route::get('/codeclub', [\App\Http\Controllers\RegistrationController::class, 'showCodeclub'])->name('codeclub');
+        Route::post('/codeclub', [\App\Http\Controllers\RegistrationController::class, 'storeCodeclub'])->name('codeclub.store');
+    });
+    Route::get('/thank-you', [\App\Http\Controllers\RegistrationController::class, 'thankYou'])->name('thank-you');
+});
+
+Route::middleware(['auth'])->group(function () {
     // Image upload API for TipTap editor
     Route::post('/api/upload-image', [App\Http\Controllers\Api\ImageUploadController::class, 'upload'])
         ->name('api.upload-image');
@@ -62,6 +89,7 @@ Route::middleware(['auth', 'require.daily.report'])->group(function () {
             Route::get('/{course}/edit', \App\Livewire\Courses\Edit::class)->name('edit');
             Route::get('/{course}/enrollments', \App\Livewire\Courses\ManageEnrollments::class)->name('enrollments');
         });
+        Route::get('/{course}/preview', \App\Livewire\Courses\Preview::class)->name('preview');
         Route::middleware(['student.profile'])->group(function () {
             Route::get('/{course}/learn', \App\Livewire\Courses\Learn::class)->name('learn');
             Route::get('/{course}', \App\Livewire\Courses\Show::class)->name('show');
@@ -83,10 +111,15 @@ Route::middleware(['auth', 'require.daily.report'])->group(function () {
         Route::get('/submit', \App\Livewire\DailyReports\Submit::class)->name('submit');
     });
 
+    Route::prefix('club-session-reports')->middleware('code_club.enabled')->name('club-session-reports.')->group(function () {
+        Route::get('/submit', \App\Livewire\ClubSessionReports\Submit::class)->name('submit');
+    });
+
     // Lessons Routes
     Route::prefix('lessons')->name('lessons.')->group(function () {
         Route::get('/', \App\Livewire\Lessons\Index::class)->name('index');
         Route::get('/{lesson}/view', \App\Livewire\Lessons\View::class)->name('view');
+        Route::post('/{lesson}/complete', [\App\Http\Controllers\Lessons\CompletionController::class, 'store'])->name('complete');
         Route::get('/{lesson}', \App\Livewire\Lessons\View::class)->name('show');
         Route::middleware(['can:edit_courses'])->group(function () {
             Route::get('/create', \App\Livewire\Lessons\Create::class)->name('create');
@@ -108,7 +141,7 @@ Route::middleware(['auth', 'require.daily.report'])->group(function () {
 
 
     Route::get('/students/{student}/print-credentials', function ($student) {
-        $studentProfile = \App\Models\StudentProfile::with('user')
+        $studentProfile = \App\Models\StudentProfile::with(['user', 'school'])
             ->findOrFail($student);
 
         abort_unless(auth()->user()?->can('view', $studentProfile), 403);
@@ -163,7 +196,7 @@ Route::middleware(['auth', 'require.daily.report'])->group(function () {
     // Daily Challenges Routes
     Route::prefix('daily-challenges')->name('daily-challenges.')->group(function () {
         Route::get('/', \App\Livewire\DailyChallenges\Index::class)->name('index');
-        Route::middleware(['can:manage_badges'])->group(function () {
+        Route::middleware(['can:manage_challenges'])->group(function () {
             Route::get('/create', \App\Livewire\DailyChallenges\Create::class)->name('create');
             Route::get('/{dailyChallenge}/edit', \App\Livewire\DailyChallenges\Edit::class)->name('edit');
         });
@@ -178,14 +211,22 @@ Route::middleware(['auth', 'require.daily.report'])->group(function () {
 
     // Certificates Routes
     Route::prefix('certificates')->name('certificates.')->group(function () {
+        // Students: list certificates issued to their account
         Route::get('/', \App\Livewire\Certificates\Index::class)->name('index');
-        Route::get('/test', \App\Livewire\Certificates\Test::class)->name('test');
+
+        // Staff only: generate / issue / test (must be registered before /{certificate})
+        Route::middleware(['can:generate_certificates'])->group(function () {
+            Route::get('/generator', \App\Livewire\Certificates\Generate::class)->name('generator');
+            Route::get('/generate/{course}', \App\Livewire\Certificates\Generate::class)->name('generate');
+            Route::get('/sample-csv', [\App\Http\Controllers\CertificateController::class, 'sampleCsv'])->name('sample-csv');
+            Route::get('/template-preview', [\App\Http\Controllers\CertificateController::class, 'preview'])->name('template-preview');
+            Route::get('/test', \App\Livewire\Certificates\Test::class)->name('test');
+        });
+
+        // View / download issued certificates (owner or staff)
         Route::get('/{certificate}', \App\Livewire\Certificates\Show::class)->name('show');
         Route::get('/{certificate}/view', [\App\Http\Controllers\Certificates\CertificateDownloadController::class, 'view'])->name('view');
         Route::get('/{certificate}/download', [\App\Http\Controllers\Certificates\CertificateDownloadController::class, 'download'])->name('download');
-        Route::middleware(['can:enroll_courses'])->group(function () {
-            Route::get('/generate/{course}', \App\Livewire\Certificates\Generate::class)->name('generate');
-        });
     });
 
     // Discussions Routes
@@ -256,6 +297,7 @@ Route::middleware(['auth', 'require.daily.report'])->group(function () {
     // Submissions Routes
     Route::prefix('submissions')->name('submissions.')->group(function () {
         Route::get('/', \App\Livewire\Submissions\Index::class)->name('index');
+        Route::get('/file', \App\Http\Controllers\Submissions\FileDownloadController::class)->name('file');
         Route::get('/{submissionId}/{type?}', \App\Livewire\Submissions\Show::class)->name('show');
     });
 
@@ -286,6 +328,15 @@ Route::middleware(['auth', 'require.daily.report'])->group(function () {
         Route::get('/xp-manager', \App\Livewire\Admin\XpManager::class)->name('xp-manager');
         Route::get('/settings', \App\Livewire\Admin\SystemSettings::class)->name('settings');
         Route::get('/feedback', \App\Livewire\Admin\ManageTeacherFeedback::class)->name('feedback');
+
+        Route::prefix('camps')->name('camps.')->group(function () {
+            Route::get('/', \App\Livewire\Admin\Camps\Index::class)->name('index');
+            Route::get('/{camp}', \App\Livewire\Admin\Camps\Show::class)->name('show');
+        });
+
+        Route::prefix('club-session-reports')->middleware('code_club.enabled')->name('club-session-reports.')->group(function () {
+            Route::get('/', \App\Livewire\Admin\ClubSessionReports\Index::class)->name('index');
+        });
         
         // Daily Reports Admin
         Route::prefix('daily-reports')->name('daily-reports.')->group(function () {
@@ -305,17 +356,35 @@ Route::middleware(['auth', 'require.daily.report'])->group(function () {
         });
     });
 
+    // Code Club admin — facilitators + admin/supervisor (not full manage_users)
+    Route::middleware(['code_club.enabled', 'can:access_code_clubs'])->prefix('admin')->name('admin.')->group(function () {
+        Route::prefix('code-clubs')->name('code-clubs.')->group(function () {
+            Route::get('/', \App\Livewire\Admin\Clubs\Index::class)->name('index');
+            Route::get('/{club}', \App\Livewire\Admin\Clubs\Show::class)->name('show');
+            Route::get('/{club}/reports/bulk-download', [\App\Http\Controllers\Reports\CodeClubTermReportController::class, 'bulkDownload'])->name('reports.bulk-download');
+            Route::get('/{club}/reports/school-summary', [\App\Http\Controllers\Reports\CodeClubTermReportController::class, 'schoolSummary'])->name('reports.school-summary');
+            Route::get('/{club}/reports/{student}/download', [\App\Http\Controllers\Reports\CodeClubTermReportController::class, 'download'])->name('reports.download');
+            Route::get('/{club}/reports/{student}/preview', [\App\Http\Controllers\Reports\CodeClubTermReportController::class, 'preview'])->name('reports.preview');
+            Route::get('/{club}/reports/{student}/html', [\App\Http\Controllers\Reports\CodeClubTermReportController::class, 'html'])->name('reports.html');
+        });
+    });
+
     // Student Feedback Routes
     Route::middleware(['student.profile'])->prefix('feedback')->name('feedback.')->group(function () {
         Route::get('/teacher', \App\Livewire\Feedback\SubmitTeacherFeedback::class)->name('teacher');
+        Route::post('/teacher/submit', [\App\Http\Controllers\Feedback\LessonFeedbackController::class, 'submit'])->name('teacher.submit');
     });
 
     // Student Management Routes - Teachers/Admin/Operations (requires authorization)
-    Route::middleware(['can:manage_users'])->prefix('students')->name('students.')->group(function () {
+    Route::middleware(['can:manage_students'])->prefix('students')->name('students.')->group(function () {
         Route::get('/', \App\Livewire\Students\ManageStudents::class)->name('index');
         Route::get('/create', \App\Livewire\Students\StudentProgramSelect::class)->name('create');
         Route::get('/create/ict', \App\Livewire\Students\IctStudentForm::class)->name('create-ict');
         Route::get('/create/codecamp', \App\Livewire\Students\StudentForm::class)->name('create-codecamp');
+        Route::middleware('code_club.enabled')->group(function () {
+            Route::get('/create/codeclub', \App\Livewire\Students\CodeClubStudentForm::class)->name('create-codeclub');
+            Route::get('/{student}/edit-codeclub', \App\Livewire\Students\CodeClubStudentForm::class)->name('edit-codeclub');
+        });
         Route::get('/print-credentials/bulk', function () {
             $ids = collect(explode(',', (string) request('ids')))
                 ->filter()
@@ -342,6 +411,8 @@ Route::middleware(['auth', 'require.daily.report'])->group(function () {
                     ->where('school_id', $schoolId);
             } elseif ($user->isCodecampTrainer()) {
                 $query->where('program_type', 'codecamp');
+            } elseif ($user->hasCodeClubAccess()) {
+                \App\Support\ProgramScope::applyStudentProfileScope($query, $user);
             }
 
             $students = $query->orderBy('full_name')->get();
@@ -371,7 +442,12 @@ Route::middleware(['auth', 'require.daily.report'])->group(function () {
             ->middleware('can:view_teacher_code');
     });
 
-    // Attendance Routes - Operations Manager/Admin (requires authorization)
+    // Attendance Routes - Code Club facilitators
+    Route::middleware(['code_club.enabled', 'can:access_club_attendance'])->prefix('attendance')->name('attendance.')->group(function () {
+        Route::get('/club', \App\Livewire\Attendance\ClubAttendance::class)->name('club');
+    });
+
+    // Attendance Routes - CodeCamp / operations (requires manage_users)
     Route::middleware(['can:manage_users'])->prefix('attendance')->name('attendance.')->group(function () {
         Route::get('/students', \App\Livewire\Attendance\StudentAttendance::class)->name('student');
         Route::get('/instructors', \App\Livewire\Attendance\InstructorAttendance::class)->name('instructor');

@@ -2,14 +2,18 @@
 
 namespace App\Livewire\Users;
 
+use App\Livewire\Users\Concerns\ManagesStaffCourseAccess;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
+#[Layout('components.layouts.app')]
 class Create extends Component
 {
+    use ManagesStaffCourseAccess;
     use WithFileUploads;
 
     public $user = [
@@ -34,19 +38,20 @@ class Create extends Component
             'user.bio' => 'nullable|string',
             'user.is_active' => 'boolean',
             'selectedRoles' => 'required|array|min:1',
+            'selectedCourseIds' => 'array',
+            'selectedCourseIds.*' => 'integer|exists:courses,id',
         ];
     }
 
     public function store()
     {
-        $data = $this->validate();
+        $this->validate();
 
         $imagePath = null;
         if ($this->profile_image) {
             $imagePath = $this->profile_image->store('profiles', 'public');
         }
 
-        // Check if student role is being assigned
         $studentRole = \App\Models\Role::where('name', 'student')->first();
         $isStudent = $studentRole && in_array($studentRole->id, $this->selectedRoles);
 
@@ -59,15 +64,13 @@ class Create extends Component
             'is_active' => $this->user['is_active'] ?? true,
         ];
 
-        // Only set student_type if this is a student user
         if ($isStudent) {
             $userData['student_type'] = 'codecamp';
         }
 
         $user = User::create($userData);
-
-        // Attach selected roles
         $user->roles()->attach($this->selectedRoles);
+        $this->syncStaffCourseAccess($user);
 
         session()->flash('message', 'User created successfully.');
 
@@ -77,9 +80,12 @@ class Create extends Component
     public function render()
     {
         $roles = \App\Models\Role::all();
-        
+        $showsCourseAccess = $this->showsCourseAccessPicker();
+
         return view('livewire.users.create', [
             'roles' => $roles,
+            'showsCourseAccess' => $showsCourseAccess,
+            'availableCourses' => $showsCourseAccess ? $this->availableCoursesForPicker() : collect(),
         ]);
     }
 }

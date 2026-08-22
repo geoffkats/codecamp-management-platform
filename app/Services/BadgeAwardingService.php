@@ -162,16 +162,248 @@ class BadgeAwardingService
     }
 
     /**
+     * Check lesson count milestone badges (1, 10, 25 lessons).
+     */
+    public function checkLessonCountBadges(User $user): void
+    {
+        $count = \App\Models\StudentLessonProgress::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->distinct('lesson_id')
+            ->count('lesson_id');
+
+        $badges = Badge::where('is_active', true)
+            ->whereJsonContains('criteria->type', 'lesson_count')
+            ->get();
+
+        foreach ($badges as $badge) {
+            if ($count >= ($badge->criteria['count'] ?? PHP_INT_MAX)
+                && ! $user->badges()->where('badge_id', $badge->id)->exists()) {
+                $this->awardBadge($user, $badge);
+            }
+        }
+    }
+
+    /**
+     * Check streak-based badges (5 days, 14 days).
+     */
+    public function checkStreakBadges(User $user): int
+    {
+        $streak = $this->calculateStreak($user);
+
+        $badges = Badge::where('is_active', true)
+            ->whereJsonContains('criteria->type', 'streak_days')
+            ->get();
+
+        foreach ($badges as $badge) {
+            if ($streak >= ($badge->criteria['days'] ?? PHP_INT_MAX)
+                && ! $user->badges()->where('badge_id', $badge->id)->exists()) {
+                $this->awardBadge($user, $badge);
+            }
+        }
+
+        return $streak;
+    }
+
+    /**
+     * Check completed daily challenge count badges.
+     */
+    public function checkChallengeBadges(User $user): void
+    {
+        $count = DB::table('daily_challenge_attempts')
+            ->where('user_id', $user->id)
+            ->where('is_completed', true)
+            ->count();
+
+        $badges = Badge::where('is_active', true)
+            ->whereJsonContains('criteria->type', 'challenges_done')
+            ->get();
+
+        foreach ($badges as $badge) {
+            if ($count >= ($badge->criteria['count'] ?? PHP_INT_MAX)
+                && ! $user->badges()->where('badge_id', $badge->id)->exists()) {
+                $this->awardBadge($user, $badge);
+            }
+        }
+    }
+
+    /**
+     * Check course completion badges.
+     */
+    public function checkCourseCompleteBadges(User $user): void
+    {
+        $count = \App\Models\CourseEnrollment::where('user_id', $user->id)
+            ->whereNotNull('completed_at')
+            ->count();
+
+        $badges = Badge::where('is_active', true)
+            ->whereJsonContains('criteria->type', 'course_complete')
+            ->get();
+
+        foreach ($badges as $badge) {
+            if ($count >= ($badge->criteria['count'] ?? PHP_INT_MAX)
+                && ! $user->badges()->where('badge_id', $badge->id)->exists()) {
+                $this->awardBadge($user, $badge);
+            }
+        }
+    }
+
+    /**
+     * Check Night Owl badge — lesson completed after 22:00 local time.
+     */
+    public function checkNightOwlBadge(User $user): void
+    {
+        $badge = Badge::where('is_active', true)->where('slug', 'night-owl')->first();
+        if (! $badge || $user->badges()->where('badge_id', $badge->id)->exists()) {
+            return;
+        }
+
+        $isNight = \App\Models\StudentLessonProgress::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->whereRaw('HOUR(completed_at) >= 22')
+            ->exists();
+
+        if ($isNight) {
+            $this->awardBadge($user, $badge);
+        }
+    }
+
+    /**
+     * Check Early Bird badge — lesson completed before 08:00 local time.
+     */
+    public function checkEarlyBirdBadge(User $user): void
+    {
+        $badge = Badge::where('is_active', true)->where('slug', 'early-bird')->first();
+        if (! $badge || $user->badges()->where('badge_id', $badge->id)->exists()) {
+            return;
+        }
+
+        $isEarly = \App\Models\StudentLessonProgress::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->whereRaw('HOUR(completed_at) < 8')
+            ->exists();
+
+        if ($isEarly) {
+            $this->awardBadge($user, $badge);
+        }
+    }
+
+    /**
+     * Check Speed Demon badge — 3+ lessons completed in a single calendar day.
+     */
+    public function checkSpeedDemonBadge(User $user): void
+    {
+        $badge = Badge::where('is_active', true)->where('slug', 'speed-demon')->first();
+        if (! $badge || $user->badges()->where('badge_id', $badge->id)->exists()) {
+            return;
+        }
+
+        $isSpeedDemon = \App\Models\StudentLessonProgress::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->selectRaw('DATE(completed_at) as day, COUNT(*) as cnt')
+            ->groupBy('day')
+            ->having('cnt', '>=', 3)
+            ->exists();
+
+        if ($isSpeedDemon) {
+            $this->awardBadge($user, $badge);
+        }
+    }
+
+    /**
+     * Check kudos-related badges.
+     */
+    public function checkKudosBadges(User $user): void
+    {
+        // Kind Soul — given kudos to 5 unique people
+        $givenBadge = Badge::where('is_active', true)->where('slug', 'kind-soul')->first();
+        if ($givenBadge && ! $user->badges()->where('badge_id', $givenBadge->id)->exists()) {
+            $given = DB::table('peer_kudos')
+                ->where('from_user_id', $user->id)
+                ->distinct('to_user_id')
+                ->count('to_user_id');
+
+            if ($given >= 5) {
+                $this->awardBadge($user, $givenBadge);
+            }
+        }
+
+        // Class Favourite — received kudos from 10 unique people
+        $receivedBadge = Badge::where('is_active', true)->where('slug', 'class-favourite')->first();
+        if ($receivedBadge && ! $user->badges()->where('badge_id', $receivedBadge->id)->exists()) {
+            $received = DB::table('peer_kudos')
+                ->where('to_user_id', $user->id)
+                ->distinct('from_user_id')
+                ->count('from_user_id');
+
+            if ($received >= 10) {
+                $this->awardBadge($user, $receivedBadge);
+            }
+        }
+    }
+
+    /**
+     * Called when a lesson is completed. Runs all relevant checks.
+     */
+    public function onLessonComplete(User $user): void
+    {
+        $this->checkLessonCountBadges($user);
+        $this->checkStreakBadges($user);
+        $this->checkNightOwlBadge($user);
+        $this->checkEarlyBirdBadge($user);
+        $this->checkSpeedDemonBadge($user);
+    }
+
+    /**
+     * Calculate the current consecutive-day streak for a user.
+     */
+    private function calculateStreak(User $user): int
+    {
+        $dates = \App\Models\StudentLessonProgress::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->selectRaw('DATE(completed_at) as day')
+            ->groupBy('day')
+            ->orderByDesc('day')
+            ->pluck('day')
+            ->map(fn ($d) => \Carbon\Carbon::parse($d));
+
+        if ($dates->isEmpty()) {
+            return 0;
+        }
+
+        $streak = 0;
+        $check  = now()->startOfDay();
+
+        foreach ($dates as $date) {
+            if ($date->eq($check) || $date->eq($check->copy()->subDay())) {
+                $streak++;
+                $check = $date->copy()->subDay();
+            } else {
+                break;
+            }
+        }
+
+        return $streak;
+    }
+
+    /**
      * Check all badges for a user (useful for retroactive checking)
      */
     public function checkAllBadges(User $user): void
     {
         $this->checkLessonCompletionBadges($user);
+        $this->checkLessonCountBadges($user);
         $this->checkCourseCompletionBadges($user);
+        $this->checkCourseCompleteBadges($user);
         $this->checkPerfectQuizBadges($user);
         $this->checkPerfectAssessmentBadge($user);
         $this->checkLevelBadges($user);
         $this->checkPointMilestoneBadges($user);
+        $this->checkStreakBadges($user);
+        $this->checkChallengeBadges($user);
+        $this->checkNightOwlBadge($user);
+        $this->checkEarlyBirdBadge($user);
+        $this->checkSpeedDemonBadge($user);
+        $this->checkKudosBadges($user);
     }
 
     /**
@@ -189,7 +421,7 @@ class BadgeAwardingService
 
         // Award points if badge has points reward
         if ($badge->points_reward > 0 && $user->points) {
-            $user->points->increment('total_points', $badge->points_reward);
+            $user->points->addPoints((int) $badge->points_reward);
         }
 
         // Send real-time notification

@@ -1,6 +1,6 @@
 /* TipTap Editor Styles */
 .ProseMirror {
-    @apply focus:outline-none;
+    @apply focus:outline-none min-h-[420px] px-4 py-3 text-gray-900 dark:text-gray-100;
 }
 
 .ProseMirror > * + * {

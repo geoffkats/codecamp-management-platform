@@ -38,11 +38,13 @@ class OptimizeResponse
         $response->headers->set('X-XSS-Protection', '1; mode=block');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-        // Enable compression if not already enabled
-        if (!$response->headers->has('Content-Encoding') && 
-            function_exists('gzencode') && 
+        // Skip manual gzip compression for Livewire requests — Apache mod_deflate
+        // handles this on shared hosting, and double-compression corrupts responses.
+        $isLivewire = str_starts_with($request->path(), 'livewire/');
+        if (!$isLivewire && !$response->headers->has('Content-Encoding') &&
+            function_exists('gzencode') &&
             $this->shouldCompress($request, $response)) {
-            
+
             $content = $response->getContent();
             if ($content && strlen($content) > 1024) { // Only compress if > 1KB
                 $compressed = gzencode($content, 6); // Level 6 compression

@@ -3,8 +3,8 @@
 namespace App\Livewire\TestMarks;
 
 use App\Models\ActivityLog;
+use App\Models\Course;
 use App\Models\CourseEnrollment;
-use App\Models\CourseModule;
 use App\Models\InternalTestMark;
 use App\Models\StudentProfile;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -20,7 +20,7 @@ class Index extends Component
     use WithPagination;
 
     public $student_id;
-    public $module_id;
+    public $course_id;
     public $test_name = '';
     public $score = '';
     public $test_date;
@@ -37,14 +37,14 @@ class Index extends Component
 
         $this->test_date = now()->toDateString();
         $this->student_id = request()->query('student');
-        $this->module_id = request()->query('module');
+        $this->course_id = request()->query('course');
     }
 
     protected function rules(): array
     {
         return [
             'student_id' => 'required|exists:student_profiles,id',
-            'module_id' => 'required|exists:course_modules,id',
+            'course_id' => 'required|exists:courses,id',
             'test_name' => 'required|string|max:255',
             'score' => 'required|numeric|min:0|max:100',
             'test_date' => 'required|date',
@@ -57,15 +57,14 @@ class Index extends Component
         $this->authorize('manage_users');
 
         $this->validate();
-
         $student = $this->findStudent($this->student_id);
-        $module = $this->findModule($this->module_id);
+        $course = $this->findCourseForSchool($this->course_id);
 
         $passed = (float) $this->score >= 75;
 
         if (!$this->editingId) {
             $duplicate = InternalTestMark::where('student_profile_id', $student->id)
-                ->where('course_module_id', $module->id)
+                ->where('course_id', $course->id)
                 ->where('test_name', $this->test_name)
                 ->whereDate('test_date', $this->test_date)
                 ->exists();
@@ -82,7 +81,7 @@ class Index extends Component
             $oldValues = $mark->toArray();
             $mark->update([
                 'student_profile_id' => $student->id,
-                'course_module_id' => $module->id,
+                'course_id' => $course->id,
                 'test_name' => $this->test_name,
                 'score' => $this->score,
                 'passed' => $passed,
@@ -93,7 +92,7 @@ class Index extends Component
         } else {
             $mark = InternalTestMark::create([
                 'student_profile_id' => $student->id,
-                'course_module_id' => $module->id,
+                'course_id' => $course->id,
                 'test_name' => $this->test_name,
                 'score' => $this->score,
                 'passed' => $passed,
@@ -104,7 +103,7 @@ class Index extends Component
             ]);
         }
 
-        $this->updateProgress($student, $module, $passed);
+        $this->updateProgress($student, $course, $passed);
         $this->updateEligibility($student);
         $this->logAudit($mark, $oldValues);
 
@@ -135,7 +134,7 @@ class Index extends Component
 
     public function edit(int $markId): void
     {
-        $mark = InternalTestMark::with(['student', 'module'])->findOrFail($markId);
+        $mark = InternalTestMark::with(['student', 'course'])->findOrFail($markId);
 
         if (!$this->canEditMarks($mark->student)) {
             session()->flash('message', 'Marks are locked for this student.');
@@ -144,7 +143,7 @@ class Index extends Component
 
         $this->editingId = $mark->id;
         $this->student_id = $mark->student_profile_id;
-        $this->module_id = $mark->course_module_id;
+        $this->course_id = $mark->course_id;
         $this->test_name = $mark->test_name;
         $this->score = $mark->score;
         $this->test_date = $mark->test_date?->toDateString();
@@ -171,17 +170,18 @@ class Index extends Component
             ->orderBy('full_name')
             ->get();
 
-        $modules = CourseModule::query()
-            ->whereHas('course.schools', function ($q) use ($schoolId) {
-                $q->where('school_id', $schoolId)->where('is_active', true);
-            })
-            ->with('course:id,title')
-            ->orderBy('title')
-            ->get();
+        $courses = collect();
+        if ($schoolId) {
+            $courses = Course::whereHas('schools', function ($q) use ($schoolId) {
+                    $q->where('school_id', $schoolId)->where('is_active', true);
+                })
+                ->orderBy('title')
+                ->get(['id', 'title']);
+        }
 
-        $historyQuery = InternalTestMark::with(['student', 'module.course'])
+        $historyQuery = InternalTestMark::with(['student', 'course'])
             ->when($this->student_id, fn ($q) => $q->where('student_profile_id', $this->student_id))
-            ->when($this->module_id, fn ($q) => $q->where('course_module_id', $this->module_id))
+            ->when($this->course_id, fn ($q) => $q->where('course_id', $this->course_id))
             ->orderByDesc('test_date');
 
         $history = $historyQuery->paginate(10);
@@ -192,7 +192,7 @@ class Index extends Component
 
         return view('livewire.test-marks.index', [
             'students' => $students,
-            'modules' => $modules,
+            'courses' => $courses,
             'history' => $history,
             'lockedStudent' => $lockedStudent,
         ]);
@@ -209,32 +209,35 @@ class Index extends Component
             ->findOrFail($studentId);
     }
 
-    private function findModule(int $moduleId): CourseModule
+    private function findCourseForSchool(int $courseId): Course
     {
         $user = Auth::user();
         $schoolId = $user->ictSchoolId();
 
-        return CourseModule::where('id', $moduleId)
-            ->whereHas('course.schools', function ($q) use ($schoolId) {
+        return Course::query()
+            ->where('id', $courseId)
+            ->whereHas('schools', function ($q) use ($schoolId) {
                 $q->where('school_id', $schoolId)->where('is_active', true);
             })
             ->firstOrFail();
     }
 
-    private function updateProgress(StudentProfile $student, CourseModule $module, bool $passed): void
+    private function updateProgress(StudentProfile $student, Course $course, bool $passed): void
     {
         $enrollment = CourseEnrollment::where('user_id', $student->user_id)
-            ->where('course_id', $module->course_id)
+            ->where('course_id', $course->id)
             ->first();
 
         if (!$enrollment) {
             return;
         }
 
-        if ($passed) {
-            $enrollment->progress_percentage = max((float) $enrollment->progress_percentage, 100);
-            $enrollment->save();
+        if (!$passed) {
+            return;
         }
+
+        $enrollment->progress_percentage = max((float) $enrollment->progress_percentage, 100);
+        $enrollment->save();
     }
 
     private function updateEligibility(StudentProfile $student): void
@@ -249,11 +252,9 @@ class Index extends Component
 
         $passedCourseIds = InternalTestMark::where('student_profile_id', $student->id)
             ->where('passed', true)
-            ->whereHas('module', function ($q) use ($enrolledCourseIds) {
-                $q->whereIn('course_id', $enrolledCourseIds);
-            })
+            ->whereIn('course_id', $enrolledCourseIds)
             ->get()
-            ->pluck('module.course_id')
+            ->pluck('course_id')
             ->unique()
             ->values()
             ->all();

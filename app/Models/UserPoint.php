@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\LevelSystem;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -32,5 +33,31 @@ class UserPoint extends Model
     {
         return $this->belongsTo(User::class);
     }
-}
 
+    public function addPoints(int $amount): self
+    {
+        if ($amount !== 0) {
+            $this->increment('total_points', $amount);
+            $this->refresh();
+        }
+
+        return $this->syncLevel();
+    }
+
+    public function syncLevel(): self
+    {
+        LevelSystem::sync($this);
+
+        return $this;
+    }
+
+    public function levelInfo(): array
+    {
+        return LevelSystem::info($this->total_points ?? 0);
+    }
+
+    public function rankName(): string
+    {
+        return LevelSystem::rankName($this->total_points ?? 0);
+    }
+}

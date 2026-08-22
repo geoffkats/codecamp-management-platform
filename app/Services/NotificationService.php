@@ -161,6 +161,35 @@ class NotificationService
     }
 
     /**
+     * Notify student that a certificate was issued or re-issued.
+     */
+    public function notifyCertificateIssued(User $user, $certificate, $course, bool $isNew = true): void
+    {
+        $courseTitle = $course->title ?? 'your course';
+
+        $title = $isNew
+            ? '🎓 Certificate Issued!'
+            : '🎓 Certificate Updated';
+
+        $message = $isNew
+            ? "Your CODE Profile Certificate for \"{$courseTitle}\" is ready. View and download it from your Certificates page."
+            : "Your certificate for \"{$courseTitle}\" has been updated. View the latest version in your Certificates page.";
+
+        $this->notify(
+            $user,
+            $title,
+            $message,
+            'success',
+            [
+                'certificate_id' => $certificate->id,
+                'course_id' => $course->id,
+                'course_title' => $courseTitle,
+                'action_url' => route('certificates.show', $certificate),
+            ]
+        );
+    }
+
+    /**
      * Check if email should be sent based on user preferences
      */
     private function shouldSendEmail(User $user, string $type): bool
@@ -176,7 +205,12 @@ class NotificationService
     private function sendEmailNotification(User $user, string $title, string $message, string $type, array $data = []): void
     {
         try {
-            Mail::to($user->email)->send(new \App\Mail\NotificationMail($title, $message, $type, $data));
+            // Ensure all data values are strings to prevent htmlspecialchars errors
+            $sanitizedData = [];
+            foreach ($data as $key => $value) {
+                $sanitizedData[$key] = is_string($value) ? $value : (string) $value;
+            }
+            Mail::to($user->email)->send(new \App\Mail\NotificationMail($title, $message, $type, $sanitizedData));
         } catch (\Exception $e) {
             Log::error('Failed to send notification email', [
                 'user_id' => $user->id,

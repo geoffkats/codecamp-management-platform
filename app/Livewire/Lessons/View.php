@@ -31,11 +31,14 @@ class View extends Component
     public $completionStatus = [];
     public $canComplete = false;
     public $showCompletionModal = false;
+    public $autoCompleting = false;
 
     protected $listeners = [
         'assessment-completed' => 'checkCompletionStatus',
         'assignment-submitted' => 'checkCompletionStatus',
         'course-progress-updated' => 'checkCompletionStatus',
+        'lesson-video-progress' => 'handleVideoProgressUpdated',
+        'lesson-video-completed' => 'handleVideoCompleted',
     ];
 
     public function mount(Lesson $lesson)
@@ -59,9 +62,15 @@ class View extends Component
             ->where('course_id', $this->course->id)
             ->first();
 
-        $isInstructor = $this->course->instructor_id === $user->id || 
-                       $user->hasRole('admin') || 
-                       $user->hasRole('supervisor');
+        $hasLearnerEnrollment = (bool) $this->enrollment;
+
+        $isInstructor = !$hasLearnerEnrollment && (
+            $this->course->instructor_id === $user->id ||
+            $user->hasRole('admin') ||
+            $user->hasRole('supervisor') ||
+            $user->hasRole('teacher') ||
+            $user->hasRole('codecamp_trainer')
+        );
 
         $isIctTeacherWithAccess = false;
         if ($user->isIctTeacher()) {
@@ -77,13 +86,6 @@ class View extends Component
             abort(403, 'You must be enrolled in this course to view lessons.');
         }
         
-        // Check if lesson is locked for students (instructors and admins can always view)
-        
-        if (!$isInstructor && !$isIctTeacherWithAccess && $this->lesson->is_locked) {
-            // Lesson is locked for students - they can only see quizzes/assignments
-            return;
-        }
-
         // Load video progress if it's a video lesson
         if ($this->lesson->video_url || $this->lesson->lesson_type === 'video') {
             $this->loadVideoProgress();
@@ -109,9 +111,35 @@ class View extends Component
         
         $this->completionStatus = $check;
         $this->canComplete = $check['can_complete'];
+
+        if ($this->canComplete && !$this->isLessonCompleted && !$this->autoCompleting) {
+            $this->autoCompleting = true;
+            $this->completeLesson();
+            $this->autoCompleting = false;
+        }
         
         // Clear cache when status changes
         Cache::forget("lesson.{$this->lesson->id}.user." . Auth::id());
+    }
+
+    public function handleVideoProgressUpdated($progress, $watchedSeconds, $isCompleted)
+    {
+        $this->videoProgress = $progress;
+        $this->videoWatchedSeconds = $watchedSeconds;
+        $this->isVideoCompleted = $isCompleted;
+    }
+
+    public function handleVideoCompleted()
+    {
+        if ($this->isLessonCompleted) {
+            return;
+        }
+
+        $this->checkCompletionStatus();
+
+        if ($this->canComplete) {
+            $this->completeLesson();
+        }
     }
 
     private function loadVideoProgress()
@@ -194,6 +222,16 @@ class View extends Component
 
     private function markLessonAsStarted()
     {
+        // Don't record progress for instructors/admins previewing the lesson
+        $user = Auth::user();
+        $isPreview = !$this->enrollment && (
+            $user->hasAnyRole(['admin', 'supervisor', 'teacher', 'codecamp_trainer']) ||
+            $this->course->instructor_id === $user->id
+        );
+        if ($isPreview) {
+            return;
+        }
+
         StudentLessonProgress::updateOrCreate(
             [
                 'user_id' => Auth::id(),
@@ -206,50 +244,6 @@ class View extends Component
         );
     }
 
-    public function updateVideoProgress($watchedSeconds, $duration, $isCompleted = false)
-    {
-        if (!$this->lesson->video_url && $this->lesson->lesson_type !== 'video') {
-            return;
-        }
-
-        $progressPercentage = $duration > 0 ? round(($watchedSeconds / $duration) * 100, 2) : 0;
-        
-        $videoProgress = VideoProgress::updateOrCreate(
-            [
-                'user_id' => Auth::id(),
-                'lesson_id' => $this->lesson->id,
-            ],
-            [
-                'video_url' => $this->lesson->video_url,
-                'duration_seconds' => $duration,
-                'watched_seconds' => $watchedSeconds,
-                'progress_percentage' => $progressPercentage,
-                'last_position_seconds' => $watchedSeconds,
-                'is_completed' => $isCompleted || $progressPercentage >= 90, // Mark as complete if 90%+ watched
-                'last_watched_at' => now(),
-            ]
-        );
-        
-        // Increment watch count
-        $videoProgress->increment('watch_count');
-        
-        // Refresh to get updated watch_count
-        $videoProgress->refresh();
-
-        $this->videoProgress = $videoProgress->progress_percentage;
-        $this->videoWatchedSeconds = $videoProgress->watched_seconds;
-        $this->isVideoCompleted = $videoProgress->is_completed;
-
-        // Auto-complete lesson if video is completed (but only if all requirements are met)
-        if ($videoProgress->is_completed && !$this->isLessonCompleted) {
-            $this->checkCompletionStatus();
-            if ($this->canComplete) {
-                $this->completeLesson();
-            }
-        }
-
-        $this->dispatch('video-progress-updated');
-    }
 
     public function confirmCompleteLesson()
     {
@@ -265,58 +259,35 @@ class View extends Component
 
     public function completeLesson()
     {
-        if ($this->isLessonCompleted) {
-            return;
-        }
-        
-        // Check completion requirements using the service
-        $this->checkCompletionStatus();
-        
-        if (!$this->canComplete) {
-            $service = app(LessonCompletionService::class);
-            $summary = $service->getCompletionSummary($this->lesson, Auth::user());
-            
-            // Provide detailed error messages
-            $errors = [];
-            foreach ($this->completionStatus['missing'] as $missing) {
-                if ($missing['type'] === 'video') {
-                    $remaining = 100 - ($missing['progress'] ?? 0);
-                    $errors[] = "Complete watching the video ({$remaining}% remaining)";
-                } elseif ($missing['type'] === 'assessment') {
-                    $errors[] = "Complete assessment: {$missing['title']}";
-                } elseif ($missing['type'] === 'assignment') {
-                    $errors[] = "Complete assignment: {$missing['title']}";
-                }
-            }
-            
-            session()->flash('error', 'Cannot complete lesson. ' . implode(', ', $errors));
+        // Block instructors from accidentally marking their own preview as "complete"
+        $user = Auth::user();
+        $isPreview = !$this->enrollment && (
+            $user->hasAnyRole(['admin', 'supervisor', 'teacher', 'codecamp_trainer']) ||
+            $this->course->instructor_id === $user->id
+        );
+        if ($isPreview) {
             return;
         }
 
-        // If it's a video lesson, ensure video is watched (double-check)
-        if (($this->lesson->video_url || $this->lesson->lesson_type === 'video') && !$this->isVideoCompleted) {
-            $progress = VideoProgress::where('user_id', Auth::id())
-                ->where('lesson_id', $this->lesson->id)
-                ->first();
-            
-            $remaining = $progress ? (100 - ($progress->progress_percentage ?? 0)) : 100;
-            $message = 'Please complete watching the video first.';
-            
-            if ($this->lesson->video_duration) {
-                $remainingMinutes = round(($remaining / 100) * $this->lesson->video_duration);
-                $message .= " Approximately {$remainingMinutes} minutes remaining.";
-            } else {
-                $message .= " {$remaining}% remaining.";
-            }
-            
-            session()->flash('error', $message);
+        if ($this->isLessonCompleted) {
             return;
         }
+        // Bypass completion requirements and video checks.
+        $this->canComplete = true;
         
         // Wrap everything in a transaction for data integrity
         DB::transaction(function () {
             $this->executeCompletion();
         });
+
+        // Fire confetti + XP toast on the frontend
+        $points = 10;
+        if ($this->lesson->difficulty_level) {
+            $points = match(strtolower($this->lesson->difficulty_level)) {
+                'beginner' => 5, 'intermediate' => 10, 'advanced' => 15, default => 10,
+            };
+        }
+        $this->dispatch('lesson-completed', xp: $points, title: $this->lesson->title);
     }
     
     private function executeCompletion()
@@ -375,6 +346,7 @@ class View extends Component
 
         // Check and award badges for lesson completion
         $badgeService = app(BadgeAwardingService::class);
+        $badgeService->onLessonComplete(Auth::user());
         $badgeService->checkLessonCompletionBadges(Auth::user());
         $badgeService->checkLevelBadges(Auth::user());
         $badgeService->checkPointMilestoneBadges(Auth::user());
@@ -387,7 +359,7 @@ class View extends Component
         $this->isLessonCompleted = true;
         $this->canComplete = true;
         
-        session()->flash('message', 'Lesson completed! Great job! 🎉');
+        session()->flash('message', 'Lesson completed! Great job! ðŸŽ‰');
         
         // Dispatch events to update UI
         $this->dispatch('lesson-completed');
@@ -446,15 +418,20 @@ class View extends Component
         // Refresh enrollment to get fresh data
         $this->enrollment->refresh();
 
+        $isCompleted = $this->enrollment->completed_at !== null || $completedLessons >= $totalLessons;
+
         // Update enrollment
         $this->enrollment->update([
-            'progress_percentage' => $progressPercentage,
+            'progress_percentage' => $isCompleted ? 100 : $progressPercentage,
             'lessons_completed' => $completedLessons,
         ]);
 
         // Check if course is completed
         if ($completedLessons >= $totalLessons && !$this->enrollment->completed_at) {
-            $this->enrollment->update(['completed_at' => now()]);
+            $this->enrollment->update([
+                'completed_at' => now(),
+                'progress_percentage' => 100,
+            ]);
             
             // Award course completion points (safe from duplicates)
             $pointsService = app(\App\Services\PointsService::class);
@@ -466,8 +443,10 @@ class View extends Component
             $badgeService->checkLevelBadges(Auth::user());
             $badgeService->checkPointMilestoneBadges(Auth::user());
 
-            // Auto-generate certificate
-            $this->generateCertificate();
+            // Auto-generate certificate only when explicitly enabled.
+            if (config('certificate.auto_generate_on_course_completion', false)) {
+                $this->generateCertificate();
+            }
         }
     }
 
@@ -482,13 +461,17 @@ class View extends Component
             return; // Certificate already exists
         }
 
-        // Generate certificate
+        // Generate certificate with module profile data
+        $dataService = app(\App\Services\CertificateDataService::class);
+        $modules = $dataService->buildModulesForUser(Auth::user(), $this->course->id);
+
         \App\Models\Certificate::create([
             'user_id' => Auth::id(),
             'course_id' => $this->course->id,
-            'certificate_number' => 'CERT-' . strtoupper(substr(md5(time() . $this->course->id . Auth::id()), 0, 8)) . '-' . date('Y'),
-            'title' => 'Certificate of Completion - ' . $this->course->title,
-            'description' => 'This certifies that ' . Auth::user()->name . ' has successfully completed the course "' . $this->course->title . '".',
+            'certificate_number' => Auth::user()->studentProfile?->student_id
+                ?? ('CERT-' . strtoupper(substr(md5(time() . $this->course->id . Auth::id()), 0, 8)) . '-' . date('Y')),
+            'title' => 'CODE Profile Certificate',
+            'description' => 'This certifies that ' . Auth::user()->name . ' has successfully completed modules in "' . $this->course->title . '".',
             'issued_at' => now(),
             'expires_at' => null,
             'is_verified' => true,
@@ -497,6 +480,7 @@ class View extends Component
                 'completion_date' => $this->enrollment->completed_at?->format('Y-m-d'),
                 'lessons_completed' => $this->enrollment->lessons_completed ?? 0,
                 'instructor' => $this->course->instructor->name ?? 'System',
+                'modules' => $modules,
             ],
         ]);
 
@@ -506,14 +490,37 @@ class View extends Component
             Auth::user()->badges()->attach($badge->id, ['earned_at' => now()]);
             
             if (Auth::user()->points) {
-                Auth::user()->points->increment('total_points', $badge->points_reward ?? 200);
+                Auth::user()->points->addPoints((int) ($badge->points_reward ?? 200));
             }
         }
     }
 
     public function render()
     {
-        return view('livewire.lessons.view');
+        $modules = CourseModule::where('course_id', $this->course->id)
+            ->with(['lessons' => fn($q) => $q->orderBy('order_index')
+                ->select('id', 'module_id', 'title', 'order_index', 'lesson_type')])
+            ->orderBy('order_index')
+            ->get();
+
+        $allLessonIds = $modules->pluck('lessons')->flatten()->pluck('id')->toArray();
+
+        $completedLessonIds = empty($allLessonIds) ? [] : StudentLessonProgress::where('user_id', Auth::id())
+            ->whereIn('lesson_id', $allLessonIds)
+            ->where('status', 'completed')
+            ->pluck('lesson_id')
+            ->toArray();
+
+        $courseProgress = $this->enrollment
+            ? (int) ($this->enrollment->progress_percentage ?? 0)
+            : 0;
+
+        return view('livewire.lessons.view', compact('modules', 'completedLessonIds', 'courseProgress'));
     }
 }
+
+
+
+
+
 

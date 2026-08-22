@@ -2,9 +2,9 @@
 
 namespace App\Livewire\Attendance;
 
+use App\Models\CodeCamp;
 use App\Models\StudentProfile;
-use App\Models\StudentAttendance as StudentAttendanceModel;
-use App\Models\Course;
+use App\Services\AttendanceService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -14,120 +14,173 @@ use Livewire\Component;
 class StudentAttendance extends Component
 {
     public $attendanceDate;
-    public $courseId = null;
-    public $students = [];
+    public $campId = null;
+    public $roster = [];
     public $attendance = [];
     public $reasons = [];
     public $clockIn = [];
     public $clockOut = [];
+    public $initial = [];
     public $search = '';
     public $classFilter = '';
     public $statusFilter = '';
-    public $totalMarked = 0;
+    public $isLocked = false;
 
-    public function mount()
+    protected AttendanceService $attendanceService;
+
+    public function boot(AttendanceService $attendanceService): void
+    {
+        $this->attendanceService = $attendanceService;
+    }
+
+    public function mount(): void
     {
         $this->attendanceDate = today()->format('Y-m-d');
-        $this->loadStudents();
+
+        $activeCamps = CodeCamp::where('status', 'active')->orderBy('start_date')->get();
+        if ($activeCamps->count() === 1) {
+            $this->campId = $activeCamps->first()->id;
+        }
+
+        $this->loadRoster();
     }
 
-    public function loadStudents()
+    public function loadRoster(): void
     {
-        $query = StudentProfile::with('user');
+        $this->isLocked = $this->attendanceService->isLocked($this->attendanceDate);
 
-        // Apply filters
-        if ($this->search) {
-            $query->where(function($q) {
-                $q->where('full_name', 'like', '%' . $this->search . '%')
-                  ->orWhere('student_id', 'like', '%' . $this->search . '%');
-            });
-        }
+        $rows = $this->attendanceService->roster(
+            $this->attendanceDate,
+            $this->campId ?: null,
+            $this->search ?: null
+        );
 
         if ($this->classFilter) {
-            $query->where('class_grade', $this->classFilter);
+            $rows = $rows->filter(fn ($row) => ($row['profile']->class_grade ?? '') === $this->classFilter);
         }
 
-        $this->students = $query->get();
-        
-        // Load existing attendance for the date
-        $existing = StudentAttendanceModel::where('attendance_date', $this->attendanceDate)
-            ->when($this->courseId, fn($q) => $q->where('course_id', $this->courseId))
-            ->get()
-            ->keyBy('student_profile_id');
+        $this->roster = $rows->values()->all();
+        $this->attendance = [];
+        $this->reasons = [];
+        $this->clockIn = [];
+        $this->clockOut = [];
+        $this->initial = [];
 
-        foreach ($this->students as $student) {
-            $existingRecord = $existing->get($student->id);
-            $this->attendance[$student->id] = $existingRecord?->status ?? 'present';
-            $this->reasons[$student->id] = $existingRecord?->reason ?? '';
-            $this->clockIn[$student->id] = $existingRecord?->clock_in ? date('H:i', strtotime($existingRecord->clock_in)) : '';
-            $this->clockOut[$student->id] = $existingRecord?->clock_out ? date('H:i', strtotime($existingRecord->clock_out)) : '';
+        foreach ($this->roster as $row) {
+            $id = $row['profile']->id;
+            $status = $row['status'] ?? '';
+            $this->attendance[$id] = $status;
+            $this->reasons[$id] = $row['record']?->reason ?? '';
+            $this->clockIn[$id] = $row['clock_in'] ? $this->formatTimeForInput($row['clock_in']) : '';
+            $this->clockOut[$id] = $row['clock_out'] ? $this->formatTimeForInput($row['clock_out']) : '';
+            $this->initial[$id] = [
+                'status'    => $status,
+                'reason'    => $this->reasons[$id],
+                'clock_in'  => $this->clockIn[$id],
+                'clock_out' => $this->clockOut[$id],
+            ];
+        }
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->loadRoster();
+    }
+
+    public function updatedClassFilter(): void
+    {
+        $this->loadRoster();
+    }
+
+    public function updatedAttendanceDate(): void
+    {
+        $this->loadRoster();
+    }
+
+    public function updatedCampId(): void
+    {
+        $this->loadRoster();
+    }
+
+    public function saveAttendance(): void
+    {
+        if ($this->isLocked) {
+            session()->flash('error', 'Attendance is locked for this date.');
+
+            return;
         }
 
-        $this->calculateTotalMarked();
-    }
+        $saved = 0;
 
-    public function calculateTotalMarked()
-    {
-        $this->totalMarked = count(array_filter($this->attendance));
-    }
-
-    public function updatedSearch()
-    {
-        $this->loadStudents();
-    }
-
-    public function updatedClassFilter()
-    {
-        $this->loadStudents();
-    }
-
-    public function updatedStatusFilter()
-    {
-        // This will be used in the view to filter displayed cards
-    }
-
-    public function updatedAttendanceDate()
-    {
-        $this->loadStudents();
-    }
-
-    public function updatedCourseId()
-    {
-        $this->loadStudents();
-    }
-
-    public function saveAttendance()
-    {
         foreach ($this->attendance as $studentId => $status) {
-            $clockIn = $this->normalizeTime($this->clockIn[$studentId] ?? null);
-            $clockOut = $this->normalizeTime($this->clockOut[$studentId] ?? null);
+            if ($status === '' || $status === null) {
+                continue;
+            }
 
-            StudentAttendanceModel::updateOrCreate(
-                [
-                    'student_profile_id' => $studentId,
-                    'attendance_date' => $this->attendanceDate,
-                    'course_id' => $this->courseId,
-                ],
-                [
-                    'status' => $status,
-                    'reason' => $this->reasons[$studentId] ?? null,
-                    'clock_in' => $clockIn,
-                    'clock_out' => $clockOut,
-                    'recorded_by' => Auth::id(),
-                ]
-            );
+            if (! $this->rowChanged((int) $studentId, $status)) {
+                continue;
+            }
+
+            $profile = StudentProfile::find($studentId);
+            if (! $profile) {
+                continue;
+            }
+
+            try {
+                $this->attendanceService->markManual(
+                    $profile,
+                    $status,
+                    $this->attendanceDate,
+                    Auth::user(),
+                    $this->campId ?: null,
+                    $this->reasons[$studentId] ?? null,
+                    $this->normalizeTime($this->clockIn[$studentId] ?? null),
+                    $this->normalizeTime($this->clockOut[$studentId] ?? null),
+                );
+                $saved++;
+            } catch (\RuntimeException $e) {
+                session()->flash('error', $e->getMessage());
+
+                return;
+            }
         }
 
-        session()->flash('message', 'Attendance recorded successfully!');
+        session()->flash('message', $saved > 0
+            ? "Saved {$saved} attendance record(s)."
+            : 'No changes to save.');
+        $this->loadRoster();
     }
 
     public function render()
     {
-        $courses = Course::orderBy('title')->get();
-        
+        $camps = CodeCamp::whereIn('status', ['upcoming', 'active'])
+            ->orderBy('start_date')
+            ->get(['id', 'name', 'status']);
+
+        $profiles = collect($this->roster)->pluck('profile');
+        $markedCount = collect($this->attendance)->filter(fn ($s) => $s !== '')->count();
+        $todayStats = $this->attendanceService->stats($this->attendanceDate, $this->attendanceDate, $this->campId ?: null);
+
         return view('livewire.attendance.student-attendance', [
-            'courses' => $courses,
+            'camps'        => $camps,
+            'profiles'     => $profiles,
+            'markedCount'  => $markedCount,
+            'todayStats'   => $todayStats,
         ]);
+    }
+
+    private function rowChanged(int $studentId, string $status): bool
+    {
+        $initial = $this->initial[$studentId] ?? null;
+
+        if (! $initial) {
+            return true;
+        }
+
+        return $initial['status'] !== $status
+            || ($initial['reason'] ?? '') !== ($this->reasons[$studentId] ?? '')
+            || ($initial['clock_in'] ?? '') !== ($this->clockIn[$studentId] ?? '')
+            || ($initial['clock_out'] ?? '') !== ($this->clockOut[$studentId] ?? '');
     }
 
     private function normalizeTime(?string $value): ?string
@@ -142,8 +195,21 @@ class StudentAttendance extends Component
             $format = strlen($value) === 5 ? 'H:i' : 'H:i:s';
 
             return Carbon::createFromFormat($format, $value)->format('H:i:s');
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             return null;
+        }
+    }
+
+    private function formatTimeForInput(mixed $value): string
+    {
+        if ($value instanceof Carbon) {
+            return $value->format('H:i');
+        }
+
+        try {
+            return Carbon::parse($value)->format('H:i');
+        } catch (\Throwable) {
+            return '';
         }
     }
 }

@@ -377,7 +377,7 @@
                                                     ? $assessment->questions->sum('points') 
                                                     : 100;
                                                 $attemptScore = $bestAttempt->score ?? 0;
-                                                $percentage = $maxScore > 0 ? ($attemptScore / $maxScore) * 100 : 0;
+                                                $percentage = min($maxScore > 0 ? ($attemptScore / $maxScore) * 100 : 0, 100);
                                             @endphp
                                             <span class="font-bold {{ $bestAttempt->is_passed ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
                                                 {{ number_format($percentage, 1) }}%

@@ -52,9 +52,9 @@ class DailyChallengeSeeder extends Seeder
             ],
             [
                 'title' => 'Forum Participation',
-                'description' => 'Post 3 replies in course discussions',
+                'description' => 'Post 3 helpful replies or discussions in your course forum (min. 40 characters each; one reply per thread counts).',
                 'type' => 'forum_participation',
-                'requirements' => ['posts' => 3],
+                'requirements' => ['posts' => 3, 'mode' => 'both', 'min_characters' => 40],
                 'reward_points' => 50,
                 'difficulty_level' => 'easy',
                 'category' => 'social',

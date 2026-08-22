@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CODE Profile Certificate</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', Arial, sans-serif;
+      background: #f0f0f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    /* Thick blue frame — matches ict_bg.png / production PDF template */
+    .frame {
+      width: 794px;
+      background: #1a3a8f;
+      padding: 18px;
+    }
+
+    .certificate {
+      width: 100%;
+      min-height: 1087px;
+      background: #ffffff;
+      padding: 48px 52px 40px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 48px; }
+    .logo-cau { display: flex; align-items: center; gap: 10px; }
+    .logo-cau .icon-box {
+      width: 56px; height: 56px; border: 3px solid #1a3a8f; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; color: #1a3a8f;
+    }
+    .logo-cau .text-code { font-size: 22px; font-weight: 900; color: #1a3a8f; letter-spacing: 2px; line-height: 1; }
+    .logo-cau .text-academy { font-size: 14px; font-weight: 700; color: #1a3a8f; letter-spacing: 2px; }
+    .logo-cau .text-uganda { font-size: 10px; font-weight: 600; color: #1a3a8f; letter-spacing: 3px; border-top: 1.5px solid #1a3a8f; padding-top: 3px; margin-top: 3px; text-align: center; }
+    .logo-cc { font-size: 30px; font-weight: 900; color: #1a3a8f; text-align: right; line-height: 1.1; }
+
+    .title { font-size: 52px; font-weight: 900; color: #1a3a8f; line-height: 1.05; margin-bottom: 36px; }
+
+    .candidate-block { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 6px; gap: 40px; }
+    .candidate-name-wrap { flex: 1; border-bottom: 2px solid #1a3a8f; padding-bottom: 6px; }
+    .candidate-id-wrap { width: 180px; border-bottom: 2px solid #1a3a8f; padding-bottom: 6px; }
+    .candidate-name { font-size: 28px; font-weight: 800; color: #1a3a8f; }
+    .candidate-id { font-size: 16px; font-weight: 700; color: #1a3a8f; font-family: 'Courier New', monospace; }
+    .field-label { font-size: 12px; font-weight: 600; color: #2d7fd4; margin-top: 6px; }
+
+    .subtitle { font-size: 14px; font-weight: 600; color: #222; margin: 28px 0 20px; }
+
+    .modules-table { width: 100%; border-collapse: collapse; }
+    .modules-table th { font-size: 13px; font-weight: 700; color: #111; text-align: left; padding-bottom: 12px; }
+    .modules-table td { font-size: 13px; color: #333; padding: 10px 0; }
+    .modules-table td:nth-child(2), .modules-table th:nth-child(2) { padding-left: 40px; }
+    .modules-table td:nth-child(3), .modules-table th:nth-child(3) { text-align: right; }
+
+    .watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -30%); opacity: 0.04; pointer-events: none; z-index: 0; }
+    .watermark svg { width: 380px; height: 380px; }
+
+    .footer { margin-top: auto; padding-top: 32px; border-top: 2px solid #1a3a8f; display: flex; justify-content: space-between; align-items: flex-end; position: relative; z-index: 1; }
+    .footer-sig, .footer-date { font-size: 12px; font-weight: 600; color: #2d7fd4; }
+    .bottom-icon { text-align: center; margin-top: 24px; position: relative; z-index: 1; }
+    .content { position: relative; z-index: 1; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="certificate">
+      <div class="watermark">
+        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="#1a3a8f">
+          <polygon points="100,30 185,75 100,120 15,75"/>
+          <rect x="155" y="75" width="8" height="50" rx="4"/>
+          <ellipse cx="159" cy="130" rx="12" ry="8"/>
+        </svg>
+      </div>
+
+      <div class="header content">
+        <div class="logo-cau">
+          <div class="icon-box">&lt;/&gt;</div>
+          <div class="text-block">
+            <div class="text-code">CODE</div>
+            <div class="text-academy">ACADEMY</div>
+            <div class="text-uganda">UGANDA</div>
+          </div>
+        </div>
+        <div class="logo-cc">&laquo;CODE<br>CAMP&raquo;</div>
+      </div>
+
+      <div class="content">
+        <div class="title">CODE Profile Certificate</div>
+
+        <div class="candidate-block">
+          <div class="candidate-name-wrap"><div class="candidate-name" id="candidateName">KASIMBA ISHAKA TENDO</div></div>
+          <div class="candidate-id-wrap"><div class="candidate-id" id="candidateNo">STU-2025-0063</div></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; gap:40px;">
+          <div class="field-label">Candidate Name</div>
+          <div class="field-label" style="width:180px;">Candidate No.</div>
+        </div>
+
+        <div class="subtitle">has successfully completed the following modules:</div>
+
+        <table class="modules-table">
+          <thead>
+            <tr><th>Module Name</th><th>Version/Syllabus</th><th>Date</th></tr>
+          </thead>
+          <tbody id="modulesBody">
+            <tr><td>Scratch Intermediate</td><td>1.0</td><td>19th Dec 2025</td></tr>
+            <tr><td>Scratch Advanced</td><td>1.0</td><td>29th Jan 2026</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="footer">
+        <div class="footer-sig">Edward Ssempala, Executive Director Code Academy Uganda</div>
+        <div class="footer-date">Date: <span id="signatureDate">—</span></div>
+      </div>
+
+      <div class="bottom-icon">
+        <svg viewBox="0 0 48 48" fill="none" width="48" height="48" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="24,6 44,17 24,28 4,17" fill="#1a3a8f"/>
+          <text x="13" y="21" font-size="11" font-weight="900" fill="white" font-family="Arial">&lt;/&gt;</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const name = params.get('name');
+      const no = params.get('no');
+      const date = params.get('date');
+      const modules = params.get('modules');
+
+      if (name) document.getElementById('candidateName').textContent = name.toUpperCase();
+      if (no) document.getElementById('candidateNo').textContent = no;
+      if (date) document.getElementById('signatureDate').textContent = date;
+
+      if (modules) {
+        const tbody = document.getElementById('modulesBody');
+        tbody.innerHTML = '';
+        modules.split('|').forEach(function (chunk) {
+          const parts = chunk.split(';');
+          if (!parts[0]) return;
+          const tr = document.createElement('tr');
+          tr.innerHTML = '<td>' + parts[0] + '</td><td>' + (parts[1] || '1.0') + '</td><td>' + (parts[2] || '') + '</td>';
+          tbody.appendChild(tr);
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

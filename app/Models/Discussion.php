@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,6 +17,7 @@ class Discussion extends Model
         'lesson_id',
         'user_id',
         'title',
+        'category',
         'content',
         'is_pinned',
         'is_locked',
@@ -86,6 +88,57 @@ class Discussion extends Model
             return [];
         }
         return $this->userReactions->pluck('reaction_type')->toArray();
+    }
+
+    public static function categoryLabel(?string $category): string
+    {
+        return match ($category) {
+            'question' => 'Question',
+            'help' => 'Help',
+            'announcement' => 'Announcement',
+            'project' => 'Project',
+            'feedback' => 'Feedback',
+            default => 'General',
+        };
+    }
+
+    public function scopeVisibleToUser(Builder $query, User $user): Builder
+    {
+        if ($user->hasAnyRole(['admin', 'teacher', 'supervisor'])) {
+            return $query;
+        }
+
+        $userId = $user->id;
+
+        return $query->where(function ($q) use ($userId) {
+            $q->where('user_id', $userId)
+                ->orWhereHas('course.enrollments', fn ($enrollmentQuery) => $enrollmentQuery->where('user_id', $userId))
+                ->orWhereHas('course', fn ($courseQuery) => $courseQuery->where('enrollment_type', 'open'))
+                ->orWhereNull('course_id');
+        });
+    }
+
+    public static function userCanAccessCourse(User $user, ?int $courseId): bool
+    {
+        if (! $courseId) {
+            return true;
+        }
+
+        if ($user->hasAnyRole(['admin', 'teacher', 'supervisor'])) {
+            return true;
+        }
+
+        $course = Course::find($courseId);
+
+        if (! $course) {
+            return false;
+        }
+
+        if ($course->enrollment_type === 'open') {
+            return true;
+        }
+
+        return $course->enrollments()->where('user_id', $user->id)->exists();
     }
 }
 

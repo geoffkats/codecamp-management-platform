@@ -64,6 +64,8 @@
             frameborder="0" 
             scrolling="no" 
             allowfullscreen
+            loading="lazy"
+            title="{{ $title }}"
             class="absolute top-0 left-0 w-full h-full">
         </iframe>
     </div>

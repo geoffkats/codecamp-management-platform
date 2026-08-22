@@ -57,7 +57,7 @@ return new class extends Migration {
             $table->unsignedBigInteger('daily_report_id');
             $table->string('path');
             $table->string('name')->nullable();
-            $table->string('type', 50)->nullable();
+            $table->string('type', 255)->nullable();
             $table->timestamps();
 
             $table->foreign('daily_report_id')->references('id')->on('daily_reports')->onDelete('cascade');

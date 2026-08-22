@@ -83,7 +83,7 @@
                                         ? $assessment->questions->sum('points')
                                         : 100;
                                     $attemptScore = $attempt->score ?? 0;
-                                    $percentage = $maxScore > 0 ? ($attemptScore / $maxScore) * 100 : 0;
+                                    $percentage = min($maxScore > 0 ? ($attemptScore / $maxScore) * 100 : 0, 100);
                                 @endphp
                                 <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 flex flex-wrap items-center justify-between gap-3">
                                     <div>

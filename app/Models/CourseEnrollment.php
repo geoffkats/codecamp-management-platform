@@ -13,6 +13,8 @@ class CourseEnrollment extends Model
     protected $fillable = [
         'user_id',
         'course_id',
+        'camp_id',
+        'club_id',
         'enrolled_at',
         'completed_at',
         'progress_percentage',
@@ -39,6 +41,41 @@ class CourseEnrollment extends Model
     public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class);
+    }
+
+    public function camp(): BelongsTo
+    {
+        return $this->belongsTo(CodeCamp::class, 'camp_id');
+    }
+
+    public function club(): BelongsTo
+    {
+        return $this->belongsTo(CodeClub::class, 'club_id');
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $enrollment) {
+            $user = User::find($enrollment->user_id);
+
+            if (empty($enrollment->club_id) && $user?->studentProfile?->program_type === 'codeclub') {
+                $activeClubId = CodeClubMembership::where('student_id', $enrollment->user_id)
+                    ->where('status', 'active')
+                    ->value('code_club_id');
+                if ($activeClubId) {
+                    $enrollment->club_id = $activeClubId;
+                }
+            }
+
+            if (empty($enrollment->camp_id) && $user?->studentProfile?->program_type !== 'codeclub') {
+                $activeCampId = CampEnrollment::where('student_id', $enrollment->user_id)
+                    ->where('status', 'active')
+                    ->value('camp_id');
+                if ($activeCampId) {
+                    $enrollment->camp_id = $activeCampId;
+                }
+            }
+        });
     }
 }
 

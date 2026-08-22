@@ -3,6 +3,7 @@
 namespace App\Livewire\Gamification;
 
 use App\Models\UserProgress;
+use App\Support\LevelSystem;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -18,22 +19,14 @@ class Points extends Component
     public function render()
     {
         $user = Auth::user()->load('points');
-        
-        $totalPoints = $user->points->total_points ?? 0;
-        
-        // Calculate level (assuming 100 points per level)
-        $currentLevel = floor($totalPoints / 100) + 1;
-        $pointsInCurrentLevel = $totalPoints % 100;
-        $pointsNeededForNextLevel = 100 - $pointsInCurrentLevel;
-        
-        // Get points history
+        $info = LevelSystem::info($user->points->total_points ?? 0);
+
         $pointsHistory = UserProgress::where('user_id', Auth::id())
             ->where('points_earned', '>', 0)
             ->with(['course', 'lesson'])
             ->latest()
             ->paginate(20);
 
-        // Calculate points breakdown by type
         $breakdown = [
             'lesson_completed' => UserProgress::where('user_id', Auth::id())
                 ->where('type', 'lesson_completed')
@@ -47,10 +40,11 @@ class Points extends Component
         ];
 
         return view('livewire.gamification.points', [
-            'totalPoints' => $totalPoints,
-            'currentLevel' => $currentLevel,
-            'pointsInCurrentLevel' => $pointsInCurrentLevel,
-            'pointsNeededForNextLevel' => $pointsNeededForNextLevel,
+            'totalPoints' => $info['xp'],
+            'currentLevel' => $info['level'],
+            'rankName' => $info['name'],
+            'pointsInCurrentLevel' => $info['xp_in_level'],
+            'pointsNeededForNextLevel' => $info['xp_to_next_level'],
             'pointsHistory' => $pointsHistory,
             'breakdown' => $breakdown,
         ]);

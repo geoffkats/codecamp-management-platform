@@ -212,14 +212,14 @@ class SchoolStudents extends Component
         $student->exam_scheduled_for = $date;
         $student->save();
 
-        $this->notifyIctTeachers(
-            'Exam Scheduled',
-            "Exam scheduled for {$student->full_name} ({$student->student_id}).",
-            [
-                'student_profile_id' => $student->id,
-                'exam_scheduled_for' => $student->exam_scheduled_for,
-            ]
-        );
+            $this->notifyIctTeachers(
+                'Exam Scheduled',
+                "Exam scheduled for {$student->full_name} ({$student->student_id}) on {$student->exam_scheduled_for->format('Y-m-d H:i')}",
+                [
+                    'student_profile_id' => $student->id,
+                    'exam_scheduled_for' => $student->exam_scheduled_for,
+                ]
+            );
     }
 
     private function notifyIctTeachers(string $title, string $message, array $data = []): void
@@ -283,14 +283,13 @@ class SchoolStudents extends Component
         $passedModulesByStudent = InternalTestMark::query()
             ->whereIn('student_profile_id', $studentIds)
             ->where('passed', true)
-            ->selectRaw('student_profile_id, COUNT(DISTINCT course_module_id) as passed_modules')
+            ->selectRaw('student_profile_id, COUNT(DISTINCT course_id) as passed_modules')
             ->groupBy('student_profile_id')
             ->pluck('passed_modules', 'student_profile_id');
 
         $totalModulesByUser = DB::table('course_enrollments as ce')
-            ->join('course_modules as cm', 'cm.course_id', '=', 'ce.course_id')
             ->whereIn('ce.user_id', $userIds)
-            ->selectRaw('ce.user_id, COUNT(DISTINCT cm.id) as total_modules')
+            ->selectRaw('ce.user_id, COUNT(DISTINCT ce.course_id) as total_modules')
             ->groupBy('ce.user_id')
             ->pluck('total_modules', 'ce.user_id');
 

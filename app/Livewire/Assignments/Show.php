@@ -4,6 +4,7 @@ namespace App\Livewire\Assignments;
 
 use App\Models\Assignment;
 use App\Models\AssignmentSubmission;
+use App\Support\SubmissionFile;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -105,7 +106,7 @@ class Show extends Component
         if (!empty($this->submissionFiles)) {
             foreach ($this->submissionFiles as $file) {
                 if ($file) {
-                    $files[] = $file->store('assignments', 'public');
+                    $files[] = SubmissionFile::store($file, 'assignments');
                 }
             }
         }
@@ -140,7 +141,7 @@ class Show extends Component
                     'level' => 1,
                 ]);
             }
-            $user->points->increment('total_points', $this->assignment->lesson->xp_reward);
+            $user->points->addPoints((int) $this->assignment->lesson->xp_reward);
         }
 
         session()->flash('message', 'Assignment submitted successfully!');

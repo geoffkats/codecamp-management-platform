@@ -1,3 +1,4 @@
+<div>
 @if($showResults)
     {{-- Results View --}}
     <div class="max-w-4xl mx-auto p-6">
@@ -24,14 +25,15 @@
                     </p>
                 </div>
 
-                @if($attempt->answers && isset($attempt->answers['files']) && !empty($attempt->answers['files']))
+                @php $submittedFiles = $attempt->submissionFiles(); @endphp
+                @if(count($submittedFiles) > 0)
                     <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
                         <p class="text-blue-800 dark:text-blue-200 font-semibold mb-2">Uploaded Files:</p>
-                        <ul class="list-disc list-inside space-y-1 text-blue-700 dark:text-blue-300">
-                            @foreach($attempt->answers['files'] as $file)
+                        <ul class="space-y-1 text-blue-700 dark:text-blue-300">
+                            @foreach($submittedFiles as $file)
                                 <li>
-                                    <a href="{{ Storage::disk('public')->url($file) }}" target="_blank" class="hover:underline">
-                                        {{ basename($file) }}
+                                    <a href="{{ \App\Support\SubmissionFile::downloadUrl($file['path'], $file['name'] ?? null) }}" class="hover:underline">
+                                        {{ $file['name'] }}
                                     </a>
                                 </li>
                             @endforeach
@@ -100,14 +102,12 @@
                                             </span>
                                         @endif
                                     </div>
-                                    <p class="text-gray-700 dark:text-gray-300 mb-3">{{ $question->question_text }}</p>
+                                    <div class="text-gray-700 dark:text-gray-300 mb-3"><x-rich-text :content="$question->question_text" /></div>
                                     
                                     {{-- Question Image --}}
                                     @if($question->image_url)
                                         <div class="mt-3 mb-3">
-                                            <img src="{{ asset('storage/' . $question->image_url) }}" 
-                                                 alt="Question image" 
-                                                 class="max-w-md rounded-lg border border-gray-200 dark:border-gray-700">
+                                            <x-storage-image :path="$question->image_url" alt="Question image" class="max-w-md rounded-lg border border-gray-200 dark:border-gray-700" />
                                         </div>
                                     @endif
                                     
@@ -189,116 +189,109 @@
     {{-- Assessment Taking Interface --}}
     <div class="max-w-5xl mx-auto p-6">
         {{-- Assessment Header --}}
-        <div class="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl shadow-lg p-6 text-white mb-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6 mb-6">
             <div class="flex items-center justify-between mb-4">
                 <div>
-                    <h1 class="text-2xl font-bold">{{ $assessment->title }}</h1>
-                    <p class="text-blue-100 mt-1">{{ $assessment->course->title }}</p>
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ $assessment->title }}</h1>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ $assessment->course->title }}</p>
                 </div>
-                @if($timeRemaining !== null)
-                    <div class="text-center bg-white/20 rounded-lg px-4 py-2">
-                        <p class="text-sm text-blue-100">Time Remaining</p>
-                        <p class="text-2xl font-bold" x-data="{ 
-                            minutes: Math.floor({{ $timeRemaining }} / 60),
-                            seconds: {{ $timeRemaining }} % 60
-                        }">
+                @if($timeRemaining !== null && $timeRemaining > 0)
+                    <div class="text-center bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-lg px-4 py-3"
+                         x-data="{
+                            remaining: {{ (int) $timeRemaining }},
+                            get minutes() { return Math.floor(this.remaining / 60); },
+                            get seconds() { return this.remaining % 60; },
+                            get isUrgent() { return this.remaining <= 60; },
+                            init() {
+                                const t = setInterval(() => {
+                                    if (this.remaining > 0) {
+                                        this.remaining--;
+                                    } else {
+                                        clearInterval(t);
+                                        if (this.remaining === 0) {
+                                            $wire.call('submitAssessment');
+                                        }
+                                    }
+                                }, 1000);
+                                document.addEventListener('livewire:navigating', () => clearInterval(t), { once: true });
+                            }
+                         }">
+                        <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Time Remaining</p>
+                        <p class="text-2xl font-bold tabular-nums" :class="isUrgent ? 'text-red-600 dark:text-red-400 animate-pulse' : 'text-orange-600 dark:text-orange-400'">
                             <span x-text="String(minutes).padStart(2, '0')"></span>:<span x-text="String(seconds).padStart(2, '0')"></span>
                         </p>
                     </div>
                 @endif
             </div>
 
-            @if($assessment->assessment_type !== 'assignment')
+            @if($totalQuestions > 0)
                 {{-- Progress Bar --}}
-                <div class="mt-4">
+                <div class="mt-2">
                     @php
                         $safeTotalQuestions = max($totalQuestions, 1);
-                        $progressPercent = $totalQuestions > 0
-                            ? round((($currentQuestionIndex + 1) / $safeTotalQuestions) * 100)
-                            : 0;
+                        $progressPercent = round((($currentQuestionIndex + 1) / $safeTotalQuestions) * 100);
                     @endphp
                     <div class="flex items-center justify-between text-sm mb-2">
-                        <span>Question {{ $currentQuestionIndex + 1 }} of {{ $totalQuestions }}</span>
-                        <span>{{ $progressPercent }}%</span>
+                        <span class="text-gray-600 dark:text-gray-400">
+                            {{ $assessment->assessment_type === 'assignment' ? 'Task' : 'Question' }}
+                            {{ $currentQuestionIndex + 1 }} of {{ $totalQuestions }}
+                        </span>
+                        <span class="text-gray-500 dark:text-gray-500">{{ $progressPercent }}%</span>
                     </div>
-                    <div class="w-full bg-white/20 rounded-full h-2">
-                        <div class="h-2 bg-white rounded-full transition-all duration-300" 
+                    <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
+                        <div class="h-2 bg-orange-500 rounded-full transition-all duration-300"
                              style="width: {{ $progressPercent }}%"></div>
                     </div>
                 </div>
             @endif
         </div>
 
-        {{-- Assignment Submission Form --}}
         @if($assessment->assessment_type === 'assignment')
+            @include('livewire.assessments.partials.assignment-brief', ['assessment' => $assessment])
+        @endif
+
+        @if($assessment->assessment_type === 'assignment' && $totalQuestions === 0)
+            @php
+                $allowText = $assessment->assignment_data['allow_text'] ?? true;
+                $allowFiles = $assessment->assignment_data['allow_files'] ?? true;
+            @endphp
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
-                <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Assignment Submission</h2>
-                
-                @if($assessment->description)
-                    <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ $assessment->description }}</p>
-                    </div>
-                @endif
-
-                @if($assessment->assignment_data && isset($assessment->assignment_data['instructions']))
-                    <div class="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                        <h3 class="font-semibold text-blue-900 dark:text-blue-200 mb-2">Instructions:</h3>
-                        <p class="text-blue-800 dark:text-blue-300 whitespace-pre-wrap">{{ $assessment->assignment_data['instructions'] }}</p>
-                    </div>
-                @endif
-
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Your Submission</h2>
                 <form wire:submit="submitAssessment">
                     <div class="space-y-6">
+                        @if($allowText)
                         <div>
-                            <flux:field label="Your Submission" required>
-                                <flux:textarea 
-                                    wire:model="submissionText"
-                                    rows="12"
-                                    placeholder="Enter your assignment submission here... You can paste text from documents, write your response, or include code snippets." />
+                            <flux:field label="Your Response" :required="!$allowFiles">
+                                <flux:textarea wire:model="submissionText" rows="12" placeholder="Write your assignment response here..." />
                                 <flux:error name="submissionText" />
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    Minimum 10 characters. You can copy and paste content from PDFs, Word documents, or any text source.
-                                </p>
                             </flux:field>
                         </div>
-
+                        @endif
+                        @if($allowFiles)
                         <div>
-                            <flux:field label="Upload Files (Optional)">
-                                <flux:input 
-                                    type="file" 
-                                    wire:model="submissionFiles" 
-                                    multiple
-                                    accept=".pdf,.doc,.docx,.txt,.zip,.rar,.jpg,.jpeg,.png"
-                                />
+                            <flux:field label="Upload Files{{ $allowText ? ' (Optional)' : '' }}" :required="!$allowText">
+                                <flux:input type="file" wire:model="submissionFiles" multiple accept=".pdf,.doc,.docx,.txt,.zip,.rar,.jpg,.jpeg,.png,.sb3,.sb2,.sb" />
                                 <flux:error name="submissionFiles.*" />
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    Maximum 10MB per file. Supported formats: PDF, DOC, DOCX, TXT, ZIP, RAR, JPG, PNG
-                                </p>
                             </flux:field>
                         </div>
-
+                        @endif
                         <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                            <flux:button href="{{ route('assessments.show', $assessment) }}" wire:navigate variant="ghost">
-                                Cancel
-                            </flux:button>
-                            <flux:button type="submit" variant="primary">
-                                Submit Assignment
-                                <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </flux:button>
+                            <flux:button href="{{ route('assessments.show', $assessment) }}" wire:navigate variant="ghost">Cancel</flux:button>
+                            <flux:button type="submit" variant="primary">Submit Assignment</flux:button>
                         </div>
                     </div>
                 </form>
             </div>
-        @else
+        @endif
+
+        @if($totalQuestions > 0)
 
         {{-- Auto-save Indicator --}}
         @if($autoSaveEnabled && $lastSavedAt)
             <div class="mb-4 flex items-center justify-end text-sm text-gray-600 dark:text-gray-400" 
                  x-data="{ show: false }"
                  x-init="
-                     $watch('@progress-saved', () => { show = true; setTimeout(() => show = false, 2000); });
+                     window.addEventListener('progress-saved', () => { show = true; setTimeout(() => show = false, 2000); });
                  ">
                 <span x-show="show" 
                       x-transition
@@ -313,54 +306,62 @@
 
         {{-- Question Navigation with Bookmarks and Flags --}}
         @if($totalQuestions > 1)
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 mb-6">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Question Navigation</h3>
-                    <div class="flex items-center gap-4 text-xs">
-                        <span class="flex items-center gap-1">
-                            <span class="w-3 h-3 rounded bg-green-500"></span>
-                            Answered
-                        </span>
-                        <span class="flex items-center gap-1">
-                            <span class="w-3 h-3 rounded bg-yellow-500"></span>
-                            Bookmarked
-                        </span>
-                        <span class="flex items-center gap-1">
-                            <span class="w-3 h-3 rounded bg-red-500"></span>
-                            Flagged
-                        </span>
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-4 mb-6">
+                <div class="flex items-center justify-between mb-3 gap-3">
+                    <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 flex-wrap">
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-green-500 inline-block"></span> Answered</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-yellow-500 inline-block"></span> Bookmarked</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-red-500 inline-block"></span> Flagged</span>
                     </div>
+                    {{-- Review & Submit button — always visible, not just on last question --}}
+                    <button
+                        wire:click="showReview"
+                        type="button"
+                        class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-green-600 hover:bg-green-700 text-white rounded-lg shadow-sm transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7l2 2 4-4" />
+                        </svg>
+                        Review & Submit
+                    </button>
                 </div>
-                <div class="flex flex-wrap gap-2">
+                {{-- Scrollable grid — no overflow on small screens --}}
+                <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-1">
                     @php $questions = $this->getQuestions(); @endphp
                     @if($questions && $questions->isNotEmpty())
                     @foreach($questions as $index => $question)
                         @php
-                            $isAnswered = isset($answers[$question->id]) && !empty($answers[$question->id]);
+                            $isAnswered = isset($answers[$question->id]) && $answers[$question->id] !== '' && $answers[$question->id] !== [];
                             $isBookmarked = in_array($index, $bookmarkedQuestions);
                             $isFlagged = in_array($index, $flaggedQuestions);
                             $isCurrent = $index === $currentQuestionIndex;
                         @endphp
-                        <button 
+                        <button
                             wire:click="goToQuestion({{ $index }})"
                             aria-label="Go to question {{ $index + 1 }}"
-                            class="relative w-10 h-10 rounded-lg text-sm font-semibold transition-all
-                                {{ $isCurrent ? 'ring-2 ring-blue-500 bg-blue-600 text-white scale-110' : '' }}
-                                {{ $isAnswered && !$isCurrent ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border-2 border-green-500' : '' }}
-                                {{ !$isAnswered && !$isCurrent ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300' : '' }}
-                                hover:bg-gray-200 dark:hover:bg-gray-600
-                                focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            class="relative w-9 h-9 rounded-lg text-xs font-bold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500
+                                {{ $isCurrent
+                                    ? 'ring-2 ring-offset-1 ring-blue-500 bg-blue-600 text-white scale-110 z-10'
+                                    : ($isAnswered
+                                        ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 border-2 border-green-400'
+                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600') }}">
                             {{ $index + 1 }}
                             @if($isBookmarked)
-                                <span class="absolute -top-1 -right-1 w-3 h-3 bg-yellow-500 rounded-full" title="Bookmarked"></span>
-                            @endif
-                            @if($isFlagged)
-                                <span class="absolute -bottom-1 -right-1 w-3 h-3 bg-red-500 rounded-full" title="Flagged for review"></span>
+                                <span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-yellow-400 rounded-full border border-white dark:border-gray-800"></span>
+                            @elseif($isFlagged)
+                                <span class="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white dark:border-gray-800"></span>
                             @endif
                         </button>
                     @endforeach
                     @endif
                 </div>
+            </div>
+        @elseif($totalQuestions === 1)
+            {{-- Single question — still show Review & Submit --}}
+            <div class="flex justify-end mb-4">
+                <button wire:click="showReview" type="button"
+                        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors">
+                    Review & Submit
+                </button>
             </div>
         @endif
 
@@ -383,34 +384,79 @@
                         @php $questions = $this->getQuestions(); @endphp
                         @if($questions && $questions->isNotEmpty())
                         @foreach($questions as $index => $question)
-                            <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                                <div class="flex items-start justify-between mb-2">
-                                    <h3 class="font-semibold text-gray-900 dark:text-white">Question {{ $index + 1 }}</h3>
-                                    <button wire:click="goToQuestion({{ $index }})" 
-                                            onclick="$wire.hideReview()"
-                                            class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                                        Go to question →
+                            @php
+                                $userAnswer = $answers[$question->id] ?? null;
+                                $hasAnswer = !is_null($userAnswer) && $userAnswer !== '' && $userAnswer !== [];
+
+                                // Build a human-readable display of the answer
+                                $displayLines = [];
+                                if ($hasAnswer) {
+                                    if (in_array($question->question_type, ['multiple_choice', 'choice', 'true_false'])) {
+                                        $opt = $question->options->firstWhere('id', (int)$userAnswer)
+                                            ?? $question->options->firstWhere('id', $userAnswer);
+                                        $displayLines[] = $opt ? $opt->option_text : $userAnswer;
+                                    } elseif ($question->question_type === 'multiple_select') {
+                                        $selectedIds = array_map('intval', (array) $userAnswer);
+                                        $texts = $question->options->whereIn('id', $selectedIds)->pluck('option_text')->all();
+                                        $displayLines = count($texts) ? $texts : [(string)json_encode($userAnswer)];
+                                    } elseif ($question->question_type === 'matching') {
+                                        $matchData = $this->getShuffledQuestionData($question->id, 'matching');
+                                        $pairs = $matchData['pairs'] ?? [];
+                                        foreach ((array) $userAnswer as $i => $chosen) {
+                                            if ($chosen !== '' && isset($pairs[$i])) {
+                                                $displayLines[] = $pairs[$i]['left_item'] . ' → ' . $chosen;
+                                            }
+                                        }
+                                    } elseif ($question->question_type === 'ordering') {
+                                        $items = (array) $userAnswer;
+                                        foreach ($items as $pos => $item) {
+                                            $displayLines[] = ($pos + 1) . '. ' . $item;
+                                        }
+                                    } elseif ($question->question_type === 'fill_blank') {
+                                        foreach ((array) $userAnswer as $bi => $val) {
+                                            if ($val !== '') {
+                                                $displayLines[] = 'Blank ' . ($bi + 1) . ': ' . $val;
+                                            }
+                                        }
+                                    } elseif ($question->question_type === 'rating') {
+                                        $displayLines[] = 'Rating: ' . $userAnswer;
+                                    } elseif (is_array($userAnswer)) {
+                                        $displayLines = array_filter(array_map('strval', $userAnswer));
+                                    } else {
+                                        $displayLines[] = (string) $userAnswer;
+                                    }
+                                }
+                            @endphp
+                            <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-4
+                                {{ $hasAnswer ? 'border-l-4 border-l-green-400' : 'border-l-4 border-l-red-400' }}">
+                                <div class="flex items-start justify-between mb-2 gap-3">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-bold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">Q{{ $index + 1 }}</span>
+                                        @if(!$hasAnswer)
+                                            <span class="text-xs font-semibold text-red-600 dark:text-red-400">Unanswered</span>
+                                        @endif
+                                    </div>
+                                    <button wire:click="goToQuestion({{ $index }})" x-on:click="show = false"
+                                            class="text-blue-600 dark:text-blue-400 hover:underline text-xs font-semibold flex-shrink-0">
+                                        Edit →
                                     </button>
                                 </div>
-                                <p class="text-gray-700 dark:text-gray-300 mb-3">{{ $question->question_text }}</p>
-                                
-                                {{-- Question Image --}}
-                                @if($question->image_url)
-                                    <div class="mt-3 mb-3">
-                                        <img src="{{ asset('storage/' . $question->image_url) }}" 
-                                             alt="Question image" 
-                                             class="max-w-md rounded-lg border border-gray-200 dark:border-gray-700">
+                                <p class="text-sm text-gray-700 dark:text-gray-300 mb-2 line-clamp-2">{{ \Illuminate\Support\Str::limit($question->question_text, 120) }}</p>
+
+                                @if($hasAnswer && count($displayLines))
+                                    <div class="mt-2 space-y-1">
+                                        @foreach($displayLines as $line)
+                                            <div class="flex items-start gap-2 text-sm">
+                                                <svg class="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                                </svg>
+                                                <span class="text-gray-800 dark:text-gray-200">{{ $line }}</span>
+                                            </div>
+                                        @endforeach
                                     </div>
+                                @elseif(!$hasAnswer)
+                                    <p class="text-xs text-red-500 dark:text-red-400 italic mt-1">No answer given — you can still go back and answer this.</p>
                                 @endif
-                                
-                                <div class="bg-gray-50 dark:bg-gray-900/50 rounded p-3">
-                                    @if(isset($answers[$question->id]) && !empty($answers[$question->id]))
-                                        <p class="text-sm text-gray-600 dark:text-gray-400">Your answer:</p>
-                                        <p class="text-gray-900 dark:text-white mt-1">{{ is_array($answers[$question->id]) ? json_encode($answers[$question->id]) : $answers[$question->id] }}</p>
-                                    @else
-                                        <p class="text-sm text-red-600 dark:text-red-400 italic">Not answered</p>
-                                    @endif
-                                </div>
                             </div>
                         @endforeach
                         @endif
@@ -427,15 +473,15 @@
             </div>
         @endif
 
-        {{-- Current Question --}}
+        {{-- Current Question — wire:key forces a clean remount so text/options never bleed across questions --}}
         @if($currentQuestion)
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
+            <div wire:key="question-panel-{{ $currentQuestion->id }}" class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
                 <div class="mb-6">
                     <div class="flex items-start justify-between mb-4">
                         <div class="flex-1">
                             <div class="flex items-center gap-3 mb-2">
                                 <h2 class="text-xl font-bold text-gray-900 dark:text-white">
-                                    Question {{ $currentQuestionIndex + 1 }}
+                                    {{ $assessment->assessment_type === 'assignment' ? 'Task' : 'Question' }} {{ $currentQuestionIndex + 1 }}
                                 </h2>
                                 <span class="text-sm font-semibold text-gray-600 dark:text-gray-400">
                                     {{ $currentQuestion->points }} points
@@ -467,16 +513,14 @@
                             </button>
                         </div>
                     </div>
-                    <p class="text-lg text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ $currentQuestion->question_text }}</p>
+                    <div class="text-lg text-gray-700 dark:text-gray-300">
+                        <x-rich-text :content="$currentQuestion->question_text" class="!prose-lg" />
+                    </div>
                     
                     {{-- Question Image --}}
                     @if($currentQuestion->image_url)
                         <div class="mt-4">
-                            <img src="{{ asset('storage/' . $currentQuestion->image_url) }}" 
-                                 alt="Question image" 
-                                 class="max-w-full rounded-lg border border-gray-200 dark:border-gray-700"
-                                 onerror="console.log('Image failed to load:', this.src); this.style.display='none';"
-                                 onload="console.log('Image loaded successfully:', this.src);">
+                            <x-storage-image :path="$currentQuestion->image_url" alt="Question image" />
                         </div>
                     @endif
                 </div>
@@ -487,7 +531,7 @@
                         $userAnswer = $answers[$currentQuestion->id] ?? null;
                         $isMultiple = $currentQuestion->question_type === 'multiple_select';
                     @endphp
-                    <div class="space-y-3">
+                    <div class="space-y-3" wire:key="options-{{ $currentQuestion->id }}">
                         @foreach($currentQuestion->options as $option)
                             <label wire:key="option-{{ $currentQuestion->id }}-{{ $option->id }}" class="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors
                                 {{ ($isMultiple ? in_array($option->id, (array)$userAnswer) : ($userAnswer == $option->id))
@@ -495,6 +539,7 @@
                                     : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600' }}">
                                 <input 
                                     type="{{ $currentQuestion->question_type === 'multiple_choice' || $currentQuestion->question_type === 'choice' ? 'radio' : 'checkbox' }}"
+                                    name="answer-{{ $currentQuestion->id }}"
                                     wire:model.live="answers.{{ $currentQuestion->id }}"
                                     value="{{ $option->id }}"
                                     class="mt-1 w-5 h-5 text-blue-600 focus:ring-blue-500" />
@@ -502,11 +547,7 @@
                                     <p class="text-gray-900 dark:text-white font-medium">{{ $option->option_text }}</p>
                                     @if($option->image_url)
                                         <div class="mt-2">
-                                            <img src="{{ asset('storage/' . $option->image_url) }}" 
-                                                 alt="Option image" 
-                                                 class="max-w-xs rounded border border-gray-200 dark:border-gray-700"
-                                                 onerror="console.log('Option image failed to load:', this.src); this.style.display='none';"
-                                                 onload="console.log('Option image loaded successfully:', this.src);">
+                                            <x-storage-image :path="$option->image_url" alt="Option image" class="max-w-xs rounded border border-gray-200 dark:border-gray-700" />
                                         </div>
                                     @endif
                                     @if($option->explanation)
@@ -534,7 +575,7 @@
 
                         $userAnswer = $answers[$currentQuestion->id] ?? null;
                     @endphp
-                    <div class="space-y-3">
+                    <div class="space-y-3" wire:key="truefalse-{{ $currentQuestion->id }}">
                         @if($trueOption)
                             <label wire:key="true-option-{{ $currentQuestion->id }}" class="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors
                                 {{ $userAnswer == $trueOption->id
@@ -542,6 +583,7 @@
                                     : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600' }}">
                                 <input 
                                     type="radio"
+                                    name="answer-{{ $currentQuestion->id }}"
                                     wire:model.live="answers.{{ $currentQuestion->id }}"
                                     value="{{ $trueOption->id }}"
                                     class="mt-1 w-5 h-5 text-blue-600 focus:ring-blue-500" />
@@ -562,6 +604,7 @@
                                     : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600' }}">
                                 <input 
                                     type="radio"
+                                    name="answer-{{ $currentQuestion->id }}"
                                     wire:model.live="answers.{{ $currentQuestion->id }}"
                                     value="{{ $falseOption->id }}"
                                     class="mt-1 w-5 h-5 text-blue-600 focus:ring-blue-500" />
@@ -577,148 +620,91 @@
                         @endif
                     </div>
                 @elseif($currentQuestion->question_type === 'short_answer')
-                    {{-- Short Answer --}}
+                    {{-- Short Answer — live sync so Skip→Next updates as student types --}}
                     <flux:field>
-                        <flux:textarea 
-                            wire:model="answers.{{ $currentQuestion->id }}"
+                        <flux:textarea
+                            wire:model.live.debounce.400ms="answers.{{ $currentQuestion->id }}"
                             rows="3"
                             placeholder="Enter your answer..." />
                     </flux:field>
                 @elseif($currentQuestion->question_type === 'essay')
-                    {{-- Essay --}}
+                    {{-- Essay — blur sync (large text, no need for per-keystroke updates) --}}
                     <flux:field>
-                        <flux:textarea 
-                            wire:model="answers.{{ $currentQuestion->id }}"
+                        <flux:textarea
+                            wire:model.blur="answers.{{ $currentQuestion->id }}"
                             rows="10"
                             placeholder="Enter your essay response..." />
                     </flux:field>
-                @elseif($currentQuestion->question_type === 'file_upload')
-                    {{-- File Upload --}}
+                @elseif(($currentQuestionType ?? '') === 'file_upload')
                     @php
                         $settings = $currentQuestion->settings ?? [];
-                        $allowedTypes = $settings['allowed_types'] ?? 'pdf,doc,docx,jpg,png';
-                        $maxFiles = $settings['max_files'] ?? 1;
-                        $maxSize = $settings['max_size'] ?? 10;
+                        $allowedTypes = $settings['allowed_types'] ?? 'html,htm,css,pdf,doc,docx,txt,jpg,jpeg,png,gif,zip';
+                        $maxFiles = (int) ($settings['max_files'] ?? 1);
+                        $maxSize = (int) ($settings['max_size'] ?? 10);
                     @endphp
                     <div class="space-y-4">
-                        <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                            <p class="text-sm text-blue-800 dark:text-blue-200 mb-2">
-                                <strong>Requirements:</strong>
-                            </p>
-                            <ul class="text-sm text-blue-700 dark:text-blue-300 list-disc list-inside space-y-1">
-                                <li>Allowed types: {{ $allowedTypes }}</li>
-                                <li>Max files: {{ $maxFiles }}</li>
-                                <li>Max size per file: {{ $maxSize }}MB</li>
-                            </ul>
-                        </div>
-                        <flux:field>
-                            <flux:input 
-                                type="file" 
-                                wire:model="tempFiles.{{ $currentQuestion->id }}" 
-                                multiple="{{ $maxFiles > 1 }}"
-                                accept="{{ '.' . str_replace(',', ',.', $allowedTypes) }}" />
-                        </flux:field>
-                        @if(isset($tempFiles[$currentQuestion->id]) && !empty($tempFiles[$currentQuestion->id]))
+                        <x-assessments.file-upload-field
+                            :question-id="$currentQuestion->id"
+                            :allowed-types="$allowedTypes"
+                            :max-files="$maxFiles"
+                            :max-size="$maxSize"
+                        />
+
+                        @if(!empty($selectedUploadFiles) || !empty($savedUploadFiles))
                             <div class="space-y-2">
-                                @foreach($tempFiles[$currentQuestion->id] as $fileIndex => $file)
-                                    <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3">
-                                        <span class="text-sm text-gray-900 dark:text-white">{{ $file->getClientOriginalName() }}</span>
-                                        <button type="button" 
+                                <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">Selected files</p>
+                                @foreach($selectedUploadFiles as $fileIndex => $file)
+                                    <div class="flex items-center justify-between bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                                        <span class="text-sm text-gray-900 dark:text-white truncate">{{ $file->getClientOriginalName() }}</span>
+                                        <button type="button"
                                                 wire:click="removeFile({{ $currentQuestion->id }}, {{ $fileIndex }})"
-                                                class="text-red-500 hover:text-red-700">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
+                                                class="text-red-600 hover:text-red-700 text-xs font-semibold ml-3 flex-shrink-0">
+                                            Remove
+                                        </button>
+                                    </div>
+                                @endforeach
+                                @foreach($savedUploadFiles as $fileIndex => $file)
+                                    @php
+                                        $savedPath = is_array($file) ? ($file['path'] ?? '') : (string) $file;
+                                        $savedName = is_array($file)
+                                            ? ($file['name'] ?? basename($savedPath))
+                                            : basename($savedPath);
+                                    @endphp
+                                    <div class="flex items-center justify-between bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                                        <span class="text-sm text-gray-900 dark:text-white truncate">{{ $savedName }}</span>
+                                        <button type="button"
+                                                wire:click="removeFile({{ $currentQuestion->id }}, {{ $fileIndex }})"
+                                                class="text-red-600 hover:text-red-700 text-xs font-semibold ml-3 flex-shrink-0">
+                                            Remove
                                         </button>
                                     </div>
                                 @endforeach
                             </div>
                         @endif
                     </div>
-                @elseif($currentQuestion->question_type === 'code_submission')
-                    {{-- Code Submission with CodeMirror --}}
+                @elseif(($currentQuestionType ?? '') === 'code_submission')
                     @php
                         $settings = $currentQuestion->settings ?? [];
-                        $language = $settings['code_submission']['language'] ?? 'javascript';
-                        $template = $settings['code_submission']['template'] ?? '';
-                        $modes = [
-                            'javascript' => 'javascript',
-                            'python' => 'python',
-                            'java' => 'clike',
-                            'php' => 'php',
-                            'html' => 'htmlmixed',
-                            'css' => 'css',
-                            'sql' => 'sql',
-                        ];
-                        $mode = $modes[strtolower($language)] ?? 'javascript';
+                        $language = $settings['code_submission']['language'] ?? ($settings['language'] ?? 'javascript');
+                        $template = $settings['code_submission']['template'] ?? ($settings['template'] ?? '');
                     @endphp
-                    <div class="space-y-4" x-data="{ 
-                        editor: null,
-                        language: @js($language),
-                        init() {
-                            // Load CodeMirror from CDN
-                            if (typeof CodeMirror === 'undefined') {
-                                const link = document.createElement('link');
-                                link.rel = 'stylesheet';
-                                link.href = 'https://cdn.jsdelivr.net/npm/codemirror@5/lib/codemirror.css';
-                                document.head.appendChild(link);
-                                
-                                const script = document.createElement('script');
-                                script.src = 'https://cdn.jsdelivr.net/npm/codemirror@5/lib/codemirror.js';
-                                script.onload = () => {
-                                    const modeScript = document.createElement('script');
-                                    modeScript.src = `https://cdn.jsdelivr.net/npm/codemirror@5/mode/${this.getMode(@js($mode))}/${this.getMode(@js($mode))}.js`;
-                                    modeScript.onload = () => this.initEditor();
-                                    document.head.appendChild(modeScript);
-                                };
-                                document.head.appendChild(script);
-                            } else {
-                                this.initEditor();
-                            }
-                        },
-                        getMode(lang) {
-                            const modes = { javascript: 'javascript', python: 'python', clike: 'clike', php: 'php', htmlmixed: 'htmlmixed', css: 'css', sql: 'sql' };
-                            return modes[lang] || 'javascript';
-                        },
-                        initEditor() {
-                            this.$nextTick(() => {
-                                const textarea = this.$el.querySelector('textarea');
-                                if (textarea && CodeMirror) {
-                                    this.editor = CodeMirror.fromTextArea(textarea, {
-                                        lineNumbers: true,
-                                        mode: @js($mode),
-                                        theme: 'default',
-                                        indentUnit: 4,
-                                        indentWithTabs: false,
-                                        lineWrapping: true,
-                                    });
-                                    const value = @entangle('answers.' . $currentQuestion->id);
-                                    this.editor.setValue(value || @js($template));
-                                    this.editor.on('change', (cm) => {
-                                        value = cm.getValue();
-                                    });
-                                }
-                            });
-                        }
-                    }">
+                    <div class="space-y-4">
                         <div class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4">
                             <p class="text-sm text-indigo-800 dark:text-indigo-200">
                                 <strong>Language:</strong> {{ ucfirst($language) }}
                             </p>
                         </div>
-                        <textarea 
-                            id="code-editor-{{ $currentQuestion->id }}"
-                            wire:model="answers.{{ $currentQuestion->id }}"
-                            rows="15"
-                            placeholder="Enter your code here..."
-                            class="font-mono text-sm w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 dark:bg-gray-900 dark:text-white"></textarea>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Write your code solution in {{ ucfirst($language) }}</p>
+                        <flux:field>
+                            <flux:textarea
+                                wire:model.live.debounce.400ms="answers.{{ $currentQuestion->id }}"
+                                rows="18"
+                                placeholder="Enter your {{ $language }} code here..."
+                                class="font-mono text-sm" />
+                        </flux:field>
                         @if($template)
-                            <details class="mt-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
-                                <summary class="cursor-pointer font-medium text-gray-900 dark:text-white mb-2">
-                                    View Code Template
-                                </summary>
-                                <pre class="mt-2 text-sm font-mono bg-white dark:bg-gray-800 p-4 rounded border border-gray-200 dark:border-gray-700 overflow-x-auto"><code>{{ $template }}</code></pre>
+                            <details class="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
+                                <summary class="cursor-pointer font-medium text-gray-900 dark:text-white">View starter template</summary>
+                                <pre class="mt-2 text-sm font-mono bg-white dark:bg-gray-800 p-4 rounded border border-gray-200 dark:border-gray-700 overflow-x-auto whitespace-pre-wrap"><code>{{ $template }}</code></pre>
                             </details>
                         @endif
                     </div>
@@ -728,7 +714,7 @@
                         $matchingData = $this->getShuffledQuestionData($currentQuestion->id, 'matching');
                         $pairs = $matchingData['pairs'] ?? [];
                         $rightItems = $matchingData['rightItems'] ?? [];
-                        $answers = $answers[$currentQuestion->id] ?? [];
+                        $currentMatchingAnswers = $answers[$currentQuestion->id] ?? [];
                     @endphp
                     <div class="space-y-4">
                         @foreach($pairs as $index => $pair)
@@ -829,8 +815,8 @@
                         @foreach($blanks as $index => $blank)
                             <flux:field>
                                 <flux:label>Blank {{ $index + 1 }}</flux:label>
-                                <flux:input 
-                                    wire:model="answers.{{ $currentQuestion->id }}.{{ $index }}"
+                                <flux:input
+                                    wire:model.live.debounce.400ms="answers.{{ $currentQuestion->id }}.{{ $index }}"
                                     placeholder="Enter answer for blank {{ $index + 1 }}" />
                             </flux:field>
                         @endforeach
@@ -908,9 +894,24 @@
                     </div>
                 @endif
             </div>
+        @elseif(!$currentQuestion)
+            <div class="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-6 text-sm text-amber-900 dark:text-amber-200 mb-6">
+                We could not load this task. Please refresh the page. If it keeps happening, contact your instructor.
+            </div>
         @endif
 
         {{-- Error Message --}}
+        @error('submit')
+            <div class="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p class="text-red-800 dark:text-red-200">
+                    <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {{ $message }}
+                </p>
+            </div>
+        @enderror
+
         @if(session()->has('error'))
             <div class="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                 <p class="text-red-800 dark:text-red-200">
@@ -939,60 +940,70 @@
             </div>
         @endif
 
-        {{-- Navigation Buttons (only for non-assignment assessments) --}}
-        <div class="flex items-center justify-between">
-            <flux:button 
+        {{-- Navigation Buttons --}}
+        <div class="flex items-center justify-between gap-3">
+            <button
                 wire:click="previousQuestion"
-                variant="ghost"
-                :disabled="$currentQuestionIndex === 0">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                type="button"
+                @if($currentQuestionIndex === 0) disabled @endif
+                class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
                 Previous
-            </flux:button>
+            </button>
 
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2">
                 @if($currentQuestionIndex < $totalQuestions - 1)
-                    @php
-                        $isAnswered = $this->isQuestionAnswered($currentQuestion);
-                    @endphp
-                    
-                    @if($isAnswered)
-                        {{-- Next button when answered --}}
-                        <flux:button 
-                            wire:click="nextQuestion"
-                            variant="primary">
-                            Next
-                            <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                            </svg>
-                        </flux:button>
-                    @else
-                        {{-- Skip button when not answered --}}
-                        <flux:button 
-                            wire:click="nextQuestion"
-                            variant="ghost">
-                            Skip
-                            <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                            </svg>
-                        </flux:button>
-                    @endif
+                    @php $isAnswered = $currentQuestion && $this->isQuestionAnswered($currentQuestion); @endphp
+
+                    {{-- Next / Skip --}}
+                    <button
+                        wire:click="nextQuestion"
+                        type="button"
+                        class="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl transition-colors
+                            {{ $isAnswered ? 'bg-orange-600 hover:bg-orange-700' : 'bg-gray-400 hover:bg-gray-500' }}">
+                        {{ $isAnswered ? 'Next' : 'Skip' }}
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
                 @else
-                    <button 
+                    @php
+                        $uploadWireTarget = $currentQuestion
+                            ? 'tempFiles.' . $currentQuestion->id
+                            : 'tempFiles';
+                    @endphp
+                    {{-- Last question: primary submit button --}}
+                    <button
                         wire:click="submitAssessment"
                         type="button"
                         wire:loading.attr="disabled"
-                        onclick="console.log('Submit clicked', @js($answers)); console.log('Questions:', @js($totalQuestions));"
-                        class="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2">
-                        <span wire:loading.remove wire:target="submitAssessment" class="flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        wire:target="submitAssessment, {{ $uploadWireTarget }}"
+                        class="flex items-center gap-2 px-6 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md hover:shadow-lg active:scale-95 transition-all">
+                        <span
+                            wire:loading.remove
+                            wire:target="submitAssessment, {{ $uploadWireTarget }}"
+                            class="flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                             </svg>
-                            Submit Assessment
+                            {{ $assessment->assessment_type === 'assignment' ? 'Submit Assignment' : 'Submit' }}
+                        </span>
+                        <span
+                            wire:loading
+                            wire:target="{{ $uploadWireTarget }}"
+                            wire:loading.remove
+                            wire:target="submitAssessment"
+                            class="flex items-center gap-2">
+                            <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Uploading file...
                         </span>
                         <span wire:loading wire:target="submitAssessment" class="flex items-center gap-2">
-                            <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -1002,81 +1013,48 @@
                 @endif
             </div>
         </div>
-        @endif
-    </div>
 
-    {{-- Timer Script --}}
-    @if($timeRemaining !== null)
-        <script>
-            document.addEventListener('livewire:init', () => {
-                let timerInterval = setInterval(() => {
-                    @this.call('updateTimer');
-                }, 1000);
-                
-                Livewire.on('assessment-completed', () => {
-                    clearInterval(timerInterval);
-                });
-            });
-        </script>
-    @endif
-    
-    {{-- Auto-Save Script --}}
-    @if($autoSaveEnabled)
-        <script>
-            document.addEventListener('livewire:init', () => {
-                let autoSaveInterval;
-                
-                Livewire.on('start-auto-save', () => {
-                    // Auto-save every 30 seconds
-                    autoSaveInterval = setInterval(() => {
+        @endif
+
+        @if($totalQuestions === 0 && $assessment->assessment_type !== 'assignment')
+        <div class="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-6 text-sm text-amber-900 dark:text-amber-200">
+            This assessment has no questions yet. Please contact your instructor.
+        </div>
+        @endif
+
+        {{-- Save progress before navigating away --}}
+        @if($autoSaveEnabled)
+            <script>
+                document.addEventListener('livewire:init', () => {
+                    window.addEventListener('beforeunload', () => {
                         @this.call('saveProgress');
-                    }, 30000);
+                    });
                 });
-                
-                // Auto-save on answer changes (debounced)
-                let saveTimeout;
-                Livewire.on('trigger-auto-save', () => {
-                    clearTimeout(saveTimeout);
-                    saveTimeout = setTimeout(() => {
-                        @this.call('saveProgress');
-                    }, 2000); // Debounce 2 seconds
-                });
-                
-                // Save on page unload
-                window.addEventListener('beforeunload', () => {
+            </script>
+        @endif
+
+        {{-- Keyboard Navigation --}}
+        <script>
+            document.addEventListener('keydown', (e) => {
+                if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'SELECT') {
+                    if (e.key === 'ArrowLeft' && !e.shiftKey) {
+                        @this.call('previousQuestion');
+                        e.preventDefault();
+                    } else if (e.key === 'ArrowRight' && !e.shiftKey) {
+                        @this.call('nextQuestion');
+                        e.preventDefault();
+                    }
+                }
+                if (e.altKey && e.key === 's') {
                     @this.call('saveProgress');
-                });
-                
-                Livewire.on('assessment-completed', () => {
-                    clearInterval(autoSaveInterval);
-                });
-            });
-        </script>
-    @endif
-    
-    {{-- Keyboard Navigation --}}
-    <script>
-        document.addEventListener('keydown', (e) => {
-            // Arrow keys for navigation (when not in input/textarea)
-            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'SELECT') {
-                if (e.key === 'ArrowLeft' && !e.shiftKey) {
-                    @this.call('previousQuestion');
-                    e.preventDefault();
-                } else if (e.key === 'ArrowRight' && !e.shiftKey) {
-                    @this.call('nextQuestion');
                     e.preventDefault();
                 }
-            }
-            // Alt+S to save progress
-            if (e.altKey && e.key === 's') {
-                @this.call('saveProgress');
-                e.preventDefault();
-            }
-            // Alt+R to review
-            if (e.altKey && e.key === 'r' && @js($currentQuestionIndex === $totalQuestions - 1)) {
-                @this.call('showReview');
-                e.preventDefault();
-            }
-        });
-    </script>
+                if (e.altKey && e.key === 'r' && @js($currentQuestionIndex === $totalQuestions - 1)) {
+                    @this.call('showReview');
+                    e.preventDefault();
+                }
+            });
+        </script>
+    </div>
 @endif
+</div>

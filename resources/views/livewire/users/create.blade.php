@@ -1,159 +1,98 @@
-<div class="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {{-- Header --}}
-        <div class="mb-8">
-            <div class="flex items-center gap-3 mb-2">
-                <a href="{{ route('admin.users.index') }}" wire:navigate class="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
-                    <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+<div class="min-h-screen bg-slate-50 dark:bg-zinc-950">
+
+    {{-- Header --}}
+    <div class="border-b-4 border-blue-600 bg-orange-600">
+        <div class="mx-auto max-w-3xl px-4 py-5 sm:px-6">
+            <div class="flex items-center gap-3">
+                <a href="{{ route('admin.users.index') }}" wire:navigate
+                   class="flex h-8 w-8 items-center justify-center rounded-lg border border-white/25 text-white hover:bg-white/10 transition">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                     </svg>
                 </a>
                 <div>
-                    <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Create New User</h1>
-                    <p class="text-gray-600 dark:text-gray-400 mt-1">Add a new user to the system</p>
+                    <h1 class="text-xl font-bold text-white">Create User</h1>
+                    <p class="text-sm text-orange-100">Add a new account to the system</p>
                 </div>
             </div>
         </div>
+    </div>
 
-        <form wire:submit.prevent="store" class="space-y-6">
-            {{-- Basic Information --}}
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
-                    <h2 class="text-lg font-semibold text-white flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                        Basic Information
-                    </h2>
+    <div class="mx-auto max-w-3xl px-4 py-5 sm:px-6">
+        <form wire:submit.prevent="store" class="space-y-4">
+
+            {{-- Basic info --}}
+            <div class="rounded-lg border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="border-b border-slate-100 px-4 py-3 dark:border-zinc-800">
+                    <h2 class="text-xs font-bold uppercase tracking-wide text-slate-500">Basic information</h2>
                 </div>
-                
-                <div class="p-6 space-y-5">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Full Name <span class="text-red-500">*</span>
-                            </label>
-                            <input type="text" wire:model="user.name" 
-                                   class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
-                                   placeholder="John Doe">
-                            @error('user.name') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Email Address <span class="text-red-500">*</span>
-                            </label>
-                            <input type="email" wire:model="user.email" 
-                                   class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
-                                   placeholder="john@example.com">
-                            @error('user.email') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                        </div>
+                <div class="space-y-4 p-4">
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <flux:input wire:model="user.name" label="Full name" placeholder="John Doe" required />
+                        <flux:input wire:model="user.email" type="email" label="Email" placeholder="john@example.com" required />
                     </div>
-
+                    <flux:textarea wire:model="user.bio" label="Bio" rows="2" placeholder="Optional short description" />
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Bio</label>
-                        <textarea wire:model="user.bio" rows="3"
-                                  class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
-                                  placeholder="Brief description about the user..."></textarea>
-                        @error('user.bio') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Profile Image</label>
+                        <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Profile image</label>
                         <input type="file" wire:model="profile_image" accept="image/*"
-                               class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                        @error('profile_image') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            class="block w-full text-sm text-slate-500 file:mr-3 file:rounded-md file:border-0 file:bg-orange-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-orange-700 hover:file:bg-orange-100">
+                        @error('profile_image') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
                 </div>
             </div>
 
             {{-- Security --}}
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="bg-gradient-to-r from-green-600 to-teal-600 px-6 py-4">
-                    <h2 class="text-lg font-semibold text-white flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        Security
-                    </h2>
+            <div class="rounded-lg border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="border-b border-slate-100 px-4 py-3 dark:border-zinc-800">
+                    <h2 class="text-xs font-bold uppercase tracking-wide text-slate-500">Security</h2>
                 </div>
-                
-                <div class="p-6 space-y-5">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Password <span class="text-red-500">*</span>
-                            </label>
-                            <input type="password" wire:model="password" 
-                                   class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
-                                   placeholder="••••••••">
-                            @error('password') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Confirm Password <span class="text-red-500">*</span>
-                            </label>
-                            <input type="password" wire:model="password_confirmation" 
-                                   class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
-                                   placeholder="••••••••">
-                        </div>
-                    </div>
+                <div class="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
+                    <flux:input wire:model="password" type="password" label="Password" required />
+                    <flux:input wire:model="password_confirmation" type="password" label="Confirm password" required />
                 </div>
             </div>
 
-            {{-- Roles & Permissions --}}
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4">
-                    <h2 class="text-lg font-semibold text-white flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                        </svg>
-                        Roles & Permissions
-                    </h2>
+            {{-- Roles --}}
+            <div class="rounded-lg border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="border-b border-slate-100 px-4 py-3 dark:border-zinc-800">
+                    <h2 class="text-xs font-bold uppercase tracking-wide text-slate-500">Roles</h2>
+                    <p class="mt-0.5 text-xs text-slate-400">Select at least one role</p>
                 </div>
-                
-                <div class="p-6">
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Select one or more roles for this user</p>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        @foreach($roles as $role)
-                        <label class="relative flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all
-                                      {{ in_array($role->id, $selectedRoles) ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600' }}">
-                            <input type="checkbox" wire:model="selectedRoles" value="{{ $role->id }}" class="mt-1 h-4 w-4 text-blue-600 rounded">
-                            <div class="ml-3 flex-1">
-                                <span class="block text-sm font-semibold text-gray-900 dark:text-white">{{ $role->display_name }}</span>
-                                <span class="block text-xs text-gray-600 dark:text-gray-400 mt-1">{{ $role->description }}</span>
+                <div class="grid grid-cols-1 gap-2 p-4 sm:grid-cols-2">
+                    @foreach($roles as $role)
+                        <label class="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition
+                            {{ in_array($role->id, $selectedRoles)
+                                ? 'border-orange-600 bg-orange-50 dark:border-orange-600 dark:bg-orange-950/20'
+                                : 'border-slate-200 hover:border-slate-300 dark:border-zinc-700 dark:hover:border-zinc-600' }}">
+                            <input type="checkbox" wire:model.live="selectedRoles" value="{{ $role->id }}"
+                                class="mt-0.5 h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500">
+                            <div class="min-w-0">
+                                <span class="block text-sm font-semibold text-slate-900 dark:text-white">{{ $role->display_name }}</span>
+                                @if($role->description)
+                                    <span class="block text-xs text-slate-500 dark:text-slate-400">{{ $role->description }}</span>
+                                @endif
                             </div>
                         </label>
-                        @endforeach
-                    </div>
-                    @error('selectedRoles') <p class="mt-2 text-sm text-red-600">{{ $message }}</p> @enderror
+                    @endforeach
                 </div>
+                @error('selectedRoles') <p class="px-4 pb-4 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
+            @include('livewire.users.partials.course-access-picker')
+
             {{-- Status --}}
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                <label class="flex items-center justify-between cursor-pointer group">
-                    <div>
-                        <span class="text-sm font-medium text-gray-900 dark:text-white">Active Status</span>
-                        <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">Enable or disable user account</p>
-                    </div>
-                    <div class="relative">
-                        <input type="checkbox" wire:model="user.is_active" class="sr-only peer" checked>
-                        <div class="w-14 h-7 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-blue-600 transition-colors"></div>
-                        <div class="absolute left-1 top-1 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-7"></div>
-                    </div>
-                </label>
+            <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
+                <flux:checkbox wire:model="user.is_active" label="Account is active" description="Inactive users cannot sign in" />
             </div>
 
             {{-- Actions --}}
-            <div class="flex gap-3">
-                <button type="submit" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors shadow-sm">
-                    Create User
-                </button>
-                <a href="{{ route('admin.users.index') }}" wire:navigate class="px-6 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-semibold rounded-lg transition-colors">
+            <div class="flex items-center gap-3 border-t border-slate-200 pt-4 dark:border-zinc-800">
+                <flux:button type="submit" variant="primary" class="!bg-orange-600 hover:!bg-orange-700">
+                    Create user
+                </flux:button>
+                <flux:button href="{{ route('admin.users.index') }}" variant="ghost" class="!text-blue-600 hover:!bg-blue-50" wire:navigate>
                     Cancel
-                </a>
+                </flux:button>
             </div>
         </form>
     </div>

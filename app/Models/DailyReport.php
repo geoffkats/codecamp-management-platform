@@ -14,6 +14,7 @@ class DailyReport extends Model
     protected $fillable = [
         'report_date',
         'course_id',
+        'camp_id',
         'instructor_id',
         'status',
         'summary',
@@ -37,6 +38,11 @@ class DailyReport extends Model
     public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class);
+    }
+
+    public function camp(): BelongsTo
+    {
+        return $this->belongsTo(CodeCamp::class, 'camp_id');
     }
 
     public function instructor(): BelongsTo

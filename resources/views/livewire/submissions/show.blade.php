@@ -25,21 +25,17 @@
             </p>
         </div>
         
-        @if(auth()->user()->hasRole('teacher'))
+        @if(auth()->user()->can('grade_submissions'))
             @if($type === 'assessment' && $submission->assessment)
-                @if($submission->score === null)
-                    <a href="{{ route('assessments.edit', ['assessment' => $submission->assessment_id, 'attempt' => $submission->id]) }}" 
-                       class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
-                        Grade Submission
-                    </a>
-                @endif
+                <a href="{{ route('grades.grade', $submission) }}"
+                   class="px-6 py-3 {{ $isGraded ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700' }} text-white rounded-lg font-medium transition-colors">
+                    {{ $isGraded ? 'Edit Grade' : 'Grade Submission' }}
+                </a>
             @elseif($type === 'assignment' && $submission->assignment)
-                @if(!$submission->graded_at)
-                    <a href="{{ route('grades.grade', $submission) }}" 
-                       class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
-                        Grade Submission
-                    </a>
-                @endif
+                <a href="{{ route('grades.grade', $submission) }}"
+                   class="px-6 py-3 {{ $isGraded ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700' }} text-white rounded-lg font-medium transition-colors">
+                    {{ $isGraded ? 'Edit Grade' : 'Grade Submission' }}
+                </a>
             @endif
         @endif
     </div>
@@ -168,9 +164,8 @@
 
             @if($type === 'assessment')
                 @php
-                    $answers = $submission->answers ?? [];
-                    $submissionText = $answers['text'] ?? '';
-                    $submissionFiles = $answers['files'] ?? [];
+                    $submissionText = $submission->submissionText();
+                    $submissionFiles = $submission->submissionFiles();
                 @endphp
 
                 @if($submissionText)
@@ -209,28 +204,38 @@
                         <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Attachments</p>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             @foreach($submissionFiles as $file)
-                                <a href="{{ Storage::disk('public')->url($file) }}" target="_blank" 
-                                   class="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
-                                    <div class="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center">
-                                        <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                        </svg>
-                                    </div>
-                                    <div class="flex-1 min-w-0">
-                                        <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ basename($file) }}</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">Click to download</p>
-                                    </div>
-                                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                    </svg>
-                                </a>
+                                @php
+                                    $filePath = is_array($file) ? ($file['path'] ?? '') : (string) $file;
+                                    $fileName = is_array($file) ? ($file['name'] ?? basename($filePath)) : basename($filePath);
+                                    $isImage = preg_match('/\.(jpe?g|png|gif|webp|bmp)$/i', $fileName);
+                                @endphp
+                                @if($filePath === '') @continue @endif
+                                <div class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-50 dark:bg-gray-900/50">
+                                    @if($isImage)
+                                        <a href="{{ Storage::disk('public')->url($filePath) }}" target="_blank">
+                                            <img src="{{ Storage::disk('public')->url($filePath) }}" alt="{{ $fileName }}" class="w-full max-h-48 object-contain bg-white dark:bg-gray-900">
+                                        </a>
+                                    @endif
+                                    <a href="{{ \App\Support\SubmissionFile::downloadUrl($filePath, $fileName) }}"
+                                       class="flex items-center gap-3 p-4 hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
+                                        <div class="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center">
+                                            <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                            </svg>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ $fileName }}</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ $isImage ? 'Click to view full size' : 'Click to download' }}</p>
+                                        </div>
+                                    </a>
+                                </div>
                             @endforeach
                         </div>
                     </div>
                 @endif
 
                 @php
-                    $feedback = $answers['feedback'] ?? null;
+                    $feedback = $submission->graderFeedback();
                 @endphp
             @else
                 @if($submission->content)
@@ -269,7 +274,12 @@
                         <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Attachments</p>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             @foreach($submission->attachments as $file)
-                                <a href="{{ Storage::disk('public')->url($file) }}" target="_blank" 
+                                @php
+                                    $filePath = is_array($file) ? ($file['path'] ?? '') : (string) $file;
+                                    $fileName = is_array($file) ? ($file['name'] ?? basename($filePath)) : basename($filePath);
+                                @endphp
+                                @if($filePath === '') @continue @endif
+                                <a href="{{ \App\Support\SubmissionFile::downloadUrl($filePath, $fileName) }}"
                                    class="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
                                     <div class="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center">
                                         <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -277,7 +287,7 @@
                                         </svg>
                                     </div>
                                     <div class="flex-1 min-w-0">
-                                        <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ basename($file) }}</p>
+                                        <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ $fileName }}</p>
                                         <p class="text-xs text-gray-500 dark:text-gray-400">Click to download</p>
                                     </div>
                                     <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

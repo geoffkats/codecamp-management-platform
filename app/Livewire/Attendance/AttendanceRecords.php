@@ -2,9 +2,9 @@
 
 namespace App\Livewire\Attendance;
 
-use App\Models\StudentAttendance;
+use App\Models\CodeCamp;
 use App\Models\InstructorAttendance;
-use App\Models\StudentProfile;
+use App\Services\AttendanceService;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -14,53 +14,96 @@ class AttendanceRecords extends Component
 {
     use WithPagination;
 
-    public $type = 'student'; // student or instructor
+    public $type = 'student';
     public $startDate = '';
     public $endDate = '';
     public $status = '';
     public $search = '';
+    public $campId = '';
 
-    public function mount()
+    protected AttendanceService $attendance;
+
+    public function boot(AttendanceService $attendance): void
+    {
+        $this->attendance = $attendance;
+    }
+
+    public function mount(): void
     {
         $this->startDate = now()->startOfMonth()->format('Y-m-d');
         $this->endDate = now()->format('Y-m-d');
+
+        $activeCamps = CodeCamp::where('status', 'active')->get();
+        if ($activeCamps->count() === 1) {
+            $this->campId = (string) $activeCamps->first()->id;
+        }
     }
 
-    public function updatingSearch()
+    public function updatingSearch(): void
     {
         $this->resetPage();
     }
 
-    public function updatingStatus()
+    public function updatingStatus(): void
     {
         $this->resetPage();
     }
 
     public function exportRecords()
     {
-        session()->flash('message', 'Export feature coming soon!');
+        if ($this->type !== 'student') {
+            session()->flash('message', 'Instructor export coming soon.');
+
+            return;
+        }
+
+        $records = $this->attendance->exportQuery(
+            $this->startDate,
+            $this->endDate,
+            $this->campId ?: null,
+            $this->search ?: null
+        )->when($this->status, fn ($q) => $q->where('status', $this->status))->get();
+
+        $filename = "attendance-records-{$this->startDate}-to-{$this->endDate}.csv";
+
+        return response()->streamDownload(function () use ($records) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, ['Date', 'Student ID', 'Name', 'Status', 'Clock In', 'Clock Out', 'Source', 'Camp']);
+
+            foreach ($records as $record) {
+                fputcsv($file, [
+                    $record->attendance_date->format('Y-m-d'),
+                    $record->studentProfile->student_id ?? '',
+                    $record->studentProfile->full_name ?? '',
+                    $record->status,
+                    $record->clock_in ? (string) $record->clock_in : '',
+                    $record->clock_out ? (string) $record->clock_out : '',
+                    $record->source ?? '',
+                    $record->camp?->name ?? '',
+                ]);
+            }
+
+            fclose($file);
+        }, $filename, ['Content-Type' => 'text/csv']);
     }
 
     public function render()
     {
         if ($this->type === 'student') {
-            $records = StudentAttendance::with(['studentProfile', 'recorder'])
-                ->whereBetween('attendance_date', [$this->startDate, $this->endDate])
-                ->when($this->status, fn($q) => $q->where('status', $this->status))
-                ->when($this->search, function($q) {
-                    $q->whereHas('studentProfile', function($query) {
-                        $query->where('full_name', 'like', '%' . $this->search . '%')
-                              ->orWhere('student_id', 'like', '%' . $this->search . '%');
-                    });
-                })
-                ->orderBy('attendance_date', 'desc')
+            $records = $this->attendance->exportQuery(
+                $this->startDate,
+                $this->endDate,
+                $this->campId ?: null,
+                $this->search ?: null
+            )
+                ->when($this->status, fn ($q) => $q->where('status', $this->status))
                 ->paginate(20);
         } else {
             $records = InstructorAttendance::with(['instructor', 'recorder'])
                 ->whereBetween('attendance_date', [$this->startDate, $this->endDate])
-                ->when($this->status, fn($q) => $q->where('status', $this->status))
-                ->when($this->search, function($q) {
-                    $q->whereHas('instructor', function($query) {
+                ->when($this->status, fn ($q) => $q->where('status', $this->status))
+                ->when($this->search, function ($q) {
+                    $q->whereHas('instructor', function ($query) {
                         $query->where('name', 'like', '%' . $this->search . '%');
                     });
                 })
@@ -68,8 +111,11 @@ class AttendanceRecords extends Component
                 ->paginate(20);
         }
 
+        $camps = CodeCamp::whereIn('status', ['upcoming', 'active'])->orderBy('start_date')->get(['id', 'name']);
+
         return view('livewire.attendance.attendance-records', [
             'records' => $records,
+            'camps'   => $camps,
         ]);
     }
 }

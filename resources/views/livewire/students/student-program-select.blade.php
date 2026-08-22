@@ -9,6 +9,13 @@
                 <p class="text-sm text-blue-800/80 dark:text-blue-200/70 mt-2">Short, school-focused form with ICDL details and module selection.</p>
             </a>
 
+            @if($this->canAccessCodeClub())
+            <a href="{{ route('students.create-codeclub') }}" wire:navigate class="block p-6 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition">
+                <h2 class="text-xl font-semibold text-emerald-900 dark:text-emerald-200">Code Club Student</h2>
+                <p class="text-sm text-emerald-800/80 dark:text-emerald-200/70 mt-2">School club learner linked to a Code Club program.</p>
+            </a>
+            @endif
+
             @if(!auth()->user()->isIctTeacher())
             <a href="{{ route('students.create-codecamp') }}" wire:navigate class="block p-6 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition">
                 <h2 class="text-xl font-semibold text-purple-900 dark:text-purple-200">CodeCamp Student</h2>

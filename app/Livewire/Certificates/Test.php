@@ -26,6 +26,10 @@ class Test extends Component
 
     public function mount()
     {
+        if (! Auth::user()?->can('generate_certificates')) {
+            abort(403, 'Only staff can access the certificate test page.');
+        }
+
         $this->issuedAt = now()->format('Y-m-d');
 
         $this->availableUsers = User::orderBy('name')
@@ -66,11 +70,14 @@ class Test extends Component
 
         $certificateNumber = $this->certificateNumber ?: ('SAMPLE-' . strtoupper(Str::random(8)) . '-' . now()->format('Y'));
 
+        $dataService = app(\App\Services\CertificateDataService::class);
+        $modules = $dataService->buildModulesForUser($user, $course->id);
+
         $certificate = Certificate::create([
             'user_id' => $user->id,
             'course_id' => $course->id,
             'certificate_number' => $certificateNumber,
-            'title' => $this->title,
+            'title' => $this->title ?: 'CODE Profile Certificate',
             'description' => $this->description,
             'issued_at' => $this->issuedAt,
             'expires_at' => null,
@@ -79,6 +86,7 @@ class Test extends Component
                 'generated_by' => Auth::id(),
                 'instructor' => $course->instructor?->name,
                 'course_title' => $course->title,
+                'modules' => $modules,
             ],
             'file_path' => null,
             'is_verified' => true,

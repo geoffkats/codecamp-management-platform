@@ -12,6 +12,77 @@
             </div>
         @endif
 
+        @if (!$isEdit && $cauRegistrationEnabled)
+            <div class="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-blue-200 dark:border-blue-800 overflow-hidden">
+                <div class="px-6 py-4 bg-gradient-to-r from-sky-50 to-blue-50 dark:from-blue-900/20 dark:to-sky-900/20 border-b border-blue-200 dark:border-blue-800">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Import From Website Registration</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Search by student name, parent name, email, or phone to autofill this form.</p>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search registrations</label>
+                        <input
+                            type="text"
+                            wire:model.live.debounce.400ms="registrationSearch"
+                            placeholder="Start typing a student or parent name..."
+                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                        >
+                    </div>
+
+                    @if ($registrationLookupError)
+                        <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm text-red-800 dark:text-red-200">
+                            {{ $registrationLookupError }}
+                        </div>
+                    @endif
+
+                    @if ($registrationLookupMessage)
+                        <div class="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-sm text-blue-800 dark:text-blue-200">
+                            {{ $registrationLookupMessage }}
+                        </div>
+                    @endif
+
+                    @if ($selectedExternalRegistrationId)
+                        <div class="flex items-center justify-between gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                            <p class="text-sm text-green-800 dark:text-green-200">Linked registration: <strong>{{ $selectedExternalRegistrationId }}</strong></p>
+                            <button type="button" wire:click="clearExternalRegistration" class="text-sm font-medium text-green-700 dark:text-green-300 hover:underline">Clear</button>
+                        </div>
+                    @endif
+
+                    @if (count($registrationResults) > 0)
+                        <div class="divide-y divide-gray-200 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                            @foreach ($registrationResults as $result)
+                                <button
+                                    type="button"
+                                    wire:click="selectExternalRegistration('{{ $result['external_id'] }}')"
+                                    class="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                                >
+                                    <div class="flex items-start justify-between gap-4">
+                                        <div>
+                                            <p class="font-semibold text-gray-900 dark:text-white">{{ $result['full_name'] ?? 'Unknown' }}</p>
+                                            @if (!empty($result['parent_name']))
+                                                <p class="text-sm text-gray-600 dark:text-gray-400">Parent: {{ $result['parent_name'] }}</p>
+                                            @endif
+                                            <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                                {{ $result['source_label'] ?? $result['source'] }}
+                                                @if (!empty($result['class_grade'])) · {{ $result['class_grade'] }} @endif
+                                                @if (!empty($result['program_name'])) · {{ $result['program_name'] }} @endif
+                                            </p>
+                                        </div>
+                                        <div class="text-right text-xs text-gray-500 dark:text-gray-400 shrink-0">
+                                            @if (!empty($result['phone']))<div>{{ $result['phone'] }}</div>@endif
+                                            @if (!empty($result['email']))<div>{{ $result['email'] }}</div>@endif
+                                        </div>
+                                    </div>
+                                </button>
+                            @endforeach
+                        </div>
+                    @elseif (strlen(trim($registrationSearch)) >= 2 && ! $registrationLookupError)
+                        <p class="text-sm text-gray-500 dark:text-gray-400">No matching website registrations found.</p>
+                    @endif
+                </div>
+            </div>
+        @endif
+
         <form wire:submit.prevent="save" class="space-y-8">
             {{-- SECTION A: Personal Information --}}
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -42,7 +113,6 @@
                             <option value="">Select Gender</option>
                             <option value="male">Male</option>
                             <option value="female">Female</option>
-                            <option value="other">Other</option>
                         </select>
                         @error('gender') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                     </div>

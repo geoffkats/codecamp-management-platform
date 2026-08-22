@@ -26,6 +26,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'student.profile' => \App\Http\Middleware\EnsureUserHasStudentProfile::class,
             'admin' => \App\Http\Middleware\IsAdmin::class,
             'require.daily.report' => \App\Http\Middleware\RequireDailyReport::class,
+            'course.catalog' => \App\Http\Middleware\EnsureCourseCatalogAccess::class,
+            'code_club.enabled' => \App\Http\Middleware\EnsureCodeClubEnabled::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

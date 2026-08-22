@@ -10,6 +10,32 @@ import { common, createLowlight } from 'lowlight'
 
 const lowlight = createLowlight(common)
 
+// Tags the configured extensions actually understand. Anything else found in
+// stored content (e.g. <nav>, <header>, <form> typed as teaching material and
+// saved raw by legacy editors) would be parsed as real DOM by ProseMirror and
+// silently dropped, corrupting the document. Instead we escape unknown tags so
+// they survive as visible literal text.
+const EDITOR_ALLOWED_TAGS = new Set([
+    'p', 'br', 'hr', 'div', 'span',
+    'strong', 'b', 'em', 'i', 'u', 's', 'del', 'strike',
+    'ul', 'ol', 'li',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'blockquote', 'pre', 'code', 'a', 'img',
+])
+
+export function escapeUnknownTags(html) {
+    if (!html || typeof html !== 'string' || html.indexOf('<') === -1) {
+        return html
+    }
+
+    return html.replace(
+        /<\/?([a-zA-Z][a-zA-Z0-9-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>/g,
+        (match, tagName) => EDITOR_ALLOWED_TAGS.has(tagName.toLowerCase())
+            ? match
+            : match.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    )
+}
+
 export function initTipTapEditor(element, initialContent = '', onUpdate = null) {
     // Validate element exists
     if (!element) {
@@ -44,7 +70,7 @@ export function initTipTapEditor(element, initialContent = '', onUpdate = null) 
                     lowlight,
                 }),
             ],
-            content: initialContent || '<p></p>',
+            content: escapeUnknownTags(initialContent) || '<p></p>',
             editorProps: {
                 attributes: {
                     class: 'prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[300px] px-4 py-3',

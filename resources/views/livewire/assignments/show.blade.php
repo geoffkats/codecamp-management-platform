@@ -245,7 +245,7 @@
                                     type="file" 
                                     wire:model="submissionFiles" 
                                     multiple
-                                    accept=".pdf,.doc,.docx,.txt,.zip,.rar"
+                                    accept=".pdf,.doc,.docx,.txt,.zip,.rar,.sb3,.sb2,.sb"
                                 />
                                 <flux:error name="submissionFiles.*" />
                                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">

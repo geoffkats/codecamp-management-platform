@@ -134,14 +134,50 @@ class Course extends Model
         return $this->collaborators()->where('user_id', $user->id)->exists();
     }
 
+    /**
+     * Instructor, course collaborator, or teacher granted staff course access.
+     */
+    public function isStaffFor(User $user): bool
+    {
+        if ((int) $this->instructor_id === (int) $user->id) {
+            return true;
+        }
+
+        if ($this->isCollaborator($user)) {
+            return true;
+        }
+
+        // Staff course-access picker enrolls teachers instead of creating collaborator rows.
+        if ($user->isTeacher()) {
+            return $this->enrollments()->where('user_id', $user->id)->exists();
+        }
+
+        return false;
+    }
+
     public function canUserEdit(User $user): bool
     {
-        if ($this->instructor_id === $user->id) {
+        if ((int) $this->instructor_id === (int) $user->id) {
             return true;
         }
 
         $collaborator = $this->collaborators()->where('user_id', $user->id)->first();
         return $collaborator && $collaborator->canEdit();
+    }
+
+    /**
+     * Scope courses the user owns, collaborates on, or was granted staff access to.
+     */
+    public function scopeAccessibleBy($query, User $user)
+    {
+        return $query->where(function ($q) use ($user) {
+            $q->where('instructor_id', $user->id)
+                ->orWhereHas('collaborators', fn ($c) => $c->where('user_id', $user->id));
+
+            if ($user->isTeacher()) {
+                $q->orWhereHas('enrollments', fn ($e) => $e->where('user_id', $user->id));
+            }
+        });
     }
 }
 

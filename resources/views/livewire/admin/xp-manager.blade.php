@@ -6,6 +6,12 @@
             <p class="mt-1 text-gray-600 dark:text-gray-400">Manage student experience points across all courses</p>
         </div>
         <div class="flex items-center gap-3">
+            <flux:button wire:click="syncAllLevels" variant="primary" wire:confirm="Recalculate every student's level and rank from their total XP?">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Sync All Levels
+            </flux:button>
             <flux:button wire:click="openResetModal('week')" variant="subtle" class="text-orange-600 hover:text-orange-700">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -206,12 +212,15 @@
                                 </span>
                             </td>
                             <td class="px-4 py-3">
-                                <span class="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 rounded-full text-sm font-semibold text-purple-700 dark:text-purple-300">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                    </svg>
-                                    Level {{ $student->points->level ?? 1 }}
-                                </span>
+                                <div class="space-y-1">
+                                    <span class="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 rounded-full text-sm font-semibold text-purple-700 dark:text-purple-300">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
+                                        Level {{ $student->level_number }}
+                                    </span>
+                                    <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 pl-1">{{ $student->rank_name }}</p>
+                                </div>
                             </td>
                             @if($timeFilter !== 'all')
                                 <td class="px-4 py-3">
@@ -278,7 +287,8 @@
                         </div>
                         <div class="text-right">
                             <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Current Stats</p>
-                            <div class="flex items-center gap-2 mt-1">
+                            @php $editInfo = \App\Support\LevelSystem::info($editingUser->points->total_points ?? 0); @endphp
+                            <div class="flex items-center gap-2 mt-1 justify-end flex-wrap">
                                 <span class="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 rounded-full text-xs font-semibold text-yellow-700 dark:text-yellow-300">
                                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -286,7 +296,7 @@
                                     {{ number_format($editingUser->points->total_points ?? 0) }} XP
                                 </span>
                                 <span class="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 rounded-full text-xs font-semibold text-purple-700 dark:text-purple-300">
-                                    Lv {{ $editingUser->points->level ?? 1 }}
+                                    Lv {{ $editInfo['level'] }} · {{ $editInfo['name'] }}
                                 </span>
                             </div>
                         </div>
@@ -304,10 +314,10 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                     Total Points
-                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-normal block mt-0.5">Student's cumulative XP</span>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-normal block mt-0.5">Student's cumulative XP — level &amp; rank update from this</span>
                                 </label>
                                 <div class="relative">
-                                    <input type="number" min="0" wire:model.defer="editForm.total_points" 
+                                    <input type="number" min="0" wire:model.live="editForm.total_points"
                                         class="w-full pl-10 pr-4 py-2.5 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                     <svg class="w-5 h-5 text-yellow-500 absolute left-3 top-3" fill="currentColor" viewBox="0 0 20 20">
                                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -317,31 +327,24 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Level
-                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-normal block mt-0.5">Current progression level</span>
+                                    Level <span class="text-xs font-normal text-gray-500">(auto)</span>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-normal block mt-0.5">Every 100 XP = +1 level</span>
                                 </label>
-                                <div class="relative">
-                                    <input type="number" min="1" wire:model.defer="editForm.level" 
-                                        class="w-full pl-10 pr-4 py-2.5 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                                    <svg class="w-5 h-5 text-purple-500 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                    </svg>
+                                <div class="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">
+                                    Level {{ $previewLevelInfo['level'] }}
                                 </div>
-                                @error('editForm.level')<p class="text-sm text-red-600 mt-1">{{ $message }}</p>@enderror
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Points to Next Level
-                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-normal block mt-0.5">XP needed for next level</span>
+                                    Rank <span class="text-xs font-normal text-gray-500">(auto)</span>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-normal block mt-0.5">Based on total XP band</span>
                                 </label>
-                                <div class="relative">
-                                    <input type="number" min="0" wire:model.defer="editForm.points_to_next_level" 
-                                        class="w-full pl-10 pr-4 py-2.5 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent">
-                                    <svg class="w-5 h-5 text-green-500 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                                    </svg>
+                                <div class="px-4 py-2.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-200 font-semibold">
+                                    {{ $previewLevelInfo['name'] }}
+                                    <span class="text-xs font-normal text-purple-600 dark:text-purple-300 ml-1">
+                                        ({{ $previewLevelInfo['xp_to_next_level'] }} XP to next level)
+                                    </span>
                                 </div>
-                                @error('editForm.points_to_next_level')<p class="text-sm text-red-600 mt-1">{{ $message }}</p>@enderror
                             </div>
                         </div>
                     </div>
@@ -468,10 +471,12 @@
                         </p>
                     </div>
                     <div class="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4">
-                        <p class="text-xs font-medium text-purple-700 dark:text-purple-300 uppercase tracking-wide">Level</p>
+                        @php $detailsInfo = \App\Support\LevelSystem::info($detailsUser->points->total_points ?? 0); @endphp
+                        <p class="text-xs font-medium text-purple-700 dark:text-purple-300 uppercase tracking-wide">Level · Rank</p>
                         <p class="text-2xl font-bold text-purple-900 dark:text-purple-100 mt-1">
-                            {{ $detailsUser->points->level ?? 1 }}
+                            {{ $detailsInfo['level'] }}
                         </p>
+                        <p class="text-sm font-semibold text-purple-700 dark:text-purple-300 mt-0.5">{{ $detailsInfo['name'] }}</p>
                     </div>
                     <div class="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
                         <p class="text-xs font-medium text-green-700 dark:text-green-300 uppercase tracking-wide">XP Activities</p>

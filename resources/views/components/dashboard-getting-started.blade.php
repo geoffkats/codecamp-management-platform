@@ -36,8 +36,8 @@
                 </div>
             </div>
             <div class="mt-3 flex gap-2">
-                <a href="{{ route('courses.index') }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
-                    Browse Courses →
+                <a href="{{ route('enrollments.index') }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                    My Courses →
                 </a>
                 <button type="button" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline" wire:click="dismissGettingStarted">
                     Dismiss

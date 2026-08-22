@@ -5,6 +5,7 @@ namespace App\Livewire\Dashboard;
 use App\Models\StudentProfile;
 use App\Models\StudentAttendance;
 use App\Models\InstructorAttendance;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -38,12 +39,12 @@ class OperationsManagerDashboard extends Component
             
             // Summary Stats
             fputcsv($file, ['Summary Statistics']);
-            fputcsv($file, ['Total Students', StudentProfile::count()]);
-            fputcsv($file, ['Present Today', StudentAttendance::where('attendance_date', today())->where('status', 'present')->count()]);
-            fputcsv($file, ['Absent Today', StudentAttendance::where('attendance_date', today())->where('status', 'absent')->count()]);
-            fputcsv($file, ['Late Today', StudentAttendance::where('attendance_date', today())->where('status', 'late')->count()]);
+            fputcsv($file, ['Total Students', $this->codecampStudentQuery()->count()]);
+            fputcsv($file, ['Present Today', StudentAttendance::where('attendance_date', today())->whereNull('course_id')->where('status', 'present')->count()]);
+            fputcsv($file, ['Absent Today', StudentAttendance::where('attendance_date', today())->whereNull('course_id')->where('status', 'absent')->count()]);
+            fputcsv($file, ['Late Today', StudentAttendance::where('attendance_date', today())->whereNull('course_id')->where('status', 'late')->count()]);
             fputcsv($file, ['Instructors Present', InstructorAttendance::where('attendance_date', today())->where('status', 'present')->count()]);
-            fputcsv($file, ['Uniform Payments Pending', StudentProfile::where('uniform_paid', false)->count()]);
+            fputcsv($file, ['Uniform Payments Pending', $this->codecampStudentQuery()->where('uniform_paid', false)->count()]);
             fputcsv($file, []);
             
             // Student Attendance
@@ -52,6 +53,8 @@ class OperationsManagerDashboard extends Component
             
             $attendance = StudentAttendance::with('studentProfile')
                 ->where('attendance_date', today())
+                ->whereNull('course_id')
+                ->whereHas('studentProfile', fn (Builder $q) => $q->where('program_type', '!=', 'codeclub'))
                 ->get();
                 
             foreach ($attendance as $record) {
@@ -90,6 +93,7 @@ class OperationsManagerDashboard extends Component
             
             $records = StudentAttendance::with(['studentProfile', 'recorder'])
                 ->where('attendance_date', today())
+                ->whereHas('studentProfile', fn (Builder $q) => $q->where('program_type', '!=', 'codeclub'))
                 ->get();
                 
             foreach ($records as $record) {
@@ -120,27 +124,34 @@ class OperationsManagerDashboard extends Component
     public function render()
     {
         $stats = [
-            'total_students' => StudentProfile::count(),
+            'total_students' => $this->codecampStudentQuery()->count(),
             'present_today' => StudentAttendance::where('attendance_date', today())
-                ->where('status', 'present')
+                ->whereNull('course_id')
+                ->whereIn('status', ['present', 'late'])
+                ->whereHas('studentProfile', fn (Builder $q) => $q->where('program_type', '!=', 'codeclub'))
                 ->count(),
             'absent_today' => StudentAttendance::where('attendance_date', today())
+                ->whereNull('course_id')
                 ->where('status', 'absent')
+                ->whereHas('studentProfile', fn (Builder $q) => $q->where('program_type', '!=', 'codeclub'))
                 ->count(),
-            'uniform_pending' => StudentProfile::where('uniform_paid', false)->count(),
+            'uniform_pending' => $this->codecampStudentQuery()->where('uniform_paid', false)->count(),
             'instructors_present' => InstructorAttendance::where('attendance_date', today())
                 ->where('status', 'present')
                 ->count(),
-            'total_gadgets' => StudentProfile::withCount('gadgets')->get()->sum('gadgets_count'),
+            'total_gadgets' => $this->codecampStudentQuery()->withCount('gadgets')->get()->sum('gadgets_count'),
         ];
 
         $recentAttendance = StudentAttendance::with(['studentProfile', 'course'])
             ->where('attendance_date', today())
+            ->whereNull('course_id')
+            ->whereHas('studentProfile', fn (Builder $q) => $q->where('program_type', '!=', 'codeclub'))
             ->latest()
             ->limit(10)
             ->get();
 
-        $uniformPending = StudentProfile::where('uniform_paid', false)
+        $uniformPending = $this->codecampStudentQuery()
+            ->where('uniform_paid', false)
             ->limit(10)
             ->get();
 
@@ -160,5 +171,10 @@ class OperationsManagerDashboard extends Component
             'ict_school' => 'ICT School',
             default => 'Codecamp',
         };
+    }
+
+    private function codecampStudentQuery(): Builder
+    {
+        return StudentProfile::query()->where('program_type', '!=', 'codeclub');
     }
 }

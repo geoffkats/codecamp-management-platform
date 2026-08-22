@@ -98,6 +98,19 @@
                 @endif
             </div>
 
+            @if($dailyChallenge->type === 'forum_participation')
+            <div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30">
+                <p class="text-sm text-blue-900 dark:text-blue-200">
+                    <strong>How to complete:</strong> Post helpful, on-topic discussions or replies in your course forum.
+                    Each item must be at least {{ config('daily_challenges.forum.min_reply_characters') }} characters.
+                    Only one reply per thread counts. Spam and one-word posts are ignored.
+                </p>
+                <a href="{{ route('discussions.index') }}" wire:navigate class="mt-2 inline-block text-sm font-semibold text-[#1a3a8f] hover:underline dark:text-blue-300">
+                    Go to discussions →
+                </a>
+            </div>
+            @endif
+
             <!-- Requirements -->
             @if($dailyChallenge->requirements && count($dailyChallenge->requirements) > 0)
             <div class="mb-6">

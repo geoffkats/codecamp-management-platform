@@ -5,6 +5,8 @@ namespace App\Livewire\Assessments;
 use App\Models\Assessment;
 use App\Models\AssessmentAttempt;
 use App\Models\Question;
+use App\Services\LessonCompletionService;
+use App\Support\SubmissionFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -40,10 +42,14 @@ class Take extends Component
     public $randomizedQuestions = null; // Store randomized questions for consistency
     public $shuffledQuestionData = []; // Store shuffled question-specific data
     public $shuffleSeed = null; // Seed for consistent shuffling
+    /** @var array<int, int> Stable question id order for this attempt */
+    public array $questionOrder = [];
+    /** @var array<int, array<int, int>> Stable option id order per question for this attempt */
+    public array $optionOrder = [];
 
     public function mount(Assessment $assessment)
     {
-        $this->assessment = $assessment->load(['questions.options', 'course', 'lesson']);
+        $this->assessment = $assessment->load(['course', 'lesson']);
         
         // Check if assessment is locked for students
         $user = Auth::user();
@@ -67,63 +73,65 @@ class Take extends Component
                        $user->hasRole('admin') || 
                        $user->hasRole('supervisor');
         
-        if (!$isInstructor && $this->assessment->is_locked) {
-            // Assessment is locked - will show locked view
-            return;
+        if (! $isInstructor) {
+            $this->checkAccess();
         }
         
-        // Check if user can take this assessment
-        $this->checkAccess();
-        
-        // Check existing attempts
+        $completedAttempts = AssessmentAttempt::where('user_id', Auth::id())
+            ->where('assessment_id', $this->assessment->id)
+            ->where('status', 'completed')
+            ->orderByDesc('completed_at')
+            ->get();
+
+        $attemptCount = $completedAttempts->count();
+
+        if ($this->assessment->max_attempts && $attemptCount >= $this->assessment->max_attempts) {
+            $latest = $completedAttempts->first();
+            if ($latest) {
+                return redirect()->route('assessments.results', [
+                    'assessment' => $this->assessment->id,
+                    'attempt' => $latest->id,
+                ]);
+            }
+
+            session()->flash('error', 'You have reached the maximum number of attempts for this assessment.');
+
+            return redirect()->route('assessments.show', $this->assessment);
+        }
+
+        // Check existing in-progress attempt
         $existingAttempt = AssessmentAttempt::where('user_id', Auth::id())
             ->where('assessment_id', $this->assessment->id)
             ->where('status', 'in_progress')
             ->latest()
             ->first();
 
-        if ($existingAttempt && !$existingAttempt->completed_at) {
-            // Resume existing attempt
+        if ($existingAttempt && ! $existingAttempt->completed_at) {
             $this->attempt = $existingAttempt;
             $this->attemptId = $existingAttempt->id;
             $this->answers = $existingAttempt->answers ?? [];
             $this->startedAt = $existingAttempt->started_at;
-            
-            // Use consistent seed based on attempt ID for reproducible shuffling
             $this->shuffleSeed = $existingAttempt->id;
-            
-            // Restore submission data for assignments
-            if ($this->assessment->assessment_type === 'assignment' && isset($this->answers['submission_text'])) {
-                $this->submissionText = $this->answers['submission_text'];
-            }
-            
-            // Restore randomized questions for consistency
-            $this->randomizedQuestions = $this->getQuestions();
-        } else {
-            // Check max attempts
-            $attemptCount = AssessmentAttempt::where('user_id', Auth::id())
-                ->where('assessment_id', $this->assessment->id)
-                ->where('status', 'completed')
-                ->count();
-            
-            if ($this->assessment->max_attempts && $attemptCount >= $this->assessment->max_attempts) {
-                session()->flash('error', 'You have reached the maximum number of attempts for this assessment.');
-                return redirect()->route('assessments.show', $this->assessment);
-            }
 
-            // Start new attempt
+            if ($this->assessment->assessment_type === 'assignment' && isset($this->answers['submission_text'])) {
+                $this->submissionText = (string) $this->answers['submission_text'];
+            }
+        } else {
+            $this->questionOrder = [];
+            $this->optionOrder = [];
             $this->startNewAttempt($attemptCount + 1);
             $this->attemptId = $this->attempt->id;
-            
-            // Set seed for consistent shuffling based on attempt ID
             $this->shuffleSeed = $this->attempt->id;
-            
-            // Randomize questions/options once at start of attempt
-            $this->randomizedQuestions = $this->getQuestions();
         }
 
+        $this->randomizedQuestions = null;
+
         if ($this->assessment->time_limit_minutes) {
-            $this->timeRemaining = $this->assessment->time_limit_minutes * 60; // Convert to seconds
+            $totalSeconds = $this->assessment->time_limit_minutes * 60;
+            $elapsed = $this->startedAt
+                ? (int) abs($this->startedAt->diffInSeconds(now()))
+                : 0;
+            $this->timeRemaining = max(0, $totalSeconds - $elapsed);
         }
     }
 
@@ -132,13 +140,20 @@ class Take extends Component
         // Reload assessment with relationships after Livewire hydration
         // This is needed because Livewire doesn't preserve relationships when serializing
         if ($this->assessment && $this->assessment->id) {
-            $this->assessment = Assessment::with(['questions.options', 'course', 'lesson'])
+            $this->assessment = Assessment::with(['course', 'lesson'])
                 ->findOrFail($this->assessment->id);
         }
-        
+
+        // Livewire cannot reliably serialize Eloquent collections — always rebuild questions
+        $this->randomizedQuestions = null;
+
         // Reload attempt if we have an attemptId
         if ($this->attemptId && !$this->attempt) {
             $this->attempt = AssessmentAttempt::find($this->attemptId);
+        }
+
+        if ($this->attempt && $this->attempt->status === 'completed') {
+            $this->showResults = true;
         }
     }
 
@@ -162,13 +177,17 @@ class Take extends Component
             abort(403, 'You must be enrolled in the course "' . $this->assessment->course->title . '" to take this assessment.');
         }
 
-        // Only enforce lock; do NOT enforce approval status for student access
-        if ($this->assessment->is_locked && !$user->hasAnyRole(['admin', 'teacher'])) {
-            Log::warning('Assessment access denied: Assessment locked', [
+        $accessCheck = app(LessonCompletionService::class)->canAccessAssessment($this->assessment, $user);
+
+        if (! $accessCheck['can_access']) {
+            $reason = collect($accessCheck['missing'])->first()['type'] ?? 'locked';
+
+            Log::warning('Assessment access denied: progression or lock', [
                 'user_id' => $userId,
                 'assessment_id' => $this->assessment->id,
-                'reason' => 'locked'
+                'reason' => $reason,
             ]);
+
             abort(403, 'This assessment is currently locked and unavailable.');
         }
     }
@@ -277,6 +296,18 @@ class Take extends Component
 
     public function isQuestionAnswered($question)
     {
+        $type = $this->questionType($question);
+
+        if ($type === 'file_upload') {
+            if ($this->uploadsForQuestion($question->id) !== []) {
+                return true;
+            }
+
+            $answer = $this->answers[$question->id] ?? null;
+
+            return is_array($answer) && ! empty($answer['files']);
+        }
+
         $userAnswer = $this->answers[$question->id] ?? null;
         
         // Check if answer exists and is not empty
@@ -349,12 +380,134 @@ class Take extends Component
         $this->submitAssessment();
     }
 
-    public function removeFile($questionId, $fileIndex)
+    public function removeFile($questionId, $fileIndex = null)
     {
-        if (isset($this->tempFiles[$questionId][$fileIndex])) {
-            unset($this->tempFiles[$questionId][$fileIndex]);
-            $this->tempFiles[$questionId] = array_values($this->tempFiles[$questionId]);
+        if (isset($this->tempFiles[$questionId])) {
+            if (is_array($this->tempFiles[$questionId])) {
+                if ($fileIndex === null) {
+                    unset($this->tempFiles[$questionId]);
+                } else {
+                    unset($this->tempFiles[$questionId][$fileIndex]);
+                    $this->tempFiles[$questionId] = array_values($this->tempFiles[$questionId]);
+                }
+            } else {
+                unset($this->tempFiles[$questionId]);
+            }
         }
+
+        if (! isset($this->answers[$questionId]) || ! is_array($this->answers[$questionId])) {
+            return;
+        }
+
+        $files = $this->answers[$questionId]['files'] ?? [];
+        if ($files === []) {
+            unset($this->answers[$questionId]);
+
+            return;
+        }
+
+        if ($fileIndex === null) {
+            unset($this->answers[$questionId]);
+
+            return;
+        }
+
+        unset($files[$fileIndex]);
+        $files = array_values($files);
+
+        if ($files === []) {
+            unset($this->answers[$questionId]);
+        } else {
+            $this->answers[$questionId]['files'] = $files;
+        }
+    }
+
+    public function updatedTempFiles($value, string $key): void
+    {
+        $questionId = (int) $key;
+        $question = $this->getQuestions()->firstWhere('id', $questionId);
+
+        if (! $question) {
+            unset($this->tempFiles[$key]);
+
+            return;
+        }
+
+        $settings = $question->settings ?? [];
+        $maxSizeKb = ((int) ($settings['max_size'] ?? 10)) * 1024;
+
+        $rules = (int) ($settings['max_files'] ?? 1) > 1
+            ? ["tempFiles.{$key}.*" => "nullable|file|max:{$maxSizeKb}"]
+            : ["tempFiles.{$key}" => "nullable|file|max:{$maxSizeKb}"];
+
+        $this->validate($rules);
+
+        if ($this->persistUploadedFilesForQuestion($questionId)) {
+            $this->saveProgress();
+        }
+    }
+
+    protected function persistUploadedFilesForQuestion(int $questionId): bool
+    {
+        $uploaded = $this->uploadsForQuestion($questionId);
+        if ($uploaded === []) {
+            return false;
+        }
+
+        $storedFiles = [];
+        foreach ($uploaded as $file) {
+            if ($file) {
+                $storedFiles[] = SubmissionFile::store($file, 'assessments/submissions');
+            }
+        }
+
+        if ($storedFiles === []) {
+            return false;
+        }
+
+        $this->answers[$questionId] = ['files' => $storedFiles];
+        unset($this->tempFiles[$questionId]);
+
+        return true;
+    }
+
+    protected function persistAllFileUploadAnswers($questions): void
+    {
+        foreach ($questions as $question) {
+            if ($this->questionType($question) !== 'file_upload') {
+                continue;
+            }
+
+            $existing = $this->answers[$question->id]['files'] ?? [];
+            if (! empty($existing)) {
+                continue;
+            }
+
+            $this->persistUploadedFilesForQuestion($question->id);
+        }
+    }
+
+    public function questionType(Question $question): string
+    {
+        return str_replace(' ', '_', strtolower(trim((string) $question->question_type)));
+    }
+
+    /**
+     * @return array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile>
+     */
+    public function uploadsForQuestion(int $questionId): array
+    {
+        $uploaded = $this->tempFiles[$questionId] ?? null;
+
+        if ($uploaded === null || $uploaded === '') {
+            return [];
+        }
+
+        if (is_array($uploaded)) {
+            return array_values(array_filter($uploaded));
+        }
+
+        return [$uploaded];
     }
 
     public function saveProgress()
@@ -390,38 +543,45 @@ class Take extends Component
     public function submitAssessment()
     {
         try {
-            \Log::info('Submit assessment started', ['assessment_id' => $this->assessment->id, 'attemptId' => $this->attemptId]);
-            
-            // Get the attempt reliably
-            $attempt = $this->getAttempt();
-            
-            if (!$attempt) {
-                \Log::error('No attempt found', ['attemptId' => $this->attemptId]);
-                session()->flash('error', 'No active attempt found. Please refresh the page.');
-                return;
-            }
-            
-            // Check if attempt is still in progress
-            if ($attempt->status !== 'in_progress') {
-                \Log::error('Attempt already completed', ['status' => $attempt->status]);
-                session()->flash('error', 'This assessment has already been submitted.');
-                $this->showResults = true;
+            if (!$this->attemptId) {
+                $this->addError('submit', 'No active assessment attempt. Please start the assessment again.');
+
                 return;
             }
 
-            // Handle assignment submission
-            if ($this->assessment->assessment_type === 'assignment') {
+            $attempt = $this->getAttempt();
+
+            if (!$attempt) {
+                $this->addError('submit', 'No active attempt found. Please refresh the page.');
+
+                return;
+            }
+
+            if ($attempt->status !== 'in_progress') {
+                $this->addError('submit', 'This assessment has already been submitted.');
+                $this->showResults = true;
+
+                return;
+            }
+
+        // Use fresh questions for scoring (not shuffled) to ensure accurate scoring
+        $questions = $this->assessment->questions()->with('options')->orderBy('order')->get();
+
+        $this->persistAllFileUploadAnswers($questions);
+
+        if (! $this->validateAssignmentBeforeSubmit($questions)) {
+            return;
+        }
+
+        if ($this->assessment->assessment_type === 'assignment' && $questions->isEmpty()) {
             $this->validate([
-                'submissionText' => 'required|min:10',
-                'submissionFiles.*' => 'nullable|file|max:10240', // 10MB max
+                'submissionText' => 'nullable|string',
+                'submissionFiles.*' => 'nullable|file|max:10240',
             ]);
 
             $filePaths = [];
-            if (!empty($this->submissionFiles)) {
-                foreach ($this->submissionFiles as $file) {
-                    $path = $file->store('assessments/submissions', 'public');
-                    $filePaths[] = $path;
-                }
+            foreach ($this->submissionFiles as $file) {
+                $filePaths[] = SubmissionFile::store($file, 'assessments/submissions');
             }
 
             $this->answers = [
@@ -429,7 +589,6 @@ class Take extends Component
                 'files' => $filePaths,
             ];
 
-            // For assignments, score is null until graded
             $attempt->update([
                 'answers' => $this->answers,
                 'completed_at' => now(),
@@ -437,7 +596,7 @@ class Take extends Component
                 'score' => null,
                 'auto_scored' => false,
                 'is_locked' => false,
-                'time_spent' => $this->startedAt ? now()->diffInMinutes($this->startedAt) : 0,
+                'time_spent' => $attempt->started_at ? (int) abs($attempt->started_at->diffInMinutes(now())) : 0,
             ]);
 
             $this->showResults = true;
@@ -446,16 +605,9 @@ class Take extends Component
 
             return $this->redirect(
                 route('assessments.results', ['assessment' => $this->assessment->id, 'attempt' => $attempt->id]),
-                navigate: true
+                navigate: false
             );
         }
-
-        // Handle quiz-type assessments
-        // Use fresh questions for scoring to avoid shuffling issues
-        $questions = $this->assessment->questions()->with('options')->get();
-
-        // Log all answers before scoring
-        \Log::info('All answers at submission:', ['answers' => $this->answers]);
 
         // Validate short_answer and essay length constraints before scoring
         foreach ($questions as $question) {
@@ -487,6 +639,30 @@ class Take extends Component
                 }
             }
         }
+        // Persist any remaining file_upload attachments before scoring
+        $this->persistAllFileUploadAnswers($questions);
+
+        // Detect questions that always need manual grading
+        $manualOnlyTypes = ['essay', 'code_submission', 'file_upload', 'rubric_criteria'];
+        $needsManualGrading = $this->assessment->assessment_type === 'assignment';
+        foreach ($questions as $question) {
+            if (in_array($question->question_type, $manualOnlyTypes)) {
+                $needsManualGrading = true;
+                break;
+            }
+            if ($question->question_type === 'short_answer') {
+                $s = $question->settings ?? [];
+                $hasCorrect = !empty($s['correct_answer'] ?? $s['short_answer']['correct_answer'] ?? '');
+                if (!$hasCorrect) {
+                    $hasCorrect = $question->options->where('is_correct', true)->isNotEmpty();
+                }
+                if (!$hasCorrect) {
+                    $needsManualGrading = true;
+                    break;
+                }
+            }
+        }
+
         $totalPoints = $questions->sum('points');
         $earnedPoints = 0;
 
@@ -494,34 +670,26 @@ class Take extends Component
             $earnedPoints += $this->calculateQuestionScore($question);
         }
 
-        \Log::info('Final scoring summary', [
-            'total_questions' => $questions->count(),
-            'total_points' => $totalPoints,
-            'earned_points' => $earnedPoints,
-            'percentage' => $this->percentage,
-            'passed' => $this->isPassed
-        ]);
-
         $this->score = $earnedPoints;
         $this->percentage = $totalPoints > 0 ? round(($earnedPoints / $totalPoints) * 100, 2) : 0;
-        $this->isPassed = $this->percentage >= $this->assessment->passing_score;
+        $this->isPassed = !$needsManualGrading && $this->percentage >= $this->assessment->passing_score;
         $this->passed = $this->isPassed;
 
-        $timeSpent = $this->startedAt ? now()->diffInMinutes($this->startedAt) : 0;
+        $timeSpent = $attempt->started_at ? (int) abs($attempt->started_at->diffInMinutes(now())) : 0;
 
         $attempt->update([
             'answers' => $this->answers,
-            'score' => $this->score,
-            'is_passed' => $this->isPassed,
+            'score' => $needsManualGrading ? null : $this->score,
+            'is_passed' => $needsManualGrading ? false : $this->isPassed,
             'completed_at' => now(),
             'status' => 'completed',
             'time_spent' => $timeSpent,
-            'auto_scored' => true,
-            'is_locked' => true,
+            'auto_scored' => !$needsManualGrading,
+            'is_locked' => !$needsManualGrading,
         ]);
 
-        // Award XP if passed
-        if ($this->isPassed && $this->assessment->xp_reward) {
+        // Award XP only when fully auto-graded and passed
+        if (!$needsManualGrading && $this->isPassed && $this->assessment->xp_reward) {
             $user = Auth::user();
             $points = $user->points()->firstOrCreate([
                 'user_id' => $user->id,
@@ -530,39 +698,41 @@ class Take extends Component
                 'level' => 1,
             ]);
 
-            $points->increment('total_points', $this->assessment->xp_reward);
+            $points->addPoints((int) $this->assessment->xp_reward);
         }
 
         // Check and award badges for perfect scores
-        if ($this->percentage >= 100) {
+        if (!$needsManualGrading && $this->percentage >= 100) {
             $badgeService = app(\App\Services\BadgeAwardingService::class);
             $badgeService->checkPerfectQuizBadges(Auth::user());
         }
 
-        \Log::info('Assessment completed successfully', [
-            'score' => $this->score,
-            'percentage' => $this->percentage,
-            'passed' => $this->isPassed
-        ]);
-
         $this->showResults = true;
         $this->dispatch('assessment-completed');
 
-        session()->flash('message', $this->isPassed 
-            ? 'Congratulations! You passed the assessment.' 
-            : 'You did not pass. Keep studying!');
+        if ($needsManualGrading) {
+            session()->flash('message', $this->assessment->assessment_type === 'assignment'
+                ? 'Assignment submitted successfully! Waiting for instructor review.'
+                : 'Submitted! Some questions need teacher review before your final score is set.');
+        } else {
+            session()->flash('message', $this->isPassed
+                ? 'Congratulations! You passed the assessment.'
+                : 'You did not pass. Keep studying!');
+        }
 
         return $this->redirect(
             route('assessments.results', ['assessment' => $this->assessment->id, 'attempt' => $attempt->id]),
-            navigate: true
+            navigate: false
         );
-            
-        } catch (\Exception $e) {
-            \Log::error('Assessment submission failed', [
+
+        } catch (\Throwable $e) {
+            Log::error('Assessment submission failed', [
+                'assessment_id' => $this->assessment->id ?? null,
+                'attempt_id' => $this->attemptId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
-            session()->flash('error', 'An error occurred while submitting: ' . $e->getMessage());
+            $this->addError('submit', 'An error occurred while submitting. Please try again.');
         }
     }
 
@@ -585,45 +755,15 @@ class Take extends Component
             }, $correctOptions);
             sort($correctOptions);
             
-            // Debug logging
-            \Log::info("Scoring Question {$question->id}:", [
-                'question_type' => $question->question_type,
-                'user_answer' => $userAnswer,
-                'user_answer_type' => gettype($userAnswer),
-                'correct_options' => $correctOptions,
-                'question_points' => $question->points
-            ]);
-            
             if (is_array($userAnswer)) {
-                // Multiple select - compare arrays
                 $userAnswerArray = array_map(function($val) {
                     return is_numeric($val) ? (int)$val : $val;
                 }, array_filter($userAnswer));
                 sort($userAnswerArray);
-                
-                $score = $userAnswerArray === $correctOptions ? $question->points : 0;
-                \Log::info("Array comparison result:", [
-                    'question_id' => $question->id,
-                    'score' => $score,
-                    'user' => $userAnswerArray,
-                    'correct' => $correctOptions,
-                    'user_count' => count($userAnswerArray),
-                    'correct_count' => count($correctOptions),
-                    'arrays_match' => $userAnswerArray === $correctOptions
-                ]);
-                return $score;
+                return $userAnswerArray === $correctOptions ? $question->points : 0;
             } else {
-                // Single choice - convert to int and check
                 $userAnswerInt = is_numeric($userAnswer) ? (int)$userAnswer : $userAnswer;
-                $score = in_array($userAnswerInt, $correctOptions, true) ? $question->points : 0;
-                \Log::info("Single comparison result:", [
-                    'question_id' => $question->id,
-                    'score' => $score,
-                    'user' => $userAnswerInt,
-                    'correct' => $correctOptions,
-                    'found' => in_array($userAnswerInt, $correctOptions, true)
-                ]);
-                return $score;
+                return in_array($userAnswerInt, $correctOptions, true) ? $question->points : 0;
             }
         }
 
@@ -647,8 +787,41 @@ class Take extends Component
             return $question->points;
         }
 
-        // For essay, short_answer, code_submission, file_upload - manual grading required
-        // Return 0 for now, teacher will grade manually
+        // short_answer: auto-grade if a correct answer is defined; otherwise 0 (teacher grades)
+        if ($question->question_type === 'short_answer') {
+            return $this->scoreShortAnswerQuestion($question);
+        }
+
+        // essay, code_submission, file_upload — always 0 until teacher grades
+        return 0;
+    }
+
+    protected function scoreShortAnswerQuestion($question): float
+    {
+        $userAnswer = trim($this->answers[$question->id] ?? '');
+        if ($userAnswer === '') return 0;
+
+        $settings = $question->settings ?? [];
+        $correctAnswer = trim($settings['correct_answer'] ?? $settings['short_answer']['correct_answer'] ?? '');
+
+        if (empty($correctAnswer)) {
+            $correctOption = $question->options->where('is_correct', true)->first();
+            $correctAnswer = $correctOption ? trim($correctOption->option_text) : '';
+        }
+
+        if (empty($correctAnswer)) return 0;
+
+        $caseSensitive = $settings['case_sensitive'] ?? false;
+        $userCmp    = $caseSensitive ? $userAnswer    : mb_strtolower($userAnswer);
+        $correctCmp = $caseSensitive ? $correctAnswer : mb_strtolower($correctAnswer);
+
+        if ($userCmp === $correctCmp) return $question->points;
+
+        foreach ($settings['alternative_answers'] ?? [] as $alt) {
+            $altCmp = $caseSensitive ? trim($alt) : mb_strtolower(trim($alt));
+            if ($userCmp === $altCmp) return $question->points;
+        }
+
         return 0;
     }
 
@@ -785,40 +958,145 @@ class Take extends Component
         return $totalPairs > 0 ? ($correct / $totalPairs) * $question->points : 0;
     }
 
+    protected function questionCount(): int
+    {
+        return $this->assessment->questions()->count();
+    }
+
+    protected function validateAssignmentBeforeSubmit($questions): bool
+    {
+        if ($this->assessment->assessment_type !== 'assignment') {
+            return true;
+        }
+
+        if ($questions->isEmpty()) {
+            $assignmentData = $this->assessment->assignment_data ?? [];
+            $allowText = (bool) ($assignmentData['allow_text'] ?? true);
+            $allowFiles = (bool) ($assignmentData['allow_files'] ?? true);
+            $hasText = filled(trim($this->submissionText));
+            $hasFiles = ! empty($this->submissionFiles);
+
+            if ($allowText && ! $hasText && (! $allowFiles || ! $hasFiles)) {
+                $this->addError('submit', 'Please write a response before submitting.');
+
+                return false;
+            }
+
+            if ($allowFiles && ! $hasFiles && (! $allowText || ! $hasText)) {
+                $this->addError('submit', 'Please upload at least one file before submitting.');
+
+                return false;
+            }
+
+            if (! $allowText && ! $allowFiles) {
+                $this->addError('submit', 'This assignment is not configured for submissions.');
+
+                return false;
+            }
+
+            return true;
+        }
+
+        $missing = [];
+
+        foreach ($questions as $index => $question) {
+            if ($this->isQuestionAnswered($question)) {
+                continue;
+            }
+
+            $label = 'Task '.($index + 1);
+            $missing[] = match ($this->questionType($question)) {
+                'file_upload' => "{$label}: upload a file",
+                'code_submission' => "{$label}: submit your code",
+                'essay' => "{$label}: write your response",
+                'short_answer' => "{$label}: answer the question",
+                default => "{$label}: complete this question",
+            };
+        }
+
+        if ($missing !== []) {
+            $this->addError(
+                'submit',
+                'Please complete all required tasks before submitting: '.implode('; ', array_slice($missing, 0, 3))
+                .(count($missing) > 3 ? '…' : '')
+            );
+
+            return false;
+        }
+
+        return true;
+    }
+
     protected function getQuestions()
     {
-        // Return cached randomized questions if available (for consistency during attempt)
-        if ($this->randomizedQuestions !== null) {
-            return $this->randomizedQuestions;
+        if ($this->randomizedQuestions instanceof \Illuminate\Support\Collection
+            && $this->randomizedQuestions->isNotEmpty()
+            && $this->randomizedQuestions->first() instanceof Question) {
+            return $this->randomizedQuestions->values();
         }
-        
+
         $questions = $this->assessment->questions()->with('options')->orderBy('order')->get();
-        
-        // Use seed for consistent shuffling if available
-        if ($this->shuffleSeed) {
-            mt_srand($this->shuffleSeed);
+
+        // Build a stable question order once per attempt (survives Livewire rehydration)
+        if ($this->questionOrder === []) {
+            $ordered = $questions;
+            if ($this->assessment->is_randomized) {
+                $ordered = $questions->shuffle($this->shuffleSeed ? (int) $this->shuffleSeed : null);
+            }
+            $this->questionOrder = $ordered->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
         }
-        
-        // Randomize questions if enabled
-        if ($this->assessment->is_randomized) {
-            $questions = $questions->shuffle();
-        }
-        
-        // Shuffle options if enabled
-        if ($this->assessment->shuffle_options) {
-            foreach ($questions as $question) {
-                if ($question->relationLoaded('options')) {
-                    $question->setRelation('options', $question->options->shuffle());
-                }
+
+        $byId = $questions->keyBy('id');
+        $orderedQuestions = collect($this->questionOrder)
+            ->map(fn ($id) => $byId->get($id))
+            ->filter()
+            ->values();
+
+        // Include any new questions not yet in the stored order
+        foreach ($questions as $question) {
+            if (! in_array((int) $question->id, $this->questionOrder, true)) {
+                $orderedQuestions->push($question);
+                $this->questionOrder[] = (int) $question->id;
             }
         }
-        
-        // Reset random seed
-        if ($this->shuffleSeed) {
-            mt_srand();
+
+        foreach ($orderedQuestions as $question) {
+            $options = $question->relationLoaded('options')
+                ? $question->options
+                : $question->options()->orderBy('order')->get();
+
+            if ($this->assessment->shuffle_options) {
+                if (! isset($this->optionOrder[$question->id])) {
+                    $shuffled = $options->shuffle(
+                        $this->shuffleSeed
+                            ? (int) $this->shuffleSeed + (int) $question->id
+                            : null
+                    );
+                    $this->optionOrder[$question->id] = $shuffled->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+                }
+
+                $optionById = $options->keyBy('id');
+                $orderedOptions = collect($this->optionOrder[$question->id] ?? [])
+                    ->map(fn ($id) => $optionById->get($id))
+                    ->filter()
+                    ->values();
+
+                foreach ($options as $option) {
+                    if (! in_array((int) $option->id, $this->optionOrder[$question->id] ?? [], true)) {
+                        $orderedOptions->push($option);
+                        $this->optionOrder[$question->id][] = (int) $option->id;
+                    }
+                }
+
+                $question->setRelation('options', $orderedOptions);
+            } else {
+                $question->setRelation('options', $options->sortBy('order')->values());
+            }
         }
-        
-        return $questions;
+
+        $this->randomizedQuestions = $orderedQuestions;
+
+        return $this->randomizedQuestions;
     }
 
     public function getShuffledQuestionData($questionId, $questionType)
@@ -908,6 +1186,26 @@ class Take extends Component
         return $data;
     }
 
+    /**
+     * @return array<int, array{path: string, name: string}|string>
+     */
+    public function savedUploadFilesForQuestion(int $questionId): array
+    {
+        $answer = $this->answers[$questionId] ?? null;
+
+        if (! is_array($answer) || empty($answer['files'])) {
+            return [];
+        }
+
+        return array_values(array_filter($answer['files'], function ($file) {
+            if (is_string($file)) {
+                return $file !== '';
+            }
+
+            return is_array($file) && is_string($file['path'] ?? null) && $file['path'] !== '';
+        }));
+    }
+
     public function render()
     {
         // Always reload questions relationship to ensure it's available in the view
@@ -925,13 +1223,23 @@ class Take extends Component
             $this->assessment->load('lesson');
         }
         
-        $currentQuestion = $questions->get($this->currentQuestionIndex);
-        $totalQuestions = $questions->count();
-        $answeredCount = count(array_filter($this->answers));
+        $indexedQuestions = $questions->values();
+        $currentQuestion = $indexedQuestions->get($this->currentQuestionIndex);
+        $totalQuestions = $indexedQuestions->count();
+        $answeredCount = $indexedQuestions->filter(fn ($q) => $this->isQuestionAnswered($q))->count();
+        $selectedUploadFiles = $currentQuestion
+            ? $this->uploadsForQuestion($currentQuestion->id)
+            : [];
+        $savedUploadFiles = $currentQuestion
+            ? $this->savedUploadFilesForQuestion($currentQuestion->id)
+            : [];
 
         return view('livewire.assessments.take', [
-            'questions' => $questions,
+            'questions' => $indexedQuestions,
             'currentQuestion' => $currentQuestion,
+            'currentQuestionType' => $currentQuestion ? $this->questionType($currentQuestion) : null,
+            'selectedUploadFiles' => $selectedUploadFiles,
+            'savedUploadFiles' => $savedUploadFiles,
             'totalQuestions' => $totalQuestions,
             'answeredCount' => $answeredCount,
             'progress' => $totalQuestions > 0 ? round(($answeredCount / $totalQuestions) * 100, 1) : 0,

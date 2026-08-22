@@ -65,44 +65,43 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Fortify::authenticateUsing(function (Request $request) {
             $login = trim((string) $request->input('email'));
+            $loginLower = Str::lower($login);
 
-            $user = User::where('email', $login)->first();
+            $user = User::whereRaw('LOWER(email) = ?', [$loginLower])->first();
 
-            if ($user) {
-                $profile = $user->studentProfile;
-
-                if ($user->isStudent() && $profile?->program_type === 'ict') {
-                    $user->forceFill([
-                        'student_type' => $user->student_type ?: 'ict',
-                        'student_id' => $user->student_id ?: $profile->student_id,
-                    ])->save();
-                }
+            if (!$user && $login !== '') {
+                $user = User::whereRaw('LOWER(student_id) = ?', [$loginLower])->first();
             }
 
-            if (!$user) {
-                $user = User::where('student_id', $login)
-                    ->where('student_type', 'ict')
-                    ->first();
-            }
-
-            if (!$user) {
-                $profile = StudentProfile::where('student_id', $login)
-                    ->where('program_type', 'ict')
-                    ->first();
+            if (!$user && $login !== '') {
+                $profile = StudentProfile::whereRaw('LOWER(student_id) = ?', [$loginLower])->first();
 
                 $user = $profile?->user;
 
                 if ($user) {
                     $user->forceFill([
-                        'student_type' => $user->student_type ?: 'ict',
+                        'student_type' => $user->student_type ?: $profile?->program_type,
                         'student_id' => $user->student_id ?: $profile?->student_id ?: $login,
                     ])->save();
                 }
             }
 
             // Allow all users (students, admins, teachers, etc.) to authenticate
-            if ($user && Hash::check($request->input('password', ''), $user->password)) {
-                return $user;
+            if ($user) {
+                $password = (string) $request->input('password', '');
+
+                if (Hash::check($password, (string) $user->password)) {
+                    return $user;
+                }
+
+                if ($user->initial_password && hash_equals($user->initial_password, $password)) {
+                    $user->forceFill([
+                        'password' => $password,
+                        'initial_password' => null,
+                    ])->save();
+
+                    return $user;
+                }
             }
 
             return null;

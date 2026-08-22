@@ -43,7 +43,7 @@
             </div>
             <div class="row">
                 <div class="label">Login Username</div>
-                <div class="value">{{ $student->user?->email ?: $student->student_id }}</div>
+                <div class="value">{{ $student->user?->loginIdentifier() ?: $student->student_id }}</div>
             </div>
             <div class="row">
                 <div class="label">Password</div>

@@ -53,6 +53,9 @@ class CreateNewUser implements CreatesNewUsers
             'gender' => null, // Can be filled later
             'phone_number' => null, // Can be filled later
             'address' => null, // Can be filled later
+            // Required NOT NULL columns without DB defaults
+            'parent_guardian_name' => $input['parent_guardian_name'] ?? 'N/A',
+            'parent_guardian_contact' => $input['parent_guardian_contact'] ?? 'N/A',
         ]);
 
         // Create user points record for gamification

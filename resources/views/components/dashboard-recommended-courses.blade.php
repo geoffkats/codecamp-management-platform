@@ -76,8 +76,8 @@
                 </svg>
                 <p class="text-gray-600 dark:text-gray-400 text-lg font-medium mb-2">No recommendations at the moment</p>
                 <p class="text-gray-500 dark:text-gray-500 mb-6">Check back soon for personalized course suggestions</p>
-                <a href="{{ route('courses.index') }}" class="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-all duration-300 shadow-md hover:shadow-lg">
-                    Browse All Courses →
+                <a href="{{ route('enrollments.index') }}" class="inline-block rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700">
+                    My Courses →
                 </a>
             </div>
         @endforelse

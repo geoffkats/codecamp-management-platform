@@ -14,7 +14,7 @@ class Show extends Component
     {
         $user = Auth::user();
 
-        if (!$user || ((int) $certificate->user_id !== (int) $user->id && !$user->hasAnyRole(['admin']))) {
+        if (!$user || ((int) $certificate->user_id !== (int) $user->id && ! $user->can('generate_certificates'))) {
             abort(403);
         }
 

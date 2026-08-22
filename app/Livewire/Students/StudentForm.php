@@ -2,10 +2,12 @@
 
 namespace App\Livewire\Students;
 
-use App\Models\StudentProfile;
-use App\Models\StudentGadget;
-use App\Models\User;
 use App\Models\School;
+use App\Models\StudentGadget;
+use App\Models\StudentProfile;
+use App\Models\User;
+use App\Services\CauRegistrationLookupService;
+use App\Support\StudentPassword;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -42,6 +44,7 @@ class StudentForm extends Component
     public $github_account = '';
     public $student_category = 'codecamp';
     public $program_type = 'codecamp';
+    public bool $isCodeClubForm = false;
     public $school_id = null;
     public $icdl_number = '';
     public $photo = null;
@@ -77,6 +80,24 @@ class StudentForm extends Component
     public $uniform_paid = false;
     public $payment_receipt = null;
 
+    public string $registrationSearch = '';
+
+    /** @var array<int, array<string, mixed>> */
+    public array $registrationResults = [];
+
+    public ?string $selectedExternalRegistrationId = null;
+
+    public string $registrationLookupMessage = '';
+
+    public string $registrationLookupError = '';
+
+    protected CauRegistrationLookupService $cauRegistrationLookup;
+
+    public function boot(CauRegistrationLookupService $cauRegistrationLookup): void
+    {
+        $this->cauRegistrationLookup = $cauRegistrationLookup;
+    }
+
     protected function rules()
     {
         $rules = [
@@ -84,7 +105,7 @@ class StudentForm extends Component
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
             'date_of_birth' => 'required|date',
-            'gender' => 'required|in:male,female,other',
+            'gender' => 'required|in:male,female',
             'nationality' => 'nullable|string|max:255',
             'class_grade' => 'required|string|max:255',
             'address' => 'nullable|string',
@@ -92,8 +113,8 @@ class StudentForm extends Component
             'scratch_password' => 'nullable|string|max:255',
             'github_account' => 'nullable|string|max:255',
             'student_category' => 'required|in:codecamp,school_club,ict_school',
-            'program_type' => 'required|in:ict,codecamp',
-            'school_id' => 'required_if:program_type,ict|nullable|exists:schools,id',
+            'program_type' => 'required|in:ict,codecamp,codeclub',
+            'school_id' => 'required_if:program_type,ict,codeclub|nullable|exists:schools,id',
             'icdl_number' => 'nullable|string|max:255',
             'photo' => 'nullable|image|max:2048',
             'parent1_name' => 'required|string|max:255',
@@ -111,7 +132,7 @@ class StudentForm extends Component
         ];
 
         if (!$this->isEdit) {
-            if ($this->program_type === 'ict') {
+            if (in_array($this->program_type, ['ict', 'codeclub'], true)) {
                 $rules['email'] = 'nullable|email|unique:users,email';
                 $rules['password'] = 'nullable|min:8|confirmed';
             } else {
@@ -161,21 +182,18 @@ class StudentForm extends Component
         return $candidate;
     }
 
-    private function generateSimplePassword(): string
+    public function mount($student = null, bool $codeclub = false)
     {
-        $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        $password = '';
+        $this->isCodeClubForm = $codeclub;
 
-        for ($i = 0; $i < 8; $i++) {
-            $password .= $chars[random_int(0, strlen($chars) - 1)];
+        if ($this->isCodeClubForm) {
+            abort_unless(config('features.code_club', false), 404);
+            abort_unless(auth()->user()->hasCodeClubAccess() || auth()->user()->isAdmin() || auth()->user()->isSupervisor() || auth()->user()->isOperationsManager(), 403);
+            $this->program_type = 'codeclub';
+            $this->student_category = 'school_club';
         }
 
-        return $password;
-    }
-
-    public function mount($student = null)
-    {
-        if (auth()->user()->isIctTeacher() && !$student) {
+        if (auth()->user()->isIctTeacher() && ! $student) {
             abort(403, 'ICT teachers cannot access the CodeCamp intake form.');
         }
 
@@ -184,6 +202,121 @@ class StudentForm extends Component
             $this->student = StudentProfile::with('gadgets')->findOrFail($student);
             $this->authorize('view', $this->student);
             $this->loadStudent();
+        }
+    }
+
+    public function updatedRegistrationSearch(): void
+    {
+        $this->registrationLookupMessage = '';
+        $this->registrationLookupError = '';
+        $this->registrationResults = [];
+
+        if ($this->isEdit || ! $this->cauRegistrationLookup->isEnabled()) {
+            return;
+        }
+
+        if (mb_strlen(trim($this->registrationSearch)) < 2) {
+            return;
+        }
+
+        $this->registrationResults = $this->cauRegistrationLookup->search($this->registrationSearch);
+        $this->registrationLookupError = $this->cauRegistrationLookup->lastError() ?? '';
+    }
+
+    public function selectExternalRegistration(string $externalId): void
+    {
+        $this->registrationLookupMessage = '';
+        $this->registrationLookupError = '';
+        $record = $this->cauRegistrationLookup->find($externalId);
+
+        if ($record === null) {
+            $this->registrationLookupError = $this->cauRegistrationLookup->lastError()
+                ?? 'Could not load that registration. Please try again.';
+
+            return;
+        }
+
+        $this->prefillFromExternalRegistration($record);
+        $this->selectedExternalRegistrationId = $externalId;
+        $this->registrationSearch = $record['full_name'] ?? $this->registrationSearch;
+        $this->registrationResults = [];
+        $this->registrationLookupMessage = 'Registration details loaded. Review the form and save when ready.';
+    }
+
+    public function clearExternalRegistration(): void
+    {
+        $this->selectedExternalRegistrationId = null;
+        $this->registrationSearch = '';
+        $this->registrationResults = [];
+        $this->registrationLookupMessage = '';
+        $this->registrationLookupError = '';
+    }
+
+    /**
+     * @param  array<string, mixed>  $record
+     */
+    protected function prefillFromExternalRegistration(array $record): void
+    {
+        $this->first_name = (string) ($record['first_name'] ?? '');
+        $this->middle_name = (string) ($record['middle_name'] ?? '');
+        $this->last_name = (string) ($record['last_name'] ?? '');
+        $this->full_name = (string) ($record['full_name'] ?? '');
+
+        if ($this->full_name === '') {
+            $this->updateFullName();
+        }
+
+        if (! empty($record['date_of_birth'])) {
+            $this->date_of_birth = (string) $record['date_of_birth'];
+        }
+
+        if (! empty($record['gender'])) {
+            $this->gender = (string) $record['gender'];
+        }
+
+        if (! empty($record['nationality'])) {
+            $this->nationality = (string) $record['nationality'];
+        }
+
+        if (! empty($record['class_grade'])) {
+            $this->class_grade = (string) $record['class_grade'];
+        }
+
+        if (! empty($record['address'])) {
+            $this->address = (string) $record['address'];
+        }
+
+        $parent1 = is_array($record['parent1'] ?? null) ? $record['parent1'] : [];
+
+        if (! empty($parent1['name'])) {
+            $this->parent1_name = (string) $parent1['name'];
+        }
+
+        if (! empty($parent1['relationship']) && in_array($parent1['relationship'], ['mother', 'father', 'guardian'], true)) {
+            $this->parent1_relationship = (string) $parent1['relationship'];
+        } elseif ($this->parent1_relationship === '') {
+            $this->parent1_relationship = 'guardian';
+        }
+
+        if (! empty($parent1['phone'])) {
+            $this->parent1_phone = (string) $parent1['phone'];
+        }
+
+        if (! empty($parent1['email'])) {
+            $this->parent1_email = (string) $parent1['email'];
+        }
+
+        if (! $this->isEdit && ! empty($record['email']) && filter_var($record['email'], FILTER_VALIDATE_EMAIL)) {
+            $this->email = (string) $record['email'];
+        }
+
+        if (! empty($record['tshirt_size'])) {
+            $this->uniform_size = strtolower((string) $record['tshirt_size']);
+        }
+
+        if (($record['registration_category'] ?? null) === 'camp') {
+            $this->program_type = 'codecamp';
+            $this->student_category = 'codecamp';
         }
     }
 
@@ -286,21 +419,36 @@ class StudentForm extends Component
         return redirect()->route('students.index');
     }
 
-    private function createStudent()
+    protected function createStudent()
     {
         $this->updateFullName();
 
-        $studentType = $this->program_type === 'ict' ? 'ict' : 'codecamp';
-        $studentId = StudentProfile::generateStudentId();
-        $email = $this->email ?: ($this->program_type === 'ict' ? $this->generateStudentEmail() : null);
-        $password = $this->password ?: ($this->program_type === 'ict' ? $this->generateSimplePassword() : Str::random(12));
+        $studentType = match ($this->program_type) {
+            'ict' => 'ict',
+            'codeclub' => 'codeclub',
+            default => 'codecamp',
+        };
+        $studentId = StudentProfile::generateStudentId(
+            $this->program_type === 'codeclub' ? 'codeclub' : null
+        );
+        $autoCredentials = in_array($this->program_type, ['ict', 'codeclub'], true);
+        $email = match ($this->program_type) {
+            'codeclub' => trim((string) $this->email) !== '' ? trim($this->email) : null,
+            'ict' => $this->email ?: $this->generateStudentEmail(),
+            default => $this->email ?: null,
+        };
+        $password = $this->password ?: ($autoCredentials
+            ? ($this->program_type === 'codeclub'
+                ? StudentPassword::generateKidFriendly()
+                : StudentPassword::generateSimple())
+            : Str::random(12));
 
         // Create user account
         $user = User::create([
             'name' => $this->full_name,
             'email' => $email,
             'student_type' => $studentType,
-            'student_id' => $studentType === 'ict' ? $studentId : null,
+            'student_id' => in_array($studentType, ['ict', 'codeclub'], true) ? $studentId : null,
             'password' => Hash::make($password),
             'initial_password' => $password,
         ]);
@@ -320,24 +468,7 @@ class StudentForm extends Component
             $receiptPath = $this->payment_receipt->store('payment-receipts', 'public');
         }
 
-        // Prepare parent data
-        $parentData = [
-            'parent1' => [
-                'name' => $this->parent1_name,
-                'relationship' => $this->parent1_relationship,
-                'phone' => $this->parent1_phone,
-                'email' => $this->parent1_email,
-            ]
-        ];
-
-        if ($this->parent2_name) {
-            $parentData['parent2'] = [
-                'name' => $this->parent2_name,
-                'relationship' => $this->parent2_relationship,
-                'phone' => $this->parent2_phone,
-                'email' => $this->parent2_email,
-            ];
-        }
+        $parentFields = $this->resolveParentFields();
 
         // Create student profile
         $studentProfile = StudentProfile::create([
@@ -349,12 +480,13 @@ class StudentForm extends Component
             'exam_readiness_status' => 'not_ready',
             'is_active' => true,
             'full_name' => $this->full_name,
-            'date_of_birth' => $this->date_of_birth,
+            'date_of_birth' => $this->resolveDateOfBirthForProfile(),
+            'age' => $this->resolveAgeForProfile(),
             'gender' => $this->gender,
             'nationality' => $this->nationality,
-            'parent_guardian_name' => $this->parent1_name,
-            'parent_guardian_contact' => $this->parent1_phone,
-            'parent_data' => $parentData,
+            'parent_guardian_name' => $parentFields['parent_guardian_name'],
+            'parent_guardian_contact' => $parentFields['parent_guardian_contact'],
+            'parent_data' => $parentFields['parent_data'],
             'class_grade' => $this->class_grade,
             'address' => $this->address,
             'scratch_account' => $this->scratch_account,
@@ -368,23 +500,31 @@ class StudentForm extends Component
             'payment_receipt_path' => $receiptPath,
         ]);
 
-        // Add gadgets
-        foreach ($this->gadgets as $gadget) {
-            StudentGadget::create([
-                'student_profile_id' => $studentProfile->id,
-                'device_type' => $gadget['device_type'],
-                'brand' => $gadget['brand'] ?? null,
-                'serial_number' => $gadget['serial_number'] ?? null,
-                'ram' => $gadget['ram'] ?? null,
-                'storage' => $gadget['storage'] ?? null,
-                'condition' => $gadget['condition'] ?? null,
-                'accessories' => $gadget['accessories'] ?? null,
-                'specifications' => json_encode($gadget),
-            ]);
+        if (! $this->isCodeClubForm) {
+            foreach ($this->gadgets as $gadget) {
+                StudentGadget::create([
+                    'student_profile_id' => $studentProfile->id,
+                    'device_type' => $gadget['device_type'],
+                    'brand' => $gadget['brand'] ?? null,
+                    'serial_number' => $gadget['serial_number'] ?? null,
+                    'ram' => $gadget['ram'] ?? null,
+                    'storage' => $gadget['storage'] ?? null,
+                    'condition' => $gadget['condition'] ?? null,
+                    'accessories' => $gadget['accessories'] ?? null,
+                    'specifications' => json_encode($gadget),
+                ]);
+            }
         }
+
+        $this->afterCreateStudent($user, $studentProfile);
     }
 
-    private function updateStudent()
+    protected function afterCreateStudent(User $user, StudentProfile $studentProfile): void
+    {
+        //
+    }
+
+    protected function updateStudent()
     {
         $this->updateFullName();
         
@@ -400,36 +540,20 @@ class StudentForm extends Component
             $this->student->payment_receipt_path = $receiptPath;
         }
 
-        // Prepare parent data
-        $parentData = [
-            'parent1' => [
-                'name' => $this->parent1_name,
-                'relationship' => $this->parent1_relationship,
-                'phone' => $this->parent1_phone,
-                'email' => $this->parent1_email,
-            ]
-        ];
-
-        if ($this->parent2_name) {
-            $parentData['parent2'] = [
-                'name' => $this->parent2_name,
-                'relationship' => $this->parent2_relationship,
-                'phone' => $this->parent2_phone,
-                'email' => $this->parent2_email,
-            ];
-        }
+        $parentFields = $this->resolveParentFields();
 
         $this->student->update([
             'school_id' => $this->school_id,
             'program_type' => $this->program_type,
             'full_name' => $this->full_name,
             'icdl_number' => $this->icdl_number ?: null,
-            'date_of_birth' => $this->date_of_birth,
+            'date_of_birth' => $this->resolveDateOfBirthForProfile(),
+            'age' => $this->resolveAgeForProfile(),
             'gender' => $this->gender,
             'nationality' => $this->nationality,
-            'parent_guardian_name' => $this->parent1_name,
-            'parent_guardian_contact' => $this->parent1_phone,
-            'parent_data' => $parentData,
+            'parent_guardian_name' => $parentFields['parent_guardian_name'],
+            'parent_guardian_contact' => $parentFields['parent_guardian_contact'],
+            'parent_data' => $parentFields['parent_data'],
             'class_grade' => $this->class_grade,
             'address' => $this->address,
             'scratch_account' => $this->scratch_account,
@@ -442,32 +566,99 @@ class StudentForm extends Component
         ]);
 
         // Update gadgets
-        $this->student->gadgets()->delete();
-        foreach ($this->gadgets as $gadget) {
-            StudentGadget::create([
-                'student_profile_id' => $this->student->id,
-                'device_type' => $gadget['device_type'],
-                'brand' => $gadget['brand'] ?? null,
-                'serial_number' => $gadget['serial_number'] ?? null,
-                'ram' => $gadget['ram'] ?? null,
-                'storage' => $gadget['storage'] ?? null,
-                'condition' => $gadget['condition'] ?? null,
-                'accessories' => $gadget['accessories'] ?? null,
-                'specifications' => json_encode($gadget),
-            ]);
+        if (! $this->isCodeClubForm) {
+            $this->student->gadgets()->delete();
+            foreach ($this->gadgets as $gadget) {
+                StudentGadget::create([
+                    'student_profile_id' => $this->student->id,
+                    'device_type' => $gadget['device_type'],
+                    'brand' => $gadget['brand'] ?? null,
+                    'serial_number' => $gadget['serial_number'] ?? null,
+                    'ram' => $gadget['ram'] ?? null,
+                    'storage' => $gadget['storage'] ?? null,
+                    'condition' => $gadget['condition'] ?? null,
+                    'accessories' => $gadget['accessories'] ?? null,
+                    'specifications' => json_encode($gadget),
+                ]);
+            }
         }
+
+        $this->afterUpdateStudent($this->student->user, $this->student);
+    }
+
+    protected function afterUpdateStudent(User $user, StudentProfile $studentProfile): void
+    {
+        //
+    }
+
+    protected function resolveDateOfBirthForProfile(): ?string
+    {
+        return $this->date_of_birth ?: null;
+    }
+
+    protected function resolveAgeForProfile(): ?int
+    {
+        return null;
     }
 
     public function render()
     {
         return view('livewire.students.student-form', [
             'schools' => School::orderBy('name')->get(),
+            'cauRegistrationEnabled' => $this->cauRegistrationLookup->isEnabled(),
         ]);
     }
 
-    private function applyProgramScope(): void
+  /**
+     * @return array{parent_guardian_name: ?string, parent_guardian_contact: ?string, parent_data: ?array}
+     */
+    protected function resolveParentFields(): array
+    {
+        $hasParent1 = $this->parent1_name !== '' || $this->parent1_phone !== '';
+
+        if ($this->isCodeClubForm && ! $hasParent1) {
+            return [
+                'parent_guardian_name' => '',
+                'parent_guardian_contact' => '',
+                'parent_data' => null,
+            ];
+        }
+
+        $parentData = [
+            'parent1' => [
+                'name' => $this->parent1_name,
+                'relationship' => $this->parent1_relationship,
+                'phone' => $this->parent1_phone,
+                'email' => $this->parent1_email,
+            ],
+        ];
+
+        if ($this->parent2_name) {
+            $parentData['parent2'] = [
+                'name' => $this->parent2_name,
+                'relationship' => $this->parent2_relationship,
+                'phone' => $this->parent2_phone,
+                'email' => $this->parent2_email,
+            ];
+        }
+
+        return [
+            'parent_guardian_name' => $this->parent1_name ?: null,
+            'parent_guardian_contact' => $this->parent1_phone ?: null,
+            'parent_data' => $parentData,
+        ];
+    }
+
+    protected function applyProgramScope(): void
     {
         $user = Auth::user();
+
+        if ($this->isCodeClubForm || $this->program_type === 'codeclub') {
+            $this->program_type = 'codeclub';
+            $this->student_category = 'school_club';
+
+            return;
+        }
 
         if ($user->isIctTeacher()) {
             $this->program_type = 'ict';

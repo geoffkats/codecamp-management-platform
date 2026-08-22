@@ -89,6 +89,21 @@ class User extends Authenticatable
         return $this->hasMany(CourseEnrollment::class);
     }
 
+    public function campEnrollments()
+    {
+        return $this->hasMany(CampEnrollment::class, 'student_id');
+    }
+
+    public function currentCampEnrollment()
+    {
+        return $this->hasOne(CampEnrollment::class, 'student_id')->where('status', 'active')->latest();
+    }
+
+    public function currentCamp(): ?CodeCamp
+    {
+        return $this->currentCampEnrollment?->camp;
+    }
+
     public function badges()
     {
         return $this->belongsToMany(Badge::class, 'user_badges')
@@ -99,6 +114,16 @@ class User extends Authenticatable
     public function points()
     {
         return $this->hasOne(UserPoint::class);
+    }
+
+    public function kudosReceived()
+    {
+        return $this->hasMany(PeerKudo::class, 'to_user_id');
+    }
+
+    public function kudosGiven()
+    {
+        return $this->hasMany(PeerKudo::class, 'from_user_id');
     }
 
     public function notifications()
@@ -119,6 +144,26 @@ class User extends Authenticatable
     public function schoolTeachers()
     {
         return $this->hasMany(SchoolTeacher::class, 'teacher_id');
+    }
+
+    public function codeClubInstructorAssignments()
+    {
+        return $this->hasMany(CodeClubInstructor::class, 'instructor_id');
+    }
+
+    public function codeClubMemberships()
+    {
+        return $this->hasMany(CodeClubMembership::class, 'student_id');
+    }
+
+    public function activeCodeClubMembership()
+    {
+        return $this->hasOne(CodeClubMembership::class, 'student_id')->where('status', 'active')->latest();
+    }
+
+    public function currentCodeClub(): ?CodeClub
+    {
+        return $this->activeCodeClubMembership?->club;
     }
 
     public function ictSchoolId(): ?int
@@ -158,10 +203,11 @@ class User extends Authenticatable
         if (!$this->studentProfile) {
             return false;
         }
-        
+
         return $this->studentAttendances()
             ->whereDate('attendance_date', today())
-            ->whereIn('status', ['present', 'late'])
+            ->whereNull('course_id')
+            ->whereNotNull('clock_in')
             ->exists();
     }
 
@@ -170,10 +216,11 @@ class User extends Authenticatable
         if (!$this->studentProfile) {
             return null;
         }
-        
+
         return $this->studentAttendances()
             ->whereDate('attendance_date', today())
-            ->whereIn('status', ['present', 'late'])
+            ->whereNull('course_id')
+            ->whereNotNull('clock_in')
             ->first();
     }
 
@@ -189,7 +236,9 @@ class User extends Authenticatable
 
     public function isCodecampStudent(): bool
     {
-        return $this->isStudent() && $this->student_type === 'codecamp';
+        return $this->isStudent()
+            && $this->student_type === 'codecamp'
+            && $this->studentProfile?->program_type !== 'codeclub';
     }
 
     public function discussionReplies()
@@ -207,5 +256,29 @@ class User extends Authenticatable
         if ($count >= 5) return 'helper';
         
         return null;
+    }
+
+    public function profileImageUrl(): ?string
+    {
+        if (! $this->profile_image) {
+            return null;
+        }
+
+        return asset('storage/' . ltrim($this->profile_image, '/'));
+    }
+
+    /**
+     * Identifier students use to sign in (Student ID for school programs, email otherwise).
+     */
+    public function loginIdentifier(): string
+    {
+        if (in_array($this->student_type, ['ict', 'codeclub'], true)) {
+            return $this->student_id
+                ?? $this->studentProfile?->student_id
+                ?? $this->email
+                ?? '';
+        }
+
+        return $this->email ?: ($this->student_id ?? '');
     }
 }

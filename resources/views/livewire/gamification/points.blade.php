@@ -13,6 +13,7 @@
             <div>
                 <p class="text-yellow-100 text-sm mb-2">Current Level</p>
                 <p class="text-5xl font-bold">{{ $currentLevel }}</p>
+                <p class="text-yellow-100 text-sm mt-2 font-semibold">{{ $rankName }}</p>
             </div>
             <div class="text-right">
                 <p class="text-yellow-100 text-sm mb-2">Total Points</p>

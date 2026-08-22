@@ -11,11 +11,12 @@
 
 @if($favicon)
     <link rel="icon" href="{{ asset('storage/' . $favicon) }}" type="image/x-icon">
-@else
-    <link rel="icon" href="/favicon.ico" sizes="any">
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+@elseif(file_exists(public_path('favicon.ico')))
+    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
 @endif
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+@if(file_exists(public_path('apple-touch-icon.png')))
+    <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
+@endif
 
 {{-- Critical CSS inline for faster FCP --}}
 <style>
@@ -34,6 +35,12 @@
 {{-- Vite assets with preload hints --}}
 @vite(['resources/css/app.css', 'resources/js/app.js'])
 @fluxAppearance
+
+{{-- Zoho PageSense analytics --}}
+<script src="https://cdn.pagesense.io/js/914121464/af0b8428118c471ea29b7f87bbd5c353.js"></script>
+
+{{-- Google Tag Manager / GA4 (config-driven; no duplication) --}}
+@include('partials.analytics.head')
 
 {{-- jQuery and Summernote - Load only when needed --}}
 @stack('editor-scripts')

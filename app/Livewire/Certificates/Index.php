@@ -3,7 +3,6 @@
 namespace App\Livewire\Certificates;
 
 use App\Models\Certificate;
-use App\Models\CourseEnrollment;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -70,19 +69,7 @@ class Index extends Component
                 ->count(),
         ];
 
-        // Get completed courses without certificates
-        $certificateCourseIds = Certificate::where('user_id', Auth::id())
-            ->whereNotNull('course_id')
-            ->pluck('course_id')
-            ->toArray();
-            
-        $completedCourses = CourseEnrollment::where('user_id', Auth::id())
-            ->whereNotNull('completed_at')
-            ->whereNotIn('course_id', $certificateCourseIds)
-            ->with('course')
-            ->get();
-
-        // Get available courses for filter
+        // Get available courses for filter (issued certificates only)
         $availableCourses = Certificate::where('user_id', Auth::id())
             ->with('course')
             ->get()
@@ -103,7 +90,6 @@ class Index extends Component
         return view('livewire.certificates.index', [
             'certificates' => $certificates,
             'stats' => $stats,
-            'completedCourses' => $completedCourses,
             'availableCourses' => $availableCourses,
             'courseOptions' => $courseOptions,
         ]);

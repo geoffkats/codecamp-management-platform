@@ -112,7 +112,7 @@
 
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-6 py-4 bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 border-b border-gray-200 dark:border-gray-700">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Section D — Module Enrollment</h2>
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Section D — Course Enrollment</h2>
                     <p class="text-sm text-gray-600 dark:text-gray-400">Only modules enabled for this school appear.</p>
                 </div>
                 <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">

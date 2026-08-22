@@ -14,115 +14,139 @@ class Show extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'tailwind';
-
     public Assessment $assessment;
-    public $userAttempts = [];
-    public $hasTaken = false;
-    public $bestScore = null;
+
+    // Student-facing state (scalars only — no collections stored as properties)
+    public bool $hasTaken = false;
+    public ?float $bestScore = null;
     public $attemptsRemaining = null;
+
+    // Teacher submissions filter
+    public string $search = '';
+    public string $statusFilter = 'all';
 
     public function mount(Assessment $assessment)
     {
         $this->assessment = $assessment->load([
             'course',
             'lesson',
-            'questions' => function ($q) {
-                $q->orderBy('order');
-            },
-            'questions.options',
-            'attempts' => function ($q) {
-                $q->where('user_id', Auth::id())->latest();
-            },
+            'questions' => fn ($q) => $q->orderBy('order')->with('options'),
         ]);
-        
-        // Ensure questions relationship is properly loaded
-        if (!$this->assessment->relationLoaded('questions')) {
-            $this->assessment->load(['questions' => function ($q) {
-                $q->orderBy('order');
-            }, 'questions.options']);
-        }
 
-        // Check if user has taken this assessment
-        $this->userAttempts = $this->assessment->attempts->take(5);
-        $this->hasTaken = $this->userAttempts->count() > 0;
-        
+        $user = Auth::user();
+        $attemptQuery = AssessmentAttempt::where('assessment_id', $assessment->id)
+            ->where('user_id', $user->id);
+
+        $attemptCount = (clone $attemptQuery)->count();
+        $this->hasTaken = $attemptCount > 0;
+
         if ($this->hasTaken) {
-            // For assignment-type assessments, check if all attempts are pending
-            if ($this->assessment->assessment_type === 'assignment') {
-                $gradedAttempts = $this->assessment->attempts->filter(fn($attempt) => $attempt->score !== null);
-                if ($gradedAttempts->isEmpty()) {
-                    // All attempts are pending - set bestScore to null to indicate pending
-                    $this->bestScore = null;
-                } else {
-                    // Calculate percentage score from score and total points
-                    $maxScore = $this->assessment->questions ? $this->assessment->questions->sum('points') : 100;
-                    if (!$maxScore || $maxScore <= 0) {
-                        $maxScore = 100; // Default fallback
-                    }
-                    $bestScore = $gradedAttempts->max('score') ?? 0;
-                    $this->bestScore = $maxScore > 0 ? ($bestScore / $maxScore) * 100 : 0;
-                }
+            $maxScore = $assessment->assessment_type === 'assignment'
+                ? $assessment->max_points
+                : ($assessment->questions()->sum('points') ?: 100);
+
+            if ($assessment->assessment_type === 'assignment') {
+                $bestRaw = (clone $attemptQuery)->whereNotNull('score')->max('score');
+                $this->bestScore = $bestRaw !== null ? ($bestRaw / $maxScore) * 100 : null;
             } else {
-                // Calculate percentage score from score and total points
-                $maxScore = $this->assessment->questions ? $this->assessment->questions->sum('points') : 100;
-                if (!$maxScore || $maxScore <= 0) {
-                    $maxScore = 100; // Default fallback
-                }
-                $bestScore = $this->assessment->attempts->max('score') ?? 0;
-                $this->bestScore = $maxScore > 0 ? ($bestScore / $maxScore) * 100 : 0;
+                $bestRaw = (clone $attemptQuery)->max('score') ?? 0;
+                $this->bestScore = $maxScore > 0 ? ($bestRaw / $maxScore) * 100 : 0;
             }
         }
 
-        // Calculate remaining attempts
-        $attemptCount = $this->assessment->attempts->count();
-        if ($this->assessment->max_attempts > 0) {
-            $this->attemptsRemaining = max(0, $this->assessment->max_attempts - $attemptCount);
-        } else {
-            $this->attemptsRemaining = 'unlimited';
-        }
+        $this->attemptsRemaining = $assessment->max_attempts > 0
+            ? max(0, $assessment->max_attempts - $attemptCount)
+            : 'unlimited';
+    }
+
+    public function updatingSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingStatusFilter(): void
+    {
+        $this->resetPage();
     }
 
     public function render()
     {
-        // Get statistics based on assessment type
-        $stats = $this->getStatistics();
-        
+        $user = Auth::user();
+        $isTeacher = $user->hasAnyRole(['teacher', 'admin', 'supervisor', 'operations_manager']);
+        $maxScore = $this->assessment->assessment_type === 'assignment'
+            ? $this->assessment->max_points
+            : ($this->assessment->questions()->sum('points') ?: 100);
+
+        // Student's own last 5 attempts — queried fresh, not stored in state
+        $userAttempts = collect();
+        if ($this->hasTaken) {
+            $userAttempts = AssessmentAttempt::where('assessment_id', $this->assessment->id)
+                ->where('user_id', $user->id)
+                ->latest('completed_at')
+                ->limit(5)
+                ->get();
+        }
+
+        // Teacher: stats using DB aggregates — no ->get() over all rows
+        $stats = null;
+        $submissions = null;
+        if ($isTeacher) {
+            $stats = $this->getStatisticsFromDb($maxScore);
+
+            $submissionsQuery = AssessmentAttempt::visibleTo($user)
+                ->where('assessment_id', $this->assessment->id)
+                ->with('user:id,name,email')
+                ->latest('completed_at');
+
+            if ($this->search !== '') {
+                $search = $this->search;
+                $submissionsQuery->whereHas('user', fn ($q) =>
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%")
+                );
+            }
+
+            match ($this->statusFilter) {
+                'passed'  => $submissionsQuery->where('is_passed', true),
+                'failed'  => $submissionsQuery->where('is_passed', false)->whereNotNull('score'),
+                'pending' => $submissionsQuery->whereNull('score'),
+                default   => null,
+            };
+
+            $submissions = $submissionsQuery->paginate(25);
+        }
+
         return view('livewire.assessments.show', [
-            'stats' => $stats,
+            'userAttempts' => $userAttempts,
+            'stats'        => $stats,
+            'submissions'  => $submissions,
+            'isTeacher'    => $isTeacher,
+            'maxScore'     => $maxScore,
         ]);
     }
 
-    private function getStatistics()
+    // DB aggregates only — never loads rows into PHP
+    private function getStatisticsFromDb(int|float $maxScore): array
     {
-        $allAttempts = AssessmentAttempt::visibleTo(Auth::user())
-            ->where('assessment_id', $this->assessment->id)
-            ->get();
-        
-        if ($allAttempts->isEmpty()) {
-            return [
-                'total_attempts' => 0,
-                'average_score' => 0,
-                'pass_rate' => 0,
-                'completion_rate' => 0,
-            ];
+        $query = AssessmentAttempt::visibleTo(Auth::user())
+            ->where('assessment_id', $this->assessment->id);
+
+        $total = (clone $query)->count();
+
+        if ($total === 0) {
+            return ['total_attempts' => 0, 'unique_students' => 0, 'average_score' => 0, 'pass_rate' => 0];
         }
 
-        $totalAttempts = $allAttempts->count();
-        $maxScore = $this->assessment->questions ? $this->assessment->questions->sum('points') : 100;
-        if (!$maxScore || $maxScore <= 0) {
-            $maxScore = 100; // Default fallback
-        }
-        $avgScore = $allAttempts->avg('score') ?? 0;
-        $averageScore = $maxScore > 0 ? ($avgScore / $maxScore) * 100 : 0;
-        $passedCount = $allAttempts->where('is_passed', true)->count();
-        $passRate = ($passedCount / $totalAttempts) * 100;
+        $avgRaw    = (clone $query)->avg('score') ?? 0;
+        $avgPct    = $maxScore > 0 ? ($avgRaw / $maxScore) * 100 : 0;
+        $passed    = (clone $query)->where('is_passed', true)->count();
+        $unique    = (clone $query)->distinct('user_id')->count('user_id');
 
         return [
-            'total_attempts' => $totalAttempts,
-            'average_score' => round($averageScore, 2),
-            'pass_rate' => round($passRate, 2),
-            'completion_rate' => 100, // All attempts are completed
+            'total_attempts'  => $total,
+            'unique_students' => $unique,
+            'average_score'   => round($avgPct, 1),
+            'pass_rate'       => round(($passed / $total) * 100, 1),
         ];
     }
 }

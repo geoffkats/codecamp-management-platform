@@ -4,6 +4,8 @@ namespace App\Livewire\Discussions;
 
 use App\Models\Discussion;
 use App\Models\DiscussionReply;
+use App\Support\DiscussionSanitizer;
+use App\Services\DailyChallengeTrackerService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -39,6 +41,8 @@ class Show extends Component
     
     public function mount(Discussion $discussion)
     {
+        abort_unless(Auth::user()->canAccessDiscussions(), 403);
+
         // Eager load all relationships at once
         $this->discussion = $discussion->load([
             'user:id,name,email',
@@ -52,19 +56,10 @@ class Show extends Component
         
         // Check access control - students can only view discussions from courses they're enrolled in
         // EXCEPT if the course enrollment_type is 'open' (open courses are publicly accessible)
-        if ($this->discussion->course_id && !$isStaff) {
-            $course = $this->discussion->course;
-            
-            // If course is not open, check enrollment
-            if ($course->enrollment_type !== 'open') {
-                $isEnrolled = $course->enrollments()
-                    ->where('user_id', Auth::id())
-                    ->exists();
-                
-                if (!$isEnrolled) {
-                    session()->flash('error', 'You must be enrolled in this course to view discussions.');
-                    return redirect()->route('discussions.index');
-                }
+        if ($this->discussion->course_id && ! $isStaff) {
+            if (! Discussion::userCanAccessCourse(Auth::user(), $this->discussion->course_id)) {
+                session()->flash('error', 'You must be enrolled in this course to view discussions.');
+                return redirect()->route('discussions.index');
             }
         }
         
@@ -83,17 +78,10 @@ class Show extends Component
         $isStaff = $this->checkIsStaff();
         
         // Re-check access control before allowing reply
-        if ($this->discussion->course_id && !$isStaff) {
-            $course = $this->discussion->course;
-            if ($course->enrollment_type !== 'open') {
-                $isEnrolled = $course->enrollments()
-                    ->where('user_id', Auth::id())
-                    ->exists();
-                
-                if (!$isEnrolled) {
-                    session()->flash('error', 'You must be enrolled in this course to reply.');
-                    return;
-                }
+        if ($this->discussion->course_id && ! $isStaff) {
+            if (! Discussion::userCanAccessCourse(Auth::user(), $this->discussion->course_id)) {
+                session()->flash('error', 'You must be enrolled in this course to reply.');
+                return;
             }
         }
         
@@ -103,7 +91,7 @@ class Show extends Component
         }
 
         $this->validate([
-            'replyContent' => 'required|string|min:3',
+            'replyContent' => 'required|string|min:3|max:5000',
             'replyImages' => 'nullable|array|max:5',
         ]);
 
@@ -120,7 +108,7 @@ class Show extends Component
             'discussion_id' => $this->discussion->id,
             'user_id' => Auth::id(),
             'parent_id' => $this->parentReplyId,
-            'content' => $this->replyContent,
+            'content' => DiscussionSanitizer::reply($this->replyContent),
             'attachments' => !empty($attachments) ? $attachments : null,
         ]);
 
@@ -137,6 +125,11 @@ class Show extends Component
         
         session()->flash('message', 'Reply posted successfully!');
         $this->dispatch('reply-added');
+
+        app(DailyChallengeTrackerService::class)->syncForumProgressForUser(
+            Auth::id(),
+            $this->discussion->course_id
+        );
     }
 
     public function setReplyTo($replyId)
@@ -176,11 +169,11 @@ class Show extends Component
         }
 
         $this->validate([
-            'editContent' => 'required|string|min:3',
+            'editContent' => 'required|string|min:3|max:5000',
         ]);
 
         $reply->update([
-            'content' => $this->editContent,
+            'content' => DiscussionSanitizer::reply($this->editContent),
         ]);
 
         $this->editingReplyId = null;
@@ -343,7 +336,7 @@ class Show extends Component
                 
                 // Award XP
                 if ($type === 'helpful' && $reply->user && $reply->user->points) {
-                    $reply->user->points->increment('total_points', 2);
+                    $reply->user->points->addPoints(2);
                 }
             }
         } else {
@@ -369,7 +362,7 @@ class Show extends Component
                     $this->discussion->increment('helpful_count');
                     // Award XP to discussion author
                     if ($this->discussion->user && $this->discussion->user->points) {
-                        $this->discussion->user->points->increment('total_points', 2);
+                        $this->discussion->user->points->addPoints(2);
                     }
                 }
             }

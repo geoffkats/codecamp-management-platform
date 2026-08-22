@@ -1,15 +1,15 @@
 <div class="flex flex-col gap-6 p-6">
-    <div class="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-900/70 dark:to-slate-900 shadow-sm">
+    <div class="rounded-2xl border border-slate-200/70 dark:border-slate-600/40 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-800/80 dark:via-gray-800/70 dark:to-gray-800/80 shadow-sm">
         <div class="flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between">
             <div class="space-y-2">
-                <div class="inline-flex items-center gap-2 rounded-full bg-white/80 dark:bg-slate-800/70 px-3 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                <div class="inline-flex items-center gap-2 rounded-full bg-white/80 dark:bg-gray-700/80 px-3 py-1 text-xs font-semibold text-blue-700 dark:text-blue-200">
                     <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
                     ICT Teacher Dashboard
                 </div>
-                <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">
                     Welcome back, {{ $user->name }}
                 </h1>
-                <p class="text-sm text-gray-600 dark:text-gray-300">
+                <p class="text-sm text-gray-600 dark:text-gray-200">
                     ICT Program — {{ $school?->name ?? 'School not assigned' }}
                 </p>
             </div>
@@ -44,14 +44,14 @@
     @endif
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <flux:card class="border border-blue-100/80 dark:border-blue-900/50 shadow-sm">
+        <flux:card class="border border-blue-100/80 dark:border-blue-700/40 shadow-sm">
             <div class="p-5 space-y-4">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300 font-semibold">Students</p>
-                        <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ number_format($stats['totalStudents']) }}</p>
+                        <p class="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-200 font-semibold">Students</p>
+                        <p class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ number_format($stats['totalStudents']) }}</p>
                     </div>
-                    <div class="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-600">
+                    <div class="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-800/60 flex items-center justify-center text-blue-600">
                         <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4" />
                             <circle cx="9" cy="7.5" r="3.5" />
@@ -61,45 +61,45 @@
                 </div>
                 <div class="space-y-2 text-sm">
                     <div class="flex items-center justify-between">
-                        <span class="text-gray-600 dark:text-gray-300">Exam-ready</span>
+                        <span class="text-gray-600 dark:text-gray-200">Exam-ready</span>
                         <span class="font-semibold text-emerald-600">{{ number_format($stats['examReady']) }}</span>
                     </div>
                     <div class="flex items-center justify-between">
-                        <span class="text-gray-600 dark:text-gray-300">Needs practice</span>
+                        <span class="text-gray-600 dark:text-gray-200">Needs practice</span>
                         <span class="font-semibold text-orange-600">{{ number_format($stats['needsPractice']) }}</span>
                     </div>
                 </div>
             </div>
         </flux:card>
 
-        <flux:card class="border border-indigo-100/80 dark:border-indigo-900/50 shadow-sm">
+        <flux:card class="border border-indigo-100/80 dark:border-indigo-700/40 shadow-sm">
             <div class="p-5 space-y-4">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-xs uppercase tracking-wide text-indigo-600 dark:text-indigo-300 font-semibold">Modules</p>
-                        <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ number_format($stats['activeModules']) }}</p>
+                        <p class="text-xs uppercase tracking-wide text-indigo-600 dark:text-indigo-200 font-semibold">Modules</p>
+                        <p class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ number_format($stats['activeModules']) }}</p>
                     </div>
-                    <div class="h-12 w-12 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600">
+                    <div class="h-12 w-12 rounded-xl bg-indigo-100 dark:bg-indigo-800/60 flex items-center justify-center text-indigo-600">
                         <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6.5h16M4 12h16M4 17.5h10" />
                         </svg>
                     </div>
                 </div>
                 <div class="flex items-center justify-between text-sm">
-                    <span class="text-gray-600 dark:text-gray-300">Near completion</span>
+                    <span class="text-gray-600 dark:text-gray-200">Near completion</span>
                     <span class="font-semibold text-purple-600">{{ number_format($stats['modulesNearCompletion']) }}</span>
                 </div>
             </div>
         </flux:card>
 
-        <flux:card class="border border-emerald-100/80 dark:border-emerald-900/50 shadow-sm">
+        <flux:card class="border border-emerald-100/80 dark:border-emerald-700/40 shadow-sm">
             <div class="p-5 space-y-4">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-xs uppercase tracking-wide text-emerald-600 dark:text-emerald-300 font-semibold">Exams</p>
-                        <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ number_format($stats['pendingExamRequests']) }}</p>
+                        <p class="text-xs uppercase tracking-wide text-emerald-600 dark:text-emerald-200 font-semibold">Exams</p>
+                        <p class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ number_format($stats['pendingExamRequests']) }}</p>
                     </div>
-                    <div class="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center text-emerald-600">
+                    <div class="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-800/60 flex items-center justify-center text-emerald-600">
                         <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 3.5h6M7 7h10M6 11h12M5 15h9" />
                         </svg>
@@ -107,12 +107,12 @@
                 </div>
                 <div class="space-y-2 text-sm">
                     <div class="flex items-center justify-between">
-                        <span class="text-gray-600 dark:text-gray-300">Approved sessions</span>
+                        <span class="text-gray-600 dark:text-gray-200">Approved sessions</span>
                         <span class="font-semibold text-emerald-600">{{ number_format($stats['approvedExamSessions']) }}</span>
                     </div>
                     <div class="flex items-center justify-between">
-                        <span class="text-gray-600 dark:text-gray-300">Awaiting results</span>
-                        <span class="font-semibold text-gray-900 dark:text-white">{{ number_format($stats['studentsAwaitingResults']) }}</span>
+                        <span class="text-gray-600 dark:text-gray-200">Awaiting results</span>
+                        <span class="font-semibold text-gray-900 dark:text-gray-100">{{ number_format($stats['studentsAwaitingResults']) }}</span>
                     </div>
                 </div>
             </div>
@@ -206,7 +206,7 @@
                             ? $assessment->questions->sum('points')
                             : 100;
                         $attemptScore = $attempt->score ?? 0;
-                        $percentage = $maxScore > 0 ? ($attemptScore / $maxScore) * 100 : 0;
+                        $percentage = min($maxScore > 0 ? ($attemptScore / $maxScore) * 100 : 0, 100);
                     @endphp
                     <div class="flex flex-wrap items-center justify-between gap-3 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                         <div>

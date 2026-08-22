@@ -6,10 +6,27 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\User;
+use App\Traits\Auditable;
 
 class StudentProfile extends Model
 {
-    use SoftDeletes;
+    use Auditable, SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $profile) {
+            if (empty($profile->student_id)) {
+                $profile->student_id = self::generateStudentId($profile->program_type);
+            }
+        });
+
+        static::updating(function (self $profile) {
+            if ($profile->isDirty('student_id')) {
+                $profile->student_id = $profile->getOriginal('student_id');
+            }
+        });
+    }
 
     protected static function booted(): void
     {
@@ -36,6 +53,7 @@ class StudentProfile extends Model
         'is_active',
         'full_name',
         'date_of_birth',
+        'age',
         'gender',
         'nationality',
         'parent_guardian_name',
@@ -111,23 +129,67 @@ class StudentProfile extends Model
         return $this->hasMany(StudentAttendance::class);
     }
 
-    public static function generateStudentId(): string
+    public function codeClubMemberships(): HasMany
     {
+        return $this->hasMany(CodeClubMembership::class, 'student_id', 'user_id');
+    }
+
+    public function activeCodeClubMembership(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(CodeClubMembership::class, 'student_id', 'user_id')
+            ->where('status', 'active')
+            ->latest();
+    }
+
+    public static function generateStudentId(?string $programType = null): string
+    {
+        $prefix = $programType === 'codeclub' ? 'CC' : 'STU';
         $year = now()->format('Y');
-        
-        // Get the last student ID for this year
-        $lastStudent = self::where('student_id', 'like', "STU-{$year}-%")
+        $idPrefix = "{$prefix}-{$year}-";
+
+        $lastProfileId = self::where('student_id', 'like', "{$idPrefix}%")
             ->orderBy('student_id', 'desc')
-            ->first();
-        
-        if ($lastStudent) {
-            // Extract the sequence number from the last student ID
-            $lastSequence = (int)substr($lastStudent->student_id, -4);
-            $sequence = $lastSequence + 1;
-        } else {
-            $sequence = 1;
+            ->value('student_id');
+
+        $lastUserId = User::where('student_id', 'like', "{$idPrefix}%")
+            ->orderBy('student_id', 'desc')
+            ->value('student_id');
+
+        $lastProfileSequence = $lastProfileId ? (int) substr($lastProfileId, -4) : 0;
+        $lastUserSequence = $lastUserId ? (int) substr($lastUserId, -4) : 0;
+        $sequence = max($lastProfileSequence, $lastUserSequence) + 1;
+
+        return sprintf('%s-%s-%04d', $prefix, $year, $sequence);
+    }
+
+    public function getDisplayName(): ?string
+    {
+        return $this->full_name ?: $this->student_id;
+    }
+
+    /**
+     * Remove student profile from the system: drop club links and deactivate login.
+     */
+    public function removeFromSystem(): void
+    {
+        if ($this->user_id) {
+            CodeClubMembership::where('student_id', $this->user_id)->delete();
+            $this->user?->update(['is_active' => false]);
         }
-        
-        return sprintf('STU-%s-%04d', $year, $sequence);
+
+        $this->delete();
+    }
+
+    protected static function filterSensitiveData(?array $data): ?array
+    {
+        if (! $data) {
+            return null;
+        }
+
+        foreach (['password', 'password_confirmation', 'token', 'api_token', 'secret', 'remember_token', 'scratch_password', 'initial_password'] as $field) {
+            unset($data[$field]);
+        }
+
+        return $data;
     }
 }

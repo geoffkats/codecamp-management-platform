@@ -18,7 +18,7 @@ class Show extends Component
         if (!(method_exists($user, 'hasRole') && ($user->hasRole('admin') || $user->hasRole('supervisor')))) {
             abort(403);
         }
-        $this->report->load(['course', 'instructor', 'attendance.student', 'mentions', 'reportIssues.assignee', 'attachments']);
+        $this->report->load(['course', 'instructor', 'attendance.student', 'mentions.mentionable', 'reportIssues.assignee', 'attachments']);
     }
 
     public function render()

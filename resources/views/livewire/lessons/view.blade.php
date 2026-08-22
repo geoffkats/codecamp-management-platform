@@ -1,1157 +1,533 @@
-<div>
+<div wire:key="lesson-view-{{ $lesson->id }}">
 @php
     $user = auth()->user();
-    $isInstructor = $course->instructor_id === $user->id || $user->hasRole('admin') || $user->hasRole('supervisor');
-    $isLocked = $lesson->is_locked && !$isInstructor;
+    $hasLearnerEnrollment = (bool) $enrollment;
+    $isInstructor = !$hasLearnerEnrollment && (
+        $course->instructor_id === $user->id
+        || $user->hasRole('admin')
+        || $user->hasRole('supervisor')
+        || $user->hasRole('teacher')
+    );
+    $canAccessDiscussions = $user->canAccessDiscussions() && !$user->isIctTeacher() && ($hasLearnerEnrollment || $isInstructor);
 @endphp
 
-@if($isLocked)
-    {{-- Locked Lesson View for Students --}}
-    <div class="flex flex-col items-center justify-center min-h-screen p-6">
-        <div class="max-w-2xl w-full bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
-            <div class="mb-6">
-                <svg class="w-24 h-24 mx-auto text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-            </div>
-            
-            <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">Lesson Locked</h2>
-            <p class="text-lg text-gray-600 dark:text-gray-400 mb-6">
-                This lesson is currently locked. Please wait for your instructor to unlock it.
-            </p>
-            
-            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-                <p class="text-sm text-blue-800 dark:text-blue-200">
-                    <strong>{{ $lesson->title }}</strong><br>
-                    Module {{ $lesson->module->order_index }}: {{ $lesson->module->title }}
-                </p>
-            </div>
-            
-            {{-- Show available quizzes and assignments --}}
-            @if($lesson->assessments->count() > 0 || $lesson->assignments->count() > 0)
-                <div class="text-left mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Available Activities</h3>
-                    
-                    @if($lesson->assessments->count() > 0)
-                        <div class="mb-4">
-                            <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quizzes & Assessments</h4>
-                            <div class="space-y-2">
-                                @foreach($lesson->assessments as $assessment)
-                                    @if(!$assessment->is_locked)
-                                        {{-- Unlocked Assessment --}}
-                                        <a href="{{ route('assessments.take', $assessment) }}" 
-                                           class="block p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
-                                            <div class="flex items-center justify-between">
-                                                <div class="flex items-center gap-2">
-                                                    <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
-                                                    </svg>
-                                                    <span class="font-medium text-gray-900 dark:text-white">{{ $assessment->title }}</span>
-                                                </div>
-                                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                                </svg>
-                                            </div>
-                                            <p class="text-xs text-green-700 dark:text-green-300 mt-1 ml-7">✓ Available - Click to start</p>
-                                        </a>
-                                    @else
-                                        {{-- Locked Assessment --}}
-                                        <div class="block p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg opacity-75">
-                                            <div class="flex items-center justify-between">
-                                                <div class="flex items-center gap-2">
-                                                    <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
-                                                    </svg>
-                                                    <span class="font-medium text-gray-700 dark:text-gray-300">{{ $assessment->title }}</span>
-                                                </div>
-                                                <svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
-                                                </svg>
-                                            </div>
-                                            <p class="text-xs text-red-700 dark:text-red-300 mt-1 ml-7">🔒 Locked - Wait for instructor to unlock</p>
-                                        </div>
-                                    @endif
-                                @endforeach
-                            </div>
-                        </div>
-                    @endif
-                    
-                    @if($lesson->assignments->count() > 0)
-                        <div>
-                            <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Assignments</h4>
-                            <div class="space-y-2">
-                                @foreach($lesson->assignments as $assignment)
-                                    @if(!$assignment->is_locked)
-                                        {{-- Unlocked Assignment --}}
-                                        <a href="{{ route('assignments.show', $assignment) }}" 
-                                           class="block p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
-                                            <div class="flex items-center justify-between">
-                                                <div class="flex items-center gap-2">
-                                                    <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/>
-                                                    </svg>
-                                                    <span class="font-medium text-gray-900 dark:text-white">{{ $assignment->title }}</span>
-                                                </div>
-                                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                                </svg>
-                                            </div>
-                                            <p class="text-xs text-green-700 dark:text-green-300 mt-1 ml-7">✓ Available - Click to view</p>
-                                        </a>
-                                    @else
-                                        {{-- Locked Assignment --}}
-                                        <div class="block p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg opacity-75">
-                                            <div class="flex items-center justify-between">
-                                                <div class="flex items-center gap-2">
-                                                    <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
-                                                    </svg>
-                                                    <span class="font-medium text-gray-700 dark:text-gray-300">{{ $assignment->title }}</span>
-                                                </div>
-                                                <svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
-                                                </svg>
-                                            </div>
-                                            <p class="text-xs text-red-700 dark:text-red-300 mt-1 ml-7">🔒 Locked - Wait for instructor to unlock</p>
-                                        </div>
-                                    @endif
-                                @endforeach
-                            </div>
-                        </div>
-                    @endif
-                </div>
-            @endif
-            
-            <a href="{{ route('courses.learn', $course) }}" 
-               class="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Back to Course
-            </a>
-        </div>
+@include('livewire.lessons.partials.flash-messages')
+@if(!$isInstructor)
+    @include('livewire.lessons.partials.completion-modal')
+@endif
+
+{{-- Instructor preview banner --}}
+@if($isInstructor)
+<div class="flex items-center justify-between gap-3 bg-blue-600 px-4 py-2 text-sm text-white">
+    <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+        </svg>
+        <span class="font-semibold">Instructor Preview</span>
+        <span class="hidden sm:inline text-blue-200">— viewing as students see this lesson. Progress is not tracked.</span>
     </div>
-@else
-    {{-- Normal Lesson View --}}
-<div class="flex flex-col gap-6 p-6">
-    {{-- Lesson Header --}}
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-        <div class="flex items-start justify-between mb-4">
-            <div class="flex-1">
-                <div class="flex items-center gap-3 mb-2">
-                    <a href="{{ route('courses.learn', $course) }}" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                        </svg>
+    <a href="{{ route('curriculum.builder', ['course' => $course->id]) }}" wire:navigate
+       class="flex-shrink-0 inline-flex items-center gap-1 rounded-lg bg-white/20 px-3 py-1 text-xs font-semibold text-white hover:bg-white/30 transition">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+        </svg>
+        Edit in Builder
+    </a>
+</div>
+@endif
+
+{{-- ───────────────────────────────────────────────────────────────────────── --}}
+{{-- Two-panel LMS layout: course outline sidebar + scrollable content         --}}
+{{-- ───────────────────────────────────────────────────────────────────────── --}}
+<div
+    x-data="{ sidebarOpen: window.innerWidth >= 1024 }"
+    class="relative flex min-h-screen bg-gray-50 dark:bg-gray-950"
+>
+    {{-- Hidden poll to keep completion status fresh --}}
+    <div class="hidden" wire:poll.60s="checkCompletionStatus"></div>
+
+    {{-- ── Mobile overlay backdrop ──────────────────────────────────────── --}}
+    <div
+        x-show="sidebarOpen"
+        x-cloak
+        x-transition:enter="transition-opacity duration-200"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition-opacity duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        @click="sidebarOpen = false"
+        class="fixed inset-0 bg-black/50 z-30 lg:hidden"
+    ></div>
+
+    {{-- ── Course Outline Sidebar ───────────────────────────────────────── --}}
+    <aside
+        x-cloak
+        class="fixed lg:sticky top-0 left-0 z-40 lg:z-auto h-screen w-72 flex-shrink-0
+               bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800
+               flex flex-col overflow-hidden
+               transform transition-transform duration-300 ease-in-out lg:transition-none"
+        :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+    >
+        {{-- Sidebar header --}}
+        <div class="px-4 py-4 border-b border-gray-200 dark:border-gray-800 flex items-start justify-between gap-2 flex-shrink-0">
+            <div class="min-w-0">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-1">Course Content</p>
+                <h2 class="text-sm font-bold text-gray-900 dark:text-white leading-tight line-clamp-2">{{ $course->title }}</h2>
+            </div>
+            <button
+                @click="sidebarOpen = false"
+                class="lg:hidden flex-shrink-0 mt-0.5 p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        {{-- Course progress bar --}}
+        @if($enrollment)
+        <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-gray-500 dark:text-gray-400">Your progress</span>
+                <span class="text-xs font-bold text-orange-600 dark:text-orange-400">{{ $courseProgress }}%</span>
+            </div>
+            <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div class="h-full bg-orange-500 rounded-full transition-all duration-500"
+                     style="width: {{ $courseProgress }}%"></div>
+            </div>
+            <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1.5">
+                {{ count($completedLessonIds) }} of {{ $modules->pluck('lessons')->flatten()->count() }} lessons done
+            </p>
+        </div>
+        @endif
+
+        {{-- Module / lesson list --}}
+        <div class="flex-1 overflow-y-auto">
+            @forelse($modules as $moduleIndex => $module)
+            @php $moduleHasCurrent = $module->lessons->contains('id', $lesson->id); @endphp
+            <div x-data="{ open: {{ $moduleHasCurrent ? 'true' : 'false' }} }" class="border-b border-gray-100 dark:border-gray-800">
+
+                {{-- Module toggle row --}}
+                <button
+                    @click="open = !open"
+                    class="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors group"
+                >
+                    <span class="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-[10px] font-bold flex items-center justify-center group-hover:bg-orange-100 dark:group-hover:bg-orange-900/30 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
+                        {{ $moduleIndex + 1 }}
+                    </span>
+                    <span class="flex-1 text-[13px] font-semibold text-gray-700 dark:text-gray-200 leading-snug">{{ $module->title }}</span>
+                    <svg
+                        :class="open ? 'rotate-180' : ''"
+                        class="flex-shrink-0 mt-0.5 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-transform duration-200"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+
+                {{-- Lesson rows inside module --}}
+                <div x-show="open" x-transition:enter="transition-all duration-200 ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+                    @foreach($module->lessons as $lessonItem)
+                    @php
+                        $isCurrent   = $lessonItem->id === $lesson->id;
+                        $isDone      = in_array($lessonItem->id, $completedLessonIds);
+                    @endphp
+                    <a
+                        href="{{ route('lessons.view', $lessonItem) }}"
+                        wire:navigate
+                        class="flex items-center gap-3 pl-10 pr-4 py-2.5 text-[13px] border-l-2 transition-colors
+                               {{ $isCurrent
+                                  ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300'
+                                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-100 hover:border-gray-300 dark:hover:border-gray-600' }}"
+                    >
+                        {{-- Status icon --}}
+                        <span class="flex-shrink-0 w-4 h-4">
+                            @if($isDone)
+                                <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                            @elseif($isCurrent)
+                                <svg class="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>
+                                </svg>
+                            @else
+                                <svg class="w-4 h-4 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="9" stroke-width="1.5"/>
+                                </svg>
+                            @endif
+                        </span>
+                        <span class="flex-1 leading-snug {{ $isCurrent ? 'font-semibold' : '' }}">{{ $lessonItem->title }}</span>
                     </a>
-                    <div>
-                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ $lesson->title }}</h1>
-                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            <a href="{{ route('courses.show', $course) }}" class="hover:underline">{{ $course->title }}</a>
-                            <span class="mx-2">•</span>
-                            <span>Module {{ $lesson->module->order_index }}</span>
-                        </p>
-                    </div>
+                    @endforeach
                 </div>
-                @if($lesson->description)
-                    <p class="text-gray-600 dark:text-gray-400">{{ $lesson->description }}</p>
+            </div>
+            @empty
+            <div class="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No lessons yet</div>
+            @endforelse
+        </div>
+    </aside>
+
+    {{-- ── Main Content Column ──────────────────────────────────────────── --}}
+    <div class="flex-1 min-w-0">
+
+        {{-- Sticky lesson top bar --}}
+        <div class="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm flex-shrink-0">
+            <div class="flex items-center gap-3 px-4 py-3">
+
+                {{-- Sidebar toggle button --}}
+                <button
+                    @click="sidebarOpen = !sidebarOpen"
+                    class="flex-shrink-0 p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    title="Toggle course outline"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/>
+                    </svg>
+                </button>
+
+                {{-- Breadcrumb + title --}}
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 mb-0.5 truncate">
+                        <a href="{{ route('courses.show', $course) }}" wire:navigate
+                           class="hover:text-orange-600 dark:hover:text-orange-400 transition-colors truncate max-w-[140px]">
+                            {{ $course->title }}
+                        </a>
+                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+                        </svg>
+                        <span class="truncate max-w-[160px]">{{ $lesson->module->title ?? '' }}</span>
+                    </div>
+                    <p class="text-sm font-bold text-gray-900 dark:text-white truncate leading-tight">{{ $lesson->title }}</p>
+                </div>
+
+                {{-- Completion badge or discuss button --}}
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    @if($canAccessDiscussions)
+                        <a href="#discussion"
+                           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                            </svg>
+                            Discuss
+                        </a>
+                    @endif
+                    @unless($user->isIctTeacher())
+                        @if($isLessonCompleted)
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/40 rounded-lg">
+                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                                <span class="hidden sm:inline">Completed</span>
+                            </span>
+                        @endif
+                    @endunless
+                    @if($isInstructor)
+                        <a href="{{ route('lessons.edit', $lesson) }}" wire:navigate
+                           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                            </svg>
+                            <span class="hidden sm:inline">Edit</span>
+                        </a>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Video progress bar --}}
+            @if($lesson->content_type === 'video' && $videoProgress > 0)
+            <div class="px-4 pb-2.5">
+                <div class="flex items-center gap-3">
+                    <div class="flex-1 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div class="h-full bg-blue-500 rounded-full transition-all duration-500"
+                             style="width: {{ $videoProgress }}%"></div>
+                    </div>
+                    <span class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 flex-shrink-0">{{ round($videoProgress) }}% watched</span>
+                </div>
+            </div>
+            @endif
+
+            {{-- Section quick-nav tabs (only shown if lesson has assessments/quizzes/assignments) --}}
+            @php
+                $hasAssessments = $lesson->assessments && $lesson->assessments->count() > 0;
+                $hasQuizzes     = $lesson->quizzes && $lesson->quizzes->count() > 0;
+                $hasAssignments = $lesson->assignments && $lesson->assignments->count() > 0;
+                $hasSections    = $hasAssessments || $hasQuizzes || $hasAssignments || $canAccessDiscussions;
+            @endphp
+            @if($hasSections)
+            <div class="border-t border-gray-100 dark:border-gray-800 flex items-center gap-0 overflow-x-auto scrollbar-hide px-2">
+                <button onclick="document.getElementById('lesson-content-top')?.scrollIntoView({behavior:'smooth',block:'start'})"
+                        class="flex-shrink-0 px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 border-b-2 border-transparent hover:border-gray-400 transition-colors whitespace-nowrap">
+                    Content
+                </button>
+                @if($hasAssessments)
+                <button onclick="document.getElementById('lesson-assessments')?.scrollIntoView({behavior:'smooth',block:'start'})"
+                        class="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-orange-600 dark:text-orange-400 border-b-2 border-orange-500 whitespace-nowrap">
+                    Assessments
+                    <span class="px-1.5 py-0.5 rounded-full text-[10px] bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400">{{ $lesson->assessments->count() }}</span>
+                </button>
+                @endif
+                @if($hasQuizzes)
+                <button onclick="document.getElementById('lesson-quizzes')?.scrollIntoView({behavior:'smooth',block:'start'})"
+                        class="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold text-blue-600 dark:text-blue-400 border-b-2 border-transparent hover:border-blue-400 transition-colors whitespace-nowrap">
+                    Quizzes
+                    <span class="px-1.5 py-0.5 rounded-full text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400">{{ $lesson->quizzes->count() }}</span>
+                </button>
+                @endif
+                @if($hasAssignments)
+                <button onclick="document.getElementById('lesson-assignments')?.scrollIntoView({behavior:'smooth',block:'start'})"
+                        class="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold text-purple-600 dark:text-purple-400 border-b-2 border-transparent hover:border-purple-400 transition-colors whitespace-nowrap">
+                    Assignments
+                    <span class="px-1.5 py-0.5 rounded-full text-[10px] bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400">{{ $lesson->assignments->count() }}</span>
+                </button>
+                @endif
+                @if($canAccessDiscussions)
+                <button onclick="document.getElementById('discussion')?.scrollIntoView({behavior:'smooth',block:'start'})"
+                        class="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 border-b-2 border-transparent hover:border-emerald-400 transition-colors whitespace-nowrap">
+                    Discussion
+                </button>
                 @endif
             </div>
-            <div class="flex items-center gap-2">
-                @unless(auth()->user()->isIctTeacher())
-                    {{-- Discussion Button --}}
-                    @if($lesson->id)
-                        <flux:button 
-                            href="{{ route('discussions.index', ['lesson' => $lesson->id]) }}"
-                            variant="ghost"
-                            wire:navigate>
-                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                            Discuss This Lesson
-                        </flux:button>
-                    @endif
-                    
-                    @if($isLessonCompleted)
-                        <flux:badge variant="success">Completed</flux:badge>
-                    @else
-                        <flux:button 
-                            wire:click="openCompletionModal" 
-                            variant="primary"
-                            wire:loading.attr="disabled"
-                            wire:loading.class="opacity-50 cursor-not-allowed"
-                            :disabled="!$canComplete">
-                            <span wire:loading.remove wire:target="completeLesson,openCompletionModal">
-                                @if($canComplete)
-                                    Mark as Complete
-                                @else
-                                    Complete Required Items First
-                                @endif
-                            </span>
-                            <span wire:loading wire:target="completeLesson">
-                                <span class="inline-flex items-center">
-                                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    Processing...
-                                </span>
-                            </span>
-                        </flux:button>
-                    @endif
-                @endunless
-            </div>
+            @endif
         </div>
 
-        {{-- Missing Requirements Warning --}}
+        {{-- Requirements warning (shown below top bar if missing requirements) --}}
         @if(!$isLessonCompleted && !empty($completionStatus['missing'] ?? []))
-            <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mt-4">
-                <div class="flex items-start gap-3">
-                    <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    <div class="flex-1">
-                        <h4 class="text-sm font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
-                            Complete Required Items First
-                        </h4>
-                        <p class="text-sm text-yellow-700 dark:text-yellow-300 mb-3">
-                            You must complete the following before marking this lesson as complete:
-                        </p>
-                        <ul class="space-y-2">
-                            @foreach($completionStatus['missing'] ?? [] as $missing)
-                                <li class="flex items-center gap-2 text-sm text-yellow-800 dark:text-yellow-200">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    <span>{{ $missing['title'] ?? $missing['message'] ?? 'Complete requirement' }}</span>
-                                    @if(isset($missing['type_label']))
-                                        <span class="text-xs text-yellow-600 dark:text-yellow-400">
-                                            ({{ $missing['type_label'] }})
-                                        </span>
-                                    @endif
-                                    @if(isset($missing['route']) && isset($missing['id']))
-                                        <a href="{{ route($missing['route'], $missing['id']) }}" wire:navigate class="ml-auto text-xs text-yellow-700 dark:text-yellow-300 underline hover:text-yellow-900 dark:hover:text-yellow-100">
-                                            Go →
-                                        </a>
-                                    @endif
-                                </li>
-                            @endforeach
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        @endif
-
-        {{-- Video Progress for Video Lessons --}}
-        @if($lesson->content_type === 'video' && $videoProgress > 0)
-            <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <div class="flex items-center justify-between text-sm mb-2">
-                    <span class="text-gray-700 dark:text-gray-300">Video Progress</span>
-                    <span class="font-semibold">{{ round($videoProgress) }}%</span>
-                </div>
-                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                    <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                         style="width: {{ $videoProgress }}%"></div>
-                </div>
-            </div>
-        @endif
-    </div>
-
-    {{-- Lesson Content --}}
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {{-- Main Content Area --}}
-        <div class="lg:col-span-2 space-y-6">
-            {{-- Video Player --}}
-            @if(($lesson->video_url || $lesson->lesson_type === 'video') && $lesson->video_url)
-                @php
-                    $videoUrl = $lesson->video_url;
-                    $isYouTube = false;
-                    $isVimeo = false;
-                    $embedUrl = '';
-                    $videoId = '';
-                    
-                    // Check if YouTube URL
-                    if (preg_match('/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/', $videoUrl, $matches)) {
-                        $isYouTube = true;
-                        $videoId = $matches[1];
-                        $embedUrl = 'https://www.youtube.com/embed/' . $videoId . '?enablejsapi=1&origin=' . urlencode(request()->getSchemeAndHttpHost()) . '&rel=0';
-                        if ($videoWatchedSeconds > 0) {
-                            $embedUrl .= '&start=' . round($videoWatchedSeconds);
-                        }
-                    }
-                    // Check if Vimeo URL
-                    elseif (preg_match('/vimeo\.com\/(?:.*\/)?(\d+)/', $videoUrl, $matches)) {
-                        $isVimeo = true;
-                        $videoId = $matches[1];
-                        $embedUrl = 'https://player.vimeo.com/video/' . $videoId . '?api=1';
-                        if ($videoWatchedSeconds > 0) {
-                            $embedUrl .= '&time=' . round($videoWatchedSeconds);
-                        }
-                    }
-                @endphp
-
-                <div class="bg-black rounded-xl shadow-lg overflow-hidden">
-                    <div class="aspect-video">
-                        @if($isYouTube || $isVimeo)
-                            {{-- YouTube/Vimeo Embed --}}
-                            <iframe 
-                                id="lesson-video-iframe"
-                                class="w-full h-full"
-                                src="{{ $embedUrl }}"
-                                frameborder="0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowfullscreen
-                                loading="lazy">
-                            </iframe>
-                            
-                            <script>
-                                document.addEventListener('DOMContentLoaded', function() {
-                                    @if($isYouTube)
-                                        // YouTube API for progress tracking
-                                        let tag = document.createElement('script');
-                                        tag.src = "https://www.youtube.com/iframe_api";
-                                        let firstScriptTag = document.getElementsByTagName('script')[0];
-                                        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-                                        let ytPlayer;
-                                        window.onYouTubeIframeAPIReady = function() {
-                                            ytPlayer = new YT.Player('lesson-video-iframe', {
-                                                events: {
-                                                    'onStateChange': function(event) {
-                                                        if (event.data === YT.PlayerState.ENDED) {
-                                                            @this.updateVideoProgress(
-                                                                Math.floor(ytPlayer.getDuration()),
-                                                                Math.floor(ytPlayer.getDuration()),
-                                                                true
-                                                            );
-                                                        } else if (event.data === YT.PlayerState.PLAYING) {
-                                                            @this.dispatch('video-started');
-                                                        }
-                                                    }
-                                                }
-                                            });
-                                            
-                                            // Update progress periodically when playing
-                                            setInterval(function() {
-                                                if (ytPlayer && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
-                                                    const currentTime = Math.floor(ytPlayer.getCurrentTime());
-                                                    const duration = Math.floor(ytPlayer.getDuration());
-                                                    if (duration > 0) {
-                                                        @this.updateVideoProgress(currentTime, duration, false);
-                                                    }
-                                                }
-                                            }, 5000); // Update every 5 seconds
-                                        }
-                                    @elseif($isVimeo)
-                                        // Vimeo API for progress tracking
-                                        const iframe = document.getElementById('lesson-video-iframe');
-                                        const player = new Vimeo.Player(iframe);
-                                        
-                                        player.on('play', function() {
-                                            @this.dispatch('video-started');
-                                        });
-                                        
-                                        player.on('timeupdate', function(data) {
-                                            @this.updateVideoProgress(
-                                                Math.floor(data.seconds),
-                                                Math.floor(data.duration),
-                                                false
-                                            );
-                                        });
-                                        
-                                        player.on('ended', function() {
-                                            player.getDuration().then(function(duration) {
-                                                @this.updateVideoProgress(
-                                                    Math.floor(duration),
-                                                    Math.floor(duration),
-                                                    true
-                                                );
-                                            });
-                                        });
-                                    @endif
-                                });
-                            </script>
-                            
-                            @if($isVimeo)
-                                <script src="https://player.vimeo.com/api/player.js"></script>
+        <div class="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800/60 px-4 sm:px-6 py-3 flex-shrink-0">
+            <div class="flex items-start gap-3 max-w-5xl mx-auto">
+                <svg class="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs font-semibold text-amber-900 dark:text-amber-100 mb-1">Complete these to finish the lesson:</p>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($completionStatus['missing'] as $missing)
+                        <span class="inline-flex items-center gap-1.5 text-xs bg-amber-100 dark:bg-amber-800/50 text-amber-800 dark:text-amber-200 px-2.5 py-1 rounded-full">
+                            {{ $missing['title'] ?? $missing['message'] ?? 'Complete requirement' }}
+                            @if(isset($missing['route'], $missing['id']))
+                                <a href="{{ route($missing['route'], $missing['id']) }}" wire:navigate class="underline hover:text-amber-900 dark:hover:text-amber-100">Go →</a>
                             @endif
-                        @else
-                            {{-- Direct Video File --}}
-                            <video 
-                                id="lesson-video"
-                                class="w-full h-full"
-                                controls
-                                preload="metadata"
-                                @play="$wire.dispatch('video-started')"
-                                @timeupdate="handleVideoProgress()"
-                                @ended="handleVideoEnded()"
-                            >
-                                <source src="{{ $videoUrl }}" type="video/mp4">
-                                Your browser does not support the video tag.
-                            </video>
-
-                            <script>
-                                document.addEventListener('DOMContentLoaded', function() {
-                                    const video = document.getElementById('lesson-video');
-                                    if (video) {
-                                        // Resume from last watched position
-                                        @if($videoWatchedSeconds > 0)
-                                            video.currentTime = {{ $videoWatchedSeconds }};
-                                        @endif
-
-                                        let updateInterval;
-
-                                        function handleVideoProgress() {
-                                            const currentTime = video.currentTime;
-                                            const duration = video.duration;
-                                            
-                                            if (duration > 0) {
-                                                clearTimeout(updateInterval);
-                                                updateInterval = setTimeout(() => {
-                                                    @this.updateVideoProgress(
-                                                        Math.floor(currentTime),
-                                                        Math.floor(duration),
-                                                        false
-                                                    );
-                                                }, 1000); // Update every second
-                                            }
-                                        }
-
-                                        function handleVideoEnded() {
-                                            @this.updateVideoProgress(
-                                                Math.floor(video.duration),
-                                                Math.floor(video.duration),
-                                                true
-                                            );
-                                            
-                                            // Auto-mark lesson as complete if video finished
-                                            setTimeout(() => {
-                                                @if(!$isLessonCompleted)
-                                                    @this.completeLesson();
-                                                @endif
-                                            }, 500);
-                                        }
-
-                                        video.addEventListener('timeupdate', handleVideoProgress);
-                                        video.addEventListener('ended', handleVideoEnded);
-                                    }
-                                });
-                            </script>
-                        @endif
-                    </div>
-                </div>
-            @endif
-
-            {{-- Scratch Project Embed (Priority for Interactive Lessons) --}}
-            @if($lesson->scratch_project_id && $lesson->lesson_type === 'interactive')
-                <x-scratch-embed 
-                    :projectId="$lesson->scratch_project_id"
-                    :title="$lesson->title"
-                />
-            @endif
-
-            {{-- Interactive Steps (only for lessons with steps) --}}
-            @if(!empty($lesson->lesson_steps) && is_array($lesson->lesson_steps) && ($lesson->lesson_type === 'interactive' || $lesson->scratch_project_id))
-                <div class="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl shadow-lg border-2 border-purple-200 dark:border-purple-800 p-5">
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
-                            </svg>
-                            Step-by-Step Guide
-                        </h2>
-                        <span class="text-xs text-purple-600 dark:text-purple-400 font-semibold bg-purple-100 dark:bg-purple-900/40 px-2 py-1 rounded">
-                            {{ count($lesson->lesson_steps) }} Steps
                         </span>
-                    </div>
-                    <div class="space-y-2">
-                        @foreach($lesson->lesson_steps as $index => $step)
-                            <x-lesson-step 
-                                :number="$index + 1"
-                                :title="$step['title'] ?? 'Step ' . ($index + 1)"
-                                :image="$step['image'] ?? null"
-                                :tryItUrl="$step['try_it_url'] ?? null"
-                            >
-                                <p class="text-sm text-gray-700 dark:text-gray-300">
-                                    {{ $step['description'] ?? $step['content'] ?? '' }}
-                                </p>
-                                @if(!empty($step['code']))
-                                    <pre class="mt-2 p-3 bg-gray-100 dark:bg-gray-900 rounded-lg overflow-x-auto text-xs"><code>{{ $step['code'] }}</code></pre>
-                                @endif
-                            </x-lesson-step>
                         @endforeach
                     </div>
                 </div>
-            @endif
+            </div>
+        </div>
+        @endif
 
-            {{-- Scratch Blocks Reference (only for Scratch lessons) --}}
-            @if(!empty($lesson->scratch_blocks) && is_array($lesson->scratch_blocks) && $lesson->scratch_project_id)
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border-2 border-orange-200 dark:border-orange-800 p-6">
-                    <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <svg class="w-6 h-6 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
-                        </svg>
-                        Scratch Blocks Reference
-                    </h2>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                        Blocks you'll use in this Scratch project:
-                    </p>
-                    <div class="flex flex-wrap gap-3">
-                        @foreach($lesson->scratch_blocks as $block)
-                            <x-scratch-block 
-                                :type="$block['category'] ?? 'motion'"
-                                :text="$block['text'] ?? $block['name'] ?? 'Block'"
-                            />
-                        @endforeach
-                    </div>
-                </div>
-            @endif
+        {{-- ── Lesson body ──────────────────────────────────────── --}}
+        <div class="pb-24">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
-            {{-- Text Content --}}
-            @if($lesson->content)
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-                    <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Lesson Content</h2>
-                    @php
-                        $hasHtml = strip_tags($lesson->content) !== $lesson->content;
-                    @endphp
-                    <div class="lesson-content prose prose-lg dark:prose-invert max-w-none {{ $hasHtml ? '' : 'whitespace-pre-wrap' }} break-words">
-                        @if($hasHtml)
-                            {{-- Display HTML content with proper styling --}}
-                            {!! $lesson->content !!}
-                        @else
-                            {{-- Display plain text with line breaks preserved --}}
-                            {!! nl2br(e($lesson->content)) !!}
+                {{-- Scroll target for "Content" tab --}}
+                <div id="lesson-content-top" class="scroll-mt-36"></div>
+
+                {{-- ── Lesson title & description (clean, no card) ── --}}
+                <div>
+                    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-2">
+                        @if($lesson->module)
+                            <span class="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-medium">
+                                Module {{ $lesson->module->order_index }}
+                            </span>
+                        @endif
+                        @if($lesson->duration_minutes)
+                            <span class="flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                {{ $lesson->duration_minutes }} min
+                            </span>
+                        @endif
+                        @if($lesson->points_reward)
+                            <span class="flex items-center gap-1 text-yellow-600 dark:text-yellow-400 font-semibold">
+                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                                </svg>
+                                +{{ $lesson->points_reward }} XP
+                            </span>
                         @endif
                     </div>
+                    <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white leading-tight mb-3">
+                        {{ $lesson->title }}
+                    </h1>
+                    @if($lesson->description)
+                        <p class="text-base text-gray-600 dark:text-gray-400 leading-relaxed max-w-2xl">
+                            {{ $lesson->description }}
+                        </p>
+                    @endif
                 </div>
-            @endif
-            
-            {{-- Python Code Editor (for Python lessons) --}}
-            @if(stripos($lesson->title, 'python') !== false || stripos($lesson->content ?? '', 'python') !== false || $lesson->lesson_type === 'code')
-                @php
-                    // Extract code from lesson content or use default
-                    $pythonCode = $lesson->code_example ?? "# Python Code Editor\nprint('Hello, World!')\n\n# Try writing your own code:\nname = 'Student'\nprint(f'Welcome, {name}!')";
-                @endphp
-                <x-code-editor 
-                    language="python"
-                    :code="$pythonCode"
-                    title="Python Practice"
-                />
-            @endif
 
-            {{-- Web Development Editor (for HTML/CSS/JS lessons) --}}
-            @if(stripos($lesson->title, 'web') !== false || stripos($lesson->title, 'html') !== false || stripos($lesson->title, 'css') !== false || stripos($lesson->title, 'javascript') !== false)
-                @php
-                    // Normalize escaped newlines that may come from JSON/text storage
-                    $normalizeCode = fn($code) => str_replace(["\\r\\n", "\\n", "\r\n"], "\n", $code ?? '');
+                {{-- ── Main lesson content (video, text, code editors, etc.) ── --}}
+                @include('livewire.lessons.partials.main-content')
 
-                    $htmlCode = $normalizeCode($lesson->html_example) ?: "<h1>Hello World!</h1>\n<p>Welcome to web development!</p>\n<button onclick=\"alert('Hello!')\">Click Me</button>";
-                    $cssCode = $normalizeCode($lesson->css_example) ?: "body {\n  font-family: Arial, sans-serif;\n  padding: 20px;\n  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n  color: white;\n}\n\nh1 {\n  text-align: center;\n  font-size: 3em;\n}\n\nbutton {\n  background: white;\n  color: #667eea;\n  padding: 10px 20px;\n  border: none;\n  border-radius: 5px;\n  cursor: pointer;\n  font-size: 1.2em;\n}";
-                    $jsCode = $normalizeCode($lesson->js_example) ?: "// JavaScript code\nconsole.log('Page loaded!');\n\n// Add interactivity\ndocument.addEventListener('DOMContentLoaded', function() {\n  console.log('Ready to code!');\n});";
-                @endphp
-                <x-web-editor 
-                    :html="$htmlCode"
-                    :css="$cssCode"
-                    :javascript="$jsCode"
-                    title="Web Development Playground"
-                />
-            @endif
-
-            {{-- JavaScript Code Editor (for standalone JS lessons) --}}
-            @if(stripos($lesson->title, 'javascript') !== false && stripos($lesson->title, 'web') === false && stripos($lesson->title, 'html') === false)
-                @php
-                    $jsCode = $lesson->code_example ?? "// JavaScript Code Editor\nconsole.log('Hello, JavaScript!');\n\n// Try your own code:\nconst numbers = [1, 2, 3, 4, 5];\nconst sum = numbers.reduce((a, b) => a + b, 0);\nconsole.log('Sum:', sum);";
-                @endphp
-                <x-code-editor 
-                    language="javascript"
-                    :code="$jsCode"
-                    title="JavaScript Practice"
-                />
-            @endif
-
-            {{-- Learning Objectives --}}
-            @if($lesson->objectives)
-                <div class="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl shadow-lg border-2 border-blue-200 dark:border-blue-800 p-6">
-                    <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
-                        </svg>
-                        What You'll Learn
+                {{-- ── Assessments (inline, prominent) ── --}}
+                @if($lesson->assessments && $lesson->assessments->count() > 0)
+                <div id="lesson-assessments" class="scroll-mt-36">
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                            </svg>
+                        </span>
+                        Assessments
                     </h2>
-                    <div class="prose dark:prose-invert max-w-none">
-                        {!! nl2br(e($lesson->objectives)) !!}
-                    </div>
-                </div>
-            @endif
-
-            {{-- Attachments --}}
-            @if($lesson->attachments && is_array($lesson->attachments) && count($lesson->attachments) > 0)
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-                    <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Attachments</h2>
-                    <div class="space-y-2">
-                        @foreach($lesson->attachments as $attachment)
-                            <a href="{{ asset('storage/' . $attachment['path']) }}" target="_blank" 
-                               class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                                <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                </svg>
-                                <span class="text-gray-900 dark:text-white">{{ $attachment['name'] ?? 'Download' }}</span>
-                            </a>
-                        @endforeach
-                    </div>
-                </div>
-            @endif
-
-            {{-- Post-Lesson Feedback CTA --}}
-            @if($isLessonCompleted)
-                <div class="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl shadow-lg border-2 border-emerald-200 dark:border-emerald-800 p-6">
-                    <div class="flex items-start gap-3 mb-3">
-                        <div class="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-md">
-                            ⭐
-                        </div>
-                        <div class="flex-1">
-                            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Rate this lesson</h3>
-                            <p class="text-sm text-gray-700 dark:text-gray-300">Share a quick rating and send feedback to your teacher to improve the next lesson.</p>
-                        </div>
-                    </div>
-                    <form method="GET" action="{{ url('/feedback/teacher') }}" class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <input type="hidden" name="lesson_id" value="{{ $lesson->id }}">
-                        <input type="hidden" name="course_id" value="{{ $course->id }}">
-                        <input type="hidden" name="lesson_title" value="{{ $lesson->title }}">
-                        <input type="hidden" name="source" value="lesson_view">
-
-                        <div class="space-y-1">
-                            <label class="text-xs font-semibold text-gray-700 dark:text-gray-300">Rating</label>
-                            <select name="rating" class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-sm focus:ring-emerald-500 focus:border-emerald-500">
-                                <option value="" disabled selected>Choose rating</option>
-                                <option value="5">Excellent (5)</option>
-                                <option value="4">Good (4)</option>
-                                <option value="3">Okay (3)</option>
-                                <option value="2">Needs work (2)</option>
-                                <option value="1">Poor (1)</option>
-                            </select>
-                        </div>
-
-                        <div class="space-y-1 md:col-span-2">
-                            <label class="text-xs font-semibold text-gray-700 dark:text-gray-300">Quick feedback (optional)</label>
-                            <textarea name="note" rows="2" class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-sm focus:ring-emerald-500 focus:border-emerald-500" placeholder="What worked well? What could improve?" ></textarea>
-                        </div>
-
-                        <div class="flex flex-wrap gap-2 md:col-span-2">
-                            <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg shadow-md transition-colors">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                </svg>
-                                Send feedback
-                            </button>
-                            <a href="{{ url('/feedback/teacher') }}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-emerald-600 text-emerald-700 dark:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/30">
-                                Open full feedback page
-                            </a>
-                        </div>
-                    </form>
-                </div>
-            @endif
-        </div>
-
-        {{-- Sidebar --}}
-        <div class="space-y-6">
-            {{-- Lesson Info --}}
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Lesson Details</h3>
-                <div class="space-y-3">
-                    @if($lesson->duration_minutes)
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-600 dark:text-gray-400">Duration</span>
-                            <span class="font-semibold text-gray-900 dark:text-white">{{ $lesson->duration_minutes }} minutes</span>
-                        </div>
-                    @endif
-                    @if($lesson->points_reward)
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-600 dark:text-gray-400">Points</span>
-                            <span class="font-semibold text-yellow-600 dark:text-yellow-400">{{ $lesson->points_reward }} XP</span>
-                        </div>
-                    @endif
-                    <div class="flex items-center justify-between">
-                        <span class="text-gray-600 dark:text-gray-400">Type</span>
-                        <flux:badge size="sm" variant="primary">{{ ucfirst($lesson->content_type) }}</flux:badge>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Navigation --}}
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Navigation</h3>
-                <div class="space-y-3">
-                    @if($previousLesson)
-                        <a href="{{ route('lessons.view', $previousLesson) }}" wire:navigate
-                           class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                            <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                            </svg>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Previous</p>
-                                <p class="font-semibold text-gray-900 dark:text-white truncate">{{ $previousLesson->title }}</p>
-                            </div>
-                        </a>
-                    @endif
-                    @if($nextLesson)
-                        <a href="{{ route('lessons.view', $nextLesson) }}" wire:navigate
-                           class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                            <div class="flex-1 min-w-0 text-right">
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Next</p>
-                                <p class="font-semibold text-gray-900 dark:text-white truncate">{{ $nextLesson->title }}</p>
-                            </div>
-                            <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                            </svg>
-                        </a>
-                    @else
-                        <div class="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                            <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <p class="text-sm font-semibold text-green-800 dark:text-green-200">You've completed all lessons in this module!</p>
-                        </div>
-                    @endif
-                </div>
-            </div>
-
-            {{-- Quizzes --}}
-            @if($lesson->quizzes && $lesson->quizzes->count() > 0)
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Quizzes</h3>
-                    <div class="space-y-2">
-                        @foreach($lesson->quizzes as $quiz)
-                            <a href="{{ route('quizzes.take', $quiz) }}" wire:navigate
-                               class="block p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                                <p class="font-semibold text-gray-900 dark:text-white">{{ $quiz->title }}</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $quiz->questions->count() }} questions</p>
-                            </a>
-                        @endforeach
-                    </div>
-                </div>
-            @endif
-
-            {{-- Assessments --}}
-            @if($lesson->assessments && $lesson->assessments->count() > 0)
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <span>📝</span>
-                        <span>Assessments</span>
-                    </h3>
-                    <div class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         @foreach($lesson->assessments as $assessment)
-                            @php
-                                $typeInfo = [
-                                    'quiz' => ['label' => 'Quiz', 'color' => 'bg-blue-500', 'icon' => '📝', 'desc' => 'Question-based assessment'],
-                                    'assignment' => ['label' => 'Assignment', 'color' => 'bg-purple-500', 'icon' => '📄', 'desc' => 'File or text submission'],
-                                    'unit_survey' => ['label' => 'Survey', 'color' => 'bg-green-500', 'icon' => '📊', 'desc' => 'Feedback collection'],
-                                    'rubric_assessment' => ['label' => 'Rubric', 'color' => 'bg-orange-500', 'icon' => '📋', 'desc' => 'Criteria-based evaluation'],
-                                    'peer_review' => ['label' => 'Peer Review', 'color' => 'bg-pink-500', 'icon' => '👥', 'desc' => 'Evaluate peers'],
-                                    'self_assessment' => ['label' => 'Self-Assessment', 'color' => 'bg-indigo-500', 'icon' => '🔍', 'desc' => 'Reflect on learning'],
-                                    'pre_project_test' => ['label' => 'Pre-Project Test', 'color' => 'bg-yellow-500', 'icon' => '⏮️', 'desc' => 'Baseline evaluation'],
-                                    'post_project_test' => ['label' => 'Post-Project Test', 'color' => 'bg-yellow-600', 'icon' => '⏭️', 'desc' => 'Post-project evaluation'],
-                                ];
-                                $info = $typeInfo[$assessment->assessment_type] ?? ['label' => ucfirst(str_replace('_', ' ', $assessment->assessment_type)), 'color' => 'bg-gray-500', 'icon' => '📝', 'desc' => ''];
-                                $userAttempts = $assessment->attempts ?? collect();
-                                $bestAttempt = $userAttempts->sortByDesc('percentage_score')->first();
-                                $attemptCount = $userAttempts->count();
-                                $canTake = $assessment->max_attempts == 0 || $attemptCount < $assessment->max_attempts;
-                            @endphp
-                            <div class="border-2 border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
-                                <div class="flex items-start justify-between mb-3">
-                                    <div class="flex-1">
-                                        <div class="flex items-center gap-2 mb-2">
-                                            <span class="px-2 py-1 rounded text-xs font-semibold text-white {{ $info['color'] }}">
-                                                {{ $info['icon'] }} {{ $info['label'] }}
-                                            </span>
-                                            @if($assessment->is_required)
-                                                <span class="px-2 py-1 rounded text-xs font-semibold text-white bg-red-500">
-                                                    Required
-                                                </span>
-                                            @endif
-                                        </div>
-                                        <h4 class="font-semibold text-gray-900 dark:text-white mb-1">{{ $assessment->title }}</h4>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ $info['desc'] }}</p>
-                                        @if($assessment->description)
-                                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">{{ \Illuminate\Support\Str::limit($assessment->description, 80) }}</p>
-                                        @endif
-                                        <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-500">
-                                            @if($assessment->time_limit_minutes)
-                                                <span>⏱️ {{ $assessment->time_limit_minutes }} min</span>
-                                            @endif
-                                            @if($assessment->questions && $assessment->questions->count() > 0)
-                                                <span>❓ {{ $assessment->questions->count() }} questions</span>
-                                            @endif
-                                            <span>⭐ {{ $assessment->xp_reward }} XP</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                @if($attemptCount > 0 && $bestAttempt)
-                                    <div class="mb-3 p-2 bg-gray-50 dark:bg-gray-900 rounded text-sm">
-                                        <div class="flex items-center justify-between">
-                                            <span class="text-gray-600 dark:text-gray-400">Best Score:</span>
-                                            @php
-                                                $maxScore = ($assessment->questions && $assessment->questions->count() > 0) 
-                                                    ? $assessment->questions->sum('points') 
-                                                    : 100;
-                                                $attemptScore = $bestAttempt->score ?? 0;
-                                                $percentage = $maxScore > 0 ? ($attemptScore / $maxScore) * 100 : 0;
-                                            @endphp
-                                            <span class="font-bold {{ $bestAttempt->is_passed ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                                                {{ number_format($percentage, 1) }}%
-                                            </span>
-                                        </div>
-                                        <div class="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                                            {{ $attemptCount }} attempt(s)
-                                            @if($canTake && $assessment->max_attempts > 0)
-                                                • {{ $assessment->max_attempts - $attemptCount }} remaining
-                                            @endif
-                                        </div>
-                                    </div>
+                            <x-lesson.assessment-card :assessment="$assessment" />
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+
+                {{-- ── Quizzes (inline) ── --}}
+                @if($lesson->quizzes && $lesson->quizzes->count() > 0)
+                <div id="lesson-quizzes" class="scroll-mt-36">
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </span>
+                        Quizzes
+                    </h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        @foreach($lesson->quizzes as $quiz)
+                        <a href="{{ route('quizzes.take', $quiz) }}" wire:navigate
+                           class="group flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all">
+                            <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 transition-colors">
+                                <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-semibold text-gray-900 dark:text-white group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors truncate">{{ $quiz->title }}</p>
+                                @if($quiz->time_limit)
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ $quiz->time_limit }} min</p>
                                 @endif
-                                
-                                <div class="flex items-center gap-2">
-                                    @php
-                                        $passedAttempt = $bestAttempt && $bestAttempt->is_passed;
-                                        $failedAttempt = $bestAttempt && !$bestAttempt->is_passed;
-                                    @endphp
-                                    <flux:button 
-                                        href="{{ $passedAttempt
-                                            ? route('assessments.results', ['assessment' => $assessment->id, 'attempt' => $bestAttempt->id])
-                                            : ($failedAttempt ? route('assessments.take', $assessment) : route('assessments.show', $assessment)) }}" 
-                                        wire:navigate 
-                                        variant="outline" 
-                                        size="sm"
-                                        class="flex-1">
-                                        {{ $passedAttempt ? 'View Results' : ($failedAttempt ? 'Retake' : 'View Details') }}
-                                    </flux:button>
-                                    @if($canTake)
-                                        <flux:button 
-                                            href="{{ route('assessments.take', $assessment) }}" 
-                                            wire:navigate 
-                                            variant="primary" 
-                                            size="sm"
-                                            class="flex-1">
-                                            {{ $attemptCount > 0 ? 'Retake' : 'Start' }}
-                                        </flux:button>
-                                    @else
-                                        <flux:badge variant="danger" size="sm">Max Attempts Reached</flux:badge>
-                                    @endif
-                                </div>
                             </div>
+                            <svg class="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-blue-500 flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </a>
                         @endforeach
                     </div>
                 </div>
-            @endif
+                @endif
 
-            {{-- Assignments --}}
-            @if($lesson->assignments && $lesson->assignments->count() > 0)
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <span>📄</span>
-                        <span>Assignments</span>
-                    </h3>
-                    <div class="space-y-4">
+                {{-- ── Assignments (inline) ── --}}
+                @if($lesson->assignments && $lesson->assignments->count() > 0)
+                <div id="lesson-assignments" class="scroll-mt-36">
+                    <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                        </span>
+                        Assignments
+                    </h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         @foreach($lesson->assignments as $assignment)
-                            @php
-                                $userSubmission = $assignment->submissions->first() ?? null;
-                                $isSubmitted = $userSubmission && $userSubmission->submitted_at;
-                                $isGraded = $userSubmission && $userSubmission->graded_at;
-                                $isOverdue = $assignment->due_date && $assignment->due_date->isPast() && !$isSubmitted;
-                            @endphp
-                            <div class="border-2 {{ $isSubmitted ? 'border-green-500 dark:border-green-400' : ($isOverdue ? 'border-red-500 dark:border-red-400' : 'border-gray-200 dark:border-gray-700') }} rounded-lg p-4 hover:border-purple-500 dark:hover:border-purple-400 transition-colors">
-                                <div class="flex items-start justify-between mb-3">
-                                    <div class="flex-1">
-                                        <div class="flex items-center gap-2 mb-2">
-                                            <span class="px-2 py-1 rounded text-xs font-semibold text-white bg-purple-500">
-                                                📄 Assignment
-                                            </span>
-                                            @if($isSubmitted)
-                                                <span class="px-2 py-1 rounded text-xs font-semibold text-white {{ $isGraded ? 'bg-green-500' : 'bg-yellow-500' }}">
-                                                    {{ $isGraded ? '✓ Graded' : 'Submitted' }}
-                                                </span>
-                                            @endif
-                                            @if($isOverdue)
-                                                <span class="px-2 py-1 rounded text-xs font-semibold text-white bg-red-500">
-                                                    Overdue
-                                                </span>
-                                            @endif
-                                        </div>
-                                        <h4 class="font-semibold text-gray-900 dark:text-white mb-1">{{ $assignment->title }}</h4>
-                                        @if($assignment->description)
-                                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">{{ \Illuminate\Support\Str::limit($assignment->description, 80) }}</p>
-                                        @endif
-                                        <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-500">
-                                            @if($assignment->due_date)
-                                                <span class="{{ $isOverdue ? 'text-red-600 dark:text-red-400 font-semibold' : '' }}">
-                                                    📅 Due: {{ $assignment->due_date->format('M d, Y') }}
-                                                </span>
-                                            @endif
-                                            <span>⭐ {{ $assignment->max_points ?? 100 }} points</span>
-                                        </div>
-                                        @if($isGraded && $userSubmission->points_earned !== null)
-                                            <div class="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded">
-                                                <div class="flex items-center justify-between">
-                                                    <span class="text-sm text-gray-600 dark:text-gray-400">Grade:</span>
-                                                    <span class="font-bold text-green-600 dark:text-green-400">
-                                                        {{ number_format($userSubmission->points_earned, 1) }} / {{ $assignment->max_points ?? 100 }}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        @endif
-                                    </div>
-                                </div>
-                                
-                                <flux:button 
-                                    href="{{ route('assignments.show', $assignment) }}" 
-                                    wire:navigate 
-                                    variant="{{ $isSubmitted ? 'outline' : 'primary' }}" 
-                                    size="sm"
-                                    class="w-full">
-                                    {{ $isSubmitted ? ($isGraded ? 'View Grade' : 'View Submission') : 'Submit Assignment' }}
-                                </flux:button>
-                            </div>
+                            <x-lesson.assignment-card :assignment="$assignment" />
                         @endforeach
                     </div>
                 </div>
-            @endif
-        </div>
-    </div>
-</div>
+                @endif
 
-{{-- Completion Confirmation Modal --}}
-@if($showCompletionModal)
-    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" wire:click="showCompletionModal = false">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4 p-6" wire:click.stop>
-            <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Complete Lesson?</h3>
-            
-            @if(!empty($completionStatus['missing'] ?? []))
-                <div class="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                    <p class="text-sm text-yellow-800 dark:text-yellow-200 font-semibold mb-2">
-                        ⚠️ Some requirements are not met:
-                    </p>
-                    <ul class="text-xs text-yellow-700 dark:text-yellow-300 space-y-1">
-                        @foreach($completionStatus['missing'] ?? [] as $missing)
-                            <li>• {{ $missing['title'] ?? $missing['message'] ?? 'Complete requirement' }}</li>
-                        @endforeach
-                    </ul>
+                {{-- ── Lesson discussion forum (embedded) ── --}}
+                @if($canAccessDiscussions)
+                <div id="discussion" class="scroll-mt-36">
+                    @livewire('discussions.discussion-list', [
+                        'courseId' => $course->id,
+                        'lessonId' => $lesson->id,
+                        'compact' => true,
+                    ], key('lesson-discussion-' . $lesson->id))
                 </div>
-            @else
-                <p class="text-gray-700 dark:text-gray-300 mb-4">
-                    Are you sure you want to mark this lesson as complete? This action cannot be undone.
-                </p>
-            @endif
-            
-            <div class="flex items-center justify-end gap-3">
-                <flux:button 
-                    wire:click="showCompletionModal = false" 
-                    variant="ghost">
-                    Cancel
-                </flux:button>
-                <flux:button 
-                    wire:click="confirmCompleteLesson" 
-                    variant="primary"
-                    wire:loading.attr="disabled"
-                    :disabled="!$canComplete">
-                    <span wire:loading.remove wire:target="confirmCompleteLesson">
-                        Yes, Complete Lesson
-                    </span>
-                    <span wire:loading wire:target="confirmCompleteLesson">
-                        Processing...
-                    </span>
-                </flux:button>
+                @endif
+
             </div>
         </div>
-    </div>
-@endif
+    </div>{{-- end main column --}}
 
-{{-- Success/Error Messages --}}
-@if(session()->has('message'))
-    <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)" 
-         class="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-        </svg>
-        {{ session('message') }}
-    </div>
-@endif
+    {{-- ── Fixed bottom navigation bar ────────────────────────────────────── --}}
+    <nav class="fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_-2px_12px_rgba(0,0,0,0.3)]">
+        <div class="px-4 sm:px-6 py-3 flex items-center gap-3 max-w-5xl mx-auto">
 
-@if(session()->has('error'))
-    <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 7000)" 
-         class="fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-        {{ session('error') }}
-    </div>
-@endif
+            {{-- Previous lesson --}}
+            @if($previousLesson)
+                <a href="{{ route('lessons.view', $previousLesson) }}" wire:navigate
+                   class="group flex items-center gap-2 px-4 py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-semibold text-sm transition-colors flex-shrink-0">
+                    <svg class="w-4 h-4 transition-transform group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                    <span class="hidden sm:inline truncate max-w-[120px]">{{ $previousLesson->title }}</span>
+                    <span class="sm:hidden">Prev</span>
+                </a>
+            @else
+                <div class="w-10 flex-shrink-0"></div>
+            @endif
 
+            {{-- Center: completion action --}}
+            <div class="flex-1 flex justify-center">
+                @if($isInstructor)
+                    {{-- Instructors previewing — no completion tracking --}}
+                    <span class="text-xs text-blue-500 dark:text-blue-400 font-medium italic">Preview mode — completion not tracked</span>
+                @else
+                    @unless($user->isIctTeacher())
+                        @if($isLessonCompleted)
+                            <div class="flex items-center gap-2 text-green-700 dark:text-green-300 text-sm font-bold">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                                Lesson Completed
+                            </div>
+                        @elseif($canComplete)
+                            <button wire:click="openCompletionModal"
+                                    class="inline-flex items-center gap-2 px-6 py-2.5 bg-orange-600 hover:bg-orange-700 active:scale-95 text-white font-bold rounded-xl transition-all shadow-sm text-sm">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                                Mark Complete
+                            </button>
+                        @else
+                            <span class="text-xs text-gray-500 dark:text-gray-400 text-center leading-tight px-2">
+                                @if(!empty($completionStatus['missing'] ?? []))
+                                    Complete required tasks above to finish
+                                @else
+                                    Lesson in progress
+                                @endif
+                            </span>
+                        @endif
+                    @endunless
+                @endif
+            </div>
 
-<style>
-    /* Additional styling for Summernote-generated content */
-    .lesson-content-display {
-        line-height: 1.75;
-    }
-    
-    /* Ensure all text colors work in both light and dark mode */
-    .lesson-content-display * {
-        color: inherit;
-    }
-    
-    /* Handle font colors from Summernote */
-    .lesson-content-display [style*="color"] {
-        /* Preserve inline color styles from Summernote */
-    }
-    
-    /* Handle background colors from Summernote */
-    .lesson-content-display [style*="background-color"] {
-        /* Preserve inline background colors from Summernote */
-    }
-    
-    /* Ensure images are responsive */
-    .lesson-content-display img {
-        max-width: 100%;
-        height: auto;
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
-    }
-    
-    /* Handle embedded videos */
-    .lesson-content-display iframe {
-        max-width: 100%;
-        border-radius: 0.5rem;
-        margin: 1.5rem auto;
-        display: block;
-    }
-    
-    /* Style tables nicely */
-    .lesson-content-display table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 1.5rem 0;
-    }
-    
-    .lesson-content-display table th,
-    .lesson-content-display table td {
-        padding: 0.75rem;
-        border: 1px solid #e5e7eb;
-    }
-    
-    .dark .lesson-content-display table th,
-    .dark .lesson-content-display table td {
-        border-color: #374151;
-    }
-    
-    .lesson-content-display table th {
-        background-color: #f3f4f6;
-        font-weight: 600;
-    }
-    
-    .dark .lesson-content-display table th {
-        background-color: #1f2937;
-    }
-    
-    /* Handle font sizes from Summernote */
-    .lesson-content-display [style*="font-size"] {
-        /* Preserve font sizes */
-    }
-    
-    /* Handle text alignment */
-    .lesson-content-display [style*="text-align: center"] {
-        text-align: center;
-    }
-    
-    .lesson-content-display [style*="text-align: right"] {
-        text-align: right;
-    }
-    
-    .lesson-content-display [style*="text-align: left"] {
-        text-align: left;
-    }
-    
-    .lesson-content-display [style*="text-align: justify"] {
-        text-align: justify;
-    }
-    
-    /* Handle line height */
-    .lesson-content-display [style*="line-height"] {
-        /* Preserve line height */
-    }
-    
-    /* Ensure code blocks are readable */
-    .lesson-content-display pre {
-        background-color: #1f2937;
-        color: #f3f4f6;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        overflow-x: auto;
-        margin: 1.5rem 0;
-    }
-    
-    .lesson-content-display code {
-        font-family: 'Courier New', Courier, monospace;
-        font-size: 0.875rem;
-    }
-    
-    /* Handle blockquotes */
-    .lesson-content-display blockquote {
-        border-left: 4px solid #3b82f6;
-        padding-left: 1rem;
-        margin: 1.5rem 0;
-        font-style: italic;
-        color: #6b7280;
-    }
-    
-    .dark .lesson-content-display blockquote {
-        color: #9ca3af;
-    }
-    
-    /* Handle horizontal rules */
-    .lesson-content-display hr {
-        border: none;
-        border-top: 1px solid #e5e7eb;
-        margin: 2rem 0;
-    }
-    
-    .dark .lesson-content-display hr {
-        border-top-color: #374151;
-    }
-    
-    /* Ensure proper spacing for nested lists */
-    .lesson-content-display ul ul,
-    .lesson-content-display ol ol,
-    .lesson-content-display ul ol,
-    .lesson-content-display ol ul {
-        margin-top: 0.5rem;
-        margin-bottom: 0.5rem;
-    }
-    
-    /* Handle Summernote's default paragraph spacing */
-    .lesson-content-display p:empty {
-        min-height: 1.5rem;
-    }
-    
-    /* Ensure links are visible and clickable */
-    .lesson-content-display a {
-        color: #2563eb;
-        text-decoration: underline;
-        cursor: pointer;
-    }
-    
-    .dark .lesson-content-display a {
-        color: #60a5fa;
-    }
-    
-    .lesson-content-display a:hover {
-        color: #1d4ed8;
-    }
-    
-    .dark .lesson-content-display a:hover {
-        color: #93c5fd;
-    }
-</style>
-@endif
+            {{-- Next lesson --}}
+            @if($nextLesson)
+                <a href="{{ route('lessons.view', $nextLesson) }}" wire:navigate
+                   class="group flex items-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 active:scale-95 text-white rounded-xl font-bold text-sm transition-all shadow-sm flex-shrink-0">
+                    <span class="hidden sm:inline truncate max-w-[120px]">{{ $nextLesson->title }}</span>
+                    <span class="sm:hidden">Next</span>
+                    <svg class="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </a>
+            @elseif($isLessonCompleted)
+                <a href="{{ route('courses.show', $course) }}" wire:navigate
+                   class="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 active:scale-95 text-white rounded-xl font-bold text-sm transition-all shadow-sm flex-shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                    </svg>
+                    <span class="hidden sm:inline">Back to Course</span>
+                    <span class="sm:hidden">Course</span>
+                </a>
+            @else
+                <div class="w-10 flex-shrink-0"></div>
+            @endif
+
+        </div>
+    </nav>
+
+</div>{{-- end two-panel wrapper --}}
+
 </div>

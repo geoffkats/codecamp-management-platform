@@ -12,7 +12,7 @@
         <form method="POST" action="{{ route('login.store') }}" class="space-y-5">
             @csrf
 
-            <!-- Email Address -->
+            <!-- Email or Student ID -->
             <div>
                 <flux:input
                     name="email"
@@ -21,9 +21,12 @@
                     required
                     autofocus
                     autocomplete="username"
-                    placeholder="email or student ID"
+                    placeholder="e.g. STU-2026-0001 or CC-2026-0001"
                     class="w-full"
                 />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    Code Club and ICT students: enter your <strong>Student ID</strong> (not email) and password.
+                </p>
             </div>
 
             <!-- Password -->

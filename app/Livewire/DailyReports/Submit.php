@@ -2,15 +2,20 @@
 
 namespace App\Livewire\DailyReports;
 
+use App\Models\CampEnrollment;
+use App\Models\CodeCamp;
 use App\Models\Course;
+use App\Models\CourseEnrollment;
 use App\Models\DailyReport;
 use App\Models\DailyReportAttachment;
 use App\Models\DailyReportAttendance;
 use App\Models\DailyReportIssue;
 use App\Models\DailyReportMention;
 use App\Models\User;
+use App\Services\AttendanceService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -22,6 +27,7 @@ class Submit extends Component
 
     public $reportDate;
     public $courseId;
+    public $campId;
     public $summary = '';
     public $challenges = '';
     public $issuesText = '';
@@ -34,33 +40,98 @@ class Submit extends Component
 
     public $courses;
     public $students = [];
+    public $staff = [];
+    public $camps = [];
 
     public function mount(): void
     {
         $this->reportDate = now()->toDateString();
         $this->courses = $this->loadInstructorCourses();
-        $this->attendance = [['student_id' => null, 'status' => 'present', 'reason' => '']];
-        $this->mentions = [['mentionable_type' => 'user', 'mentionable_id' => null, 'role' => null, 'note' => null]];
+        $this->staff   = $this->loadStaff();
+        $this->camps   = CodeCamp::whereIn('status', ['upcoming', 'active'])->orderBy('start_date')->get(['id', 'name', 'status']);
+
+        $activeCamps = $this->camps->where('status', 'active');
+        if ($activeCamps->count() === 1) {
+            $this->campId = $activeCamps->first()->id;
+        }
+
+        $this->attendance = [];
+        $this->mentions = [['mentionable_type' => User::class, 'mentionable_id' => null, 'role' => 'recognition', 'note' => null]];
         $this->issues = [['title' => '', 'description' => '', 'severity' => 'normal', 'assigned_to' => null]];
     }
 
     public function updatedCourseId(): void
     {
         $this->students = $this->loadCourseStudents((int) $this->courseId);
-        
-        // Auto-populate attendance with enrolled students
-        $this->attendance = [];
-        foreach ($this->students as $student) {
-            $this->attendance[] = [
-                'student_id' => $student->id,
-                'status' => 'present',
-                'reason' => ''
-            ];
+        $this->detectCampFromCourse((int) $this->courseId);
+        $this->prefillAttendanceFromRecords();
+    }
+
+    public function updatedCampId(): void
+    {
+        if ($this->courseId) {
+            $this->prefillAttendanceFromRecords();
         }
-        
-        // If no students, add one empty row
+    }
+
+    public function updatedReportDate(): void
+    {
+        if ($this->courseId) {
+            $this->prefillAttendanceFromRecords();
+        }
+    }
+
+    private function prefillAttendanceFromRecords(): void
+    {
+        if (! $this->courseId) {
+            return;
+        }
+
+        $attendanceService = app(AttendanceService::class);
+        $rows = $attendanceService->prefillDailyReport(
+            (int) $this->courseId,
+            $this->campId ? (int) $this->campId : null,
+            $this->reportDate
+        );
+
+        $this->attendance = $rows ?: [['student_id' => null, 'status' => 'absent', 'reason' => '']];
+
         if (empty($this->attendance)) {
-            $this->attendance[] = ['student_id' => null, 'status' => 'present', 'reason' => ''];
+            $this->attendance = [['student_id' => null, 'status' => 'absent', 'reason' => '']];
+        }
+    }
+
+    private function detectCampFromCourse(int $courseId): void
+    {
+        if (!$courseId) {
+            return;
+        }
+
+        $campIdsFromEnrollments = CourseEnrollment::where('course_id', $courseId)
+            ->whereNotNull('camp_id')
+            ->distinct()
+            ->pluck('camp_id');
+
+        if ($campIdsFromEnrollments->count() === 1) {
+            $this->campId = $campIdsFromEnrollments->first();
+            return;
+        }
+
+        $studentIds = User::whereHas('enrollments', fn ($q) => $q->where('course_id', $courseId))
+            ->where('student_type', 'codecamp')
+            ->pluck('id');
+
+        if ($studentIds->isEmpty()) {
+            return;
+        }
+
+        $activeCampIds = CampEnrollment::whereIn('student_id', $studentIds)
+            ->where('status', 'active')
+            ->distinct()
+            ->pluck('camp_id');
+
+        if ($activeCampIds->count() === 1) {
+            $this->campId = $activeCampIds->first();
         }
     }
 
@@ -71,7 +142,7 @@ class Submit extends Component
 
     public function addMentionRow(): void
     {
-        $this->mentions[] = ['mentionable_type' => 'user', 'mentionable_id' => null, 'role' => null, 'note' => null];
+        $this->mentions[] = ['mentionable_type' => User::class, 'mentionable_id' => null, 'role' => null, 'note' => null];
     }
 
     public function addIssueRow(): void
@@ -112,6 +183,7 @@ class Submit extends Component
                 ],
                 [
                     'status' => 'submitted',
+                    'camp_id' => $this->campId ?: null,
                     'summary' => $this->summary,
                     'challenges' => $this->challenges,
                     'issues' => $this->issuesText,
@@ -147,7 +219,7 @@ class Submit extends Component
                 }
                 DailyReportMention::create([
                     'daily_report_id' => $report->id,
-                    'mentionable_type' => $mention['mentionable_type'] ?? User::class,
+                    'mentionable_type' => $this->normalizeMentionableType($mention['mentionable_type'] ?? null),
                     'mentionable_id' => $mention['mentionable_id'],
                     'role' => $mention['role'] ?? null,
                     'note' => $mention['note'] ?? null,
@@ -177,13 +249,16 @@ class Submit extends Component
                         'daily_report_id' => $report->id,
                         'path' => $path,
                         'name' => $file->getClientOriginalName(),
-                        'type' => $file->getMimeType(),
+                        // MIME types like Office Open XML can exceed varchar(50)
+                        'type' => Str::limit((string) ($file->getMimeType() ?: $file->getClientOriginalExtension() ?: 'file'), 255, ''),
                     ]);
                 }
             }
 
             return $report;
         });
+
+        app(AttendanceService::class)->syncFromDailyReport($report, $user);
 
         session()->flash('message', 'Daily report submitted.');
         return redirect()->route('dashboard');
@@ -213,6 +288,13 @@ class Submit extends Component
         ];
     }
 
+    private function loadStaff()
+    {
+        return User::whereHas('roles', function ($q) {
+            $q->whereIn('name', ['admin', 'supervisor', 'teacher', 'ict_teacher', 'instructor']);
+        })->orderBy('name')->get(['id', 'name']);
+    }
+
     private function loadInstructorCourses()
     {
         $userId = Auth::id();
@@ -226,17 +308,21 @@ class Submit extends Component
 
     private function loadCourseStudents(int $courseId)
     {
-        // Simple approach: fetch users enrolled via course_enrollments if available, else empty list
-        if (class_exists(\App\Models\CourseEnrollment::class)) {
-            return \App\Models\CourseEnrollment::where('course_id', $courseId)
-                ->with('user:id,name')
-                ->get()
-                ->pluck('user')
-                ->filter()
-                ->values();
+        return User::whereHas('enrollments', function ($q) use ($courseId) {
+            $q->where('course_id', $courseId);
+        })
+        ->where('student_type', 'codecamp')
+        ->orderBy('name')
+        ->get(['id', 'name']);
+    }
+
+    private function normalizeMentionableType(?string $type): string
+    {
+        if ($type === null || $type === '' || $type === 'user') {
+            return User::class;
         }
 
-        return collect();
+        return $type;
     }
 
     public function render()
@@ -244,6 +330,8 @@ class Submit extends Component
         return view('livewire.daily-reports.submit', [
             'courses' => $this->courses,
             'students' => $this->students,
+            'staff'    => $this->staff,
+            'camps'    => $this->camps,
         ]);
     }
 }

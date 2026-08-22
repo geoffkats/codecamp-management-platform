@@ -1,283 +1,407 @@
-<div class="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 space-y-6">
-        {{-- Header --}}
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
-                <p class="text-gray-600 dark:text-gray-400 mt-1">Welcome back, {{ auth()->user()->name }} · {{ now()->format('l, F j, Y') }}</p>
-            </div>
-            <flux:button wire:click="refresh" icon="arrow-path" variant="ghost">
-                Refresh
-            </flux:button>
-        </div>
+{{-- Admin Dashboard — Code Academy Uganda --}}
+<div class="min-h-screen bg-slate-50 dark:bg-zinc-950">
 
-        {{-- ZONE 1: ACTION REQUIRED --}}
-        @if(($stats['pending_approvals'] ?? 0) > 0)
-            <div class="bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-500 dark:border-orange-600 rounded-xl p-6">
-                <div class="flex items-start justify-between">
-                    <div class="flex items-start gap-4">
-                        <div class="w-12 h-12 rounded-lg bg-orange-500 flex items-center justify-center flex-shrink-0">
-                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                        </div>
-                        <div>
-                            <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-2">🚨 Action Required</h2>
-                            <div class="space-y-2">
-                                @if(($stats['pending_approvals'] ?? 0) > 0)
-                                    <div class="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                                        <span class="font-semibold text-orange-600 dark:text-orange-400">{{ $stats['pending_approvals'] }}</span>
-                                        <span>Pending Content Approvals</span>
-                                    </div>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
-                    <flux:button href="{{ route('content-approvals.index') }}" variant="primary" wire:navigate>
-                        Review Now
-                    </flux:button>
+    {{-- ── HEADER ──────────────────────────────────────────────── --}}
+    <div class="bg-orange-600">
+        <div class="mx-auto max-w-6xl px-4 py-5 sm:px-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-orange-200">{{ now()->format('l, F j, Y') }}</p>
+                    <h1 class="mt-0.5 text-xl font-bold text-white">
+                        Good {{ now()->hour < 12 ? 'morning' : (now()->hour < 17 ? 'afternoon' : 'evening') }}, {{ explode(' ', auth()->user()->name)[0] }}
+                    </h1>
+                </div>
+                <div class="flex items-center gap-2">
+                    @if(($stats['pending_approvals'] ?? 0) > 0)
+                        <a href="{{ route('content-approvals.index') }}" wire:navigate
+                           class="flex items-center gap-1.5 rounded-md border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20 transition">
+                            <span class="flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white leading-none">{{ $stats['pending_approvals'] }}</span>
+                            Approvals
+                        </a>
+                    @endif
+                    @if(config('features.code_club', false) && ($codeClubStats['pending_reports'] ?? 0) > 0)
+                        <a href="{{ route('admin.club-session-reports.index') }}" wire:navigate
+                           class="flex items-center gap-1.5 rounded-md border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20 transition">
+                            <span class="flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-slate-900 leading-none">{{ $codeClubStats['pending_reports'] }}</span>
+                            Club Reports
+                        </a>
+                    @endif
+                    <button wire:click="refresh"
+                            class="rounded-md border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20 transition">
+                        Refresh
+                    </button>
                 </div>
             </div>
-        @else
-            <div class="bg-green-50 dark:bg-green-900/20 border-2 border-green-500 dark:border-green-600 rounded-xl p-6">
-                <div class="flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-lg bg-green-500 flex items-center justify-center">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+
+            {{-- TODAY BAR --}}
+            <div class="mt-4 grid grid-cols-4 gap-2">
+                @foreach([
+                    ['label' => 'New Users',       'value' => $quickStats['today_new_users'] ?? 0],
+                    ['label' => 'Enrollments',      'value' => $quickStats['today_enrollments'] ?? 0],
+                    ['label' => 'Active (7d)',      'value' => $performanceMetrics['active_learners_7d'] ?? 0],
+                    ['label' => 'Completions',      'value' => $quickStats['today_completions'] ?? 0],
+                ] as $qs)
+                <div class="rounded-md border border-white/20 bg-white/10 px-3 py-2">
+                    <p class="text-base font-bold text-white">{{ number_format($qs['value']) }}</p>
+                    <p class="text-xs text-orange-200">{{ $qs['label'] }}</p>
+                </div>
+                @endforeach
+            </div>
+        </div>
+    </div>
+
+    {{-- ── MAIN CONTENT ─────────────────────────────────────────── --}}
+    <div class="mx-auto max-w-6xl space-y-4 px-4 py-5 sm:px-6">
+
+        {{-- ── CORE METRICS ──────────────────────────────────────── --}}
+        <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+
+            <a href="{{ route('students.index') }}" wire:navigate
+               class="rounded-lg border border-slate-200 bg-white p-4 transition hover:border-orange-300 hover:shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="flex items-center justify-between">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-md bg-orange-50 dark:bg-orange-950/30">
+                        <svg class="h-4 w-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
                         </svg>
                     </div>
-                    <div>
-                        <h2 class="text-lg font-bold text-gray-900 dark:text-white">✅ All Clear</h2>
-                        <p class="text-gray-600 dark:text-gray-400">No action needed right now.</p>
+                    @if(($stats['users_change'] ?? 0) != 0)
+                        <span class="rounded px-1.5 py-0.5 text-xs font-semibold {{ ($stats['users_change'] ?? 0) > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600' }}">
+                            {{ ($stats['users_change'] ?? 0) > 0 ? '+' : '' }}{{ number_format($stats['users_change'] ?? 0, 1) }}%
+                        </span>
+                    @endif
+                </div>
+                <p class="mt-3 text-2xl font-bold text-slate-900 dark:text-white">{{ number_format($stats['active_users'] ?? 0) }}</p>
+                <p class="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400">Active Students</p>
+                <p class="text-xs text-slate-400">{{ number_format($stats['total_users'] ?? 0) }} total</p>
+            </a>
+
+            <a href="{{ route('admin.enrollments') }}" wire:navigate
+               class="rounded-lg border border-slate-200 bg-white p-4 transition hover:border-blue-300 hover:shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="flex items-center justify-between">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-md bg-blue-50 dark:bg-blue-950/30">
+                        <svg class="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                        </svg>
+                    </div>
+                    @if(($stats['enrollments_change'] ?? 0) != 0)
+                        <span class="rounded px-1.5 py-0.5 text-xs font-semibold {{ ($stats['enrollments_change'] ?? 0) > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600' }}">
+                            {{ ($stats['enrollments_change'] ?? 0) > 0 ? '+' : '' }}{{ number_format($stats['enrollments_change'] ?? 0, 1) }}%
+                        </span>
+                    @endif
+                </div>
+                <p class="mt-3 text-2xl font-bold text-slate-900 dark:text-white">{{ number_format($stats['total_enrollments'] ?? 0) }}</p>
+                <p class="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400">Enrollments</p>
+                <div class="mt-2">
+                    <div class="mb-1 flex justify-between text-xs text-slate-400">
+                        <span>Completion</span>
+                        <span class="font-medium text-slate-600 dark:text-slate-300">{{ number_format($stats['completion_rate'] ?? 0, 0) }}%</span>
+                    </div>
+                    <div class="h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
+                        <div class="h-full rounded-full bg-blue-500" style="width: {{ min($stats['completion_rate'] ?? 0, 100) }}%"></div>
                     </div>
                 </div>
+            </a>
+
+            <a href="{{ route('courses.index') }}" wire:navigate
+               class="rounded-lg border border-slate-200 bg-white p-4 transition hover:border-slate-400 hover:shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="flex items-center justify-between">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 dark:bg-zinc-800">
+                        <svg class="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                        </svg>
+                    </div>
+                    @if(($stats['courses_change'] ?? 0) != 0)
+                        <span class="rounded px-1.5 py-0.5 text-xs font-semibold {{ ($stats['courses_change'] ?? 0) > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600' }}">
+                            {{ ($stats['courses_change'] ?? 0) > 0 ? '+' : '' }}{{ number_format($stats['courses_change'] ?? 0, 1) }}%
+                        </span>
+                    @endif
+                </div>
+                <p class="mt-3 text-2xl font-bold text-slate-900 dark:text-white">{{ number_format($stats['published_courses'] ?? 0) }}</p>
+                <p class="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400">Published Courses</p>
+                <p class="text-xs text-slate-400">{{ number_format($stats['total_lessons'] ?? 0) }} lessons total</p>
+            </a>
+
+            <a href="{{ route('admin.schools') }}" wire:navigate
+               class="rounded-lg border border-slate-200 bg-white p-4 transition hover:border-slate-400 hover:shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 dark:bg-zinc-800">
+                    <svg class="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                    </svg>
+                </div>
+                <p class="mt-3 text-2xl font-bold text-slate-900 dark:text-white">{{ number_format(count($ictSchoolPerformance ?? [])) }}</p>
+                <p class="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400">ICT Schools</p>
+                <p class="text-xs text-slate-400">{{ number_format($performanceMetrics['active_learners_30d'] ?? 0) }} active (30d)</p>
+            </a>
+        </div>
+
+        {{-- ── PERFORMANCE BAND ────────────────────────────────── --}}
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            @foreach([
+                ['label' => 'Engagement',   'value' => number_format($performanceMetrics['engagement_rate'] ?? 0, 1) . '%', 'sub' => 'learners with progress'],
+                ['label' => 'Retention',    'value' => number_format($performanceMetrics['retention_rate'] ?? 0, 1) . '%',  'sub' => '30-day active'],
+                ['label' => 'This Month',   'value' => number_format($quickStats['month_enrollments'] ?? 0),               'sub' => 'new enrollments'],
+                ['label' => 'This Week',    'value' => number_format($quickStats['week_enrollments'] ?? 0),                'sub' => 'new enrollments'],
+            ] as $band)
+            <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
+                <p class="text-xl font-bold text-slate-900 dark:text-white">{{ $band['value'] }}</p>
+                <p class="text-xs font-semibold text-slate-700 dark:text-slate-300">{{ $band['label'] }}</p>
+                <p class="text-xs text-slate-400">{{ $band['sub'] }}</p>
             </div>
+            @endforeach
+        </div>
+
+        @if(config('features.code_club', false))
+        {{-- ── CODE CLUB OVERVIEW ───────────────────────────────── --}}
+        <div class="rounded-lg border border-violet-200 bg-white dark:border-violet-900/40 dark:bg-zinc-900">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-violet-100 px-4 py-3 dark:border-violet-900/30">
+                <div>
+                    <h3 class="text-xs font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">Code Club</h3>
+                    <p class="text-xs text-slate-500">School clubs · Student ID login · Session reports</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <a href="{{ route('admin.code-clubs.index') }}" wire:navigate class="text-xs font-semibold text-violet-600 hover:text-violet-700">All clubs →</a>
+                    @if(Route::has('admin.club-session-reports.index'))
+                        <a href="{{ route('admin.club-session-reports.index') }}" wire:navigate class="text-xs font-semibold text-violet-600 hover:text-violet-700">Session reports →</a>
+                    @endif
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-6">
+                @foreach([
+                    ['label' => 'Active Clubs', 'value' => $codeClubStats['active_clubs'] ?? 0],
+                    ['label' => 'Club Members', 'value' => $codeClubStats['total_members'] ?? 0],
+                    ['label' => 'CC Students', 'value' => $codeClubStats['students'] ?? 0],
+                    ['label' => 'New This Month', 'value' => $codeClubStats['new_students_month'] ?? 0],
+                    ['label' => 'Reports Pending', 'value' => $codeClubStats['pending_reports'] ?? 0, 'alert' => ($codeClubStats['pending_reports'] ?? 0) > 0],
+                    ['label' => 'Follow-up', 'value' => $codeClubStats['follow_up_reports'] ?? 0, 'alert' => ($codeClubStats['follow_up_reports'] ?? 0) > 0],
+                ] as $cc)
+                <div class="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-800/50">
+                    <p class="text-lg font-bold {{ !empty($cc['alert']) ? 'text-amber-600' : 'text-slate-900 dark:text-white' }}">{{ number_format($cc['value']) }}</p>
+                    <p class="text-xs font-medium text-slate-500">{{ $cc['label'] }}</p>
+                </div>
+                @endforeach
+            </div>
+            @if(count($codeClubHighlights ?? []) > 0)
+            <div class="border-t border-violet-100 px-4 py-3 dark:border-violet-900/30">
+                <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Recent Clubs</p>
+                <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    @foreach($codeClubHighlights as $club)
+                        <a href="{{ route('admin.code-clubs.show', $club['id']) }}" wire:navigate
+                           class="rounded-md border border-slate-100 px-3 py-2 transition hover:border-violet-300 dark:border-zinc-800 dark:hover:border-violet-700">
+                            <p class="truncate text-sm font-semibold text-slate-900 dark:text-white">{{ $club['name'] }}</p>
+                            <p class="truncate text-xs text-slate-400">{{ $club['school'] }} · {{ $club['members'] }} members</p>
+                            <p class="truncate text-xs text-violet-600 dark:text-violet-400">{{ $club['schedule'] }}</p>
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+        </div>
         @endif
 
-        {{-- ZONE 2: CORE HEALTH METRICS --}}
-        <div>
-            <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">System Overview</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {{-- Total Active Students --}}
-                <a href="{{ route('admin.users.index') }}" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow border border-gray-200 dark:border-gray-700">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                            <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                            </svg>
-                        </div>
-                        @php
-                            $change = $stats['users_change'] ?? 0;
-                        @endphp
-                        @if($change != 0)
-                            <div class="text-right">
-                                <span class="text-xs font-medium {{ $change >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                                    {{ $change >= 0 ? '↑' : '↓' }} {{ number_format(abs($change), 1) }}%
-                                </span>
-                                <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-1">vs last month</p>
+        {{-- ── RECENT USERS + TOP PERFORMERS ──────────────────── --}}
+        <div class="grid gap-4 lg:grid-cols-2">
+
+            <div class="rounded-lg border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-zinc-800">
+                    <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recent Users</h3>
+                    <a href="{{ route('admin.users.index') }}" wire:navigate class="text-xs font-semibold text-orange-600 hover:text-orange-700">View all →</a>
+                </div>
+                <div class="divide-y divide-slate-50 dark:divide-zinc-800">
+                    @forelse(array_slice($recentUsers ?? [], 0, 6) as $u)
+                        <a href="{{ route('admin.users.show', $u['id']) }}" wire:navigate
+                           class="flex items-center gap-3 px-4 py-2.5 transition hover:bg-slate-50 dark:hover:bg-zinc-800/50">
+                            <div class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-orange-600 text-xs font-bold text-white">
+                                {{ strtoupper(substr($u['name'], 0, 1)) }}
                             </div>
-                        @endif
-                    </div>
-                    <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">People</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Active Students</p>
-                    <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ number_format($stats['total_users'] ?? 0) }}</p>
-                </a>
-
-                {{-- ICT Schools Active --}}
-                <a href="{{ route('admin.schools') }}" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow border border-gray-200 dark:border-gray-700">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                            <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
-                        </div>
-                    </div>
-                    <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">People</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">ICT Schools Active</p>
-                    <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ number_format(count($ictSchoolPerformance ?? [])) }}</p>
-                </a>
-
-                {{-- Total Courses --}}
-                <a href="{{ route('courses.index') }}" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow border border-gray-200 dark:border-gray-700">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                            <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                            </svg>
-                        </div>
-                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ number_format($stats['published_courses'] ?? 0) }} published</span>
-                    </div>
-                    <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Content</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Courses</p>
-                    <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ number_format($stats['total_courses'] ?? 0) }}</p>
-                </a>
-
-                {{-- Active This Month --}}
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                            <svg class="w-6 h-6 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                            </svg>
-                        </div>
-                    </div>
-                    <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Activity</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">Active This Month</p>
-                    <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ number_format($performanceMetrics['active_learners_30d'] ?? 0) }}</p>
-                </div>
-            </div>
-        </div>
-
-        {{-- ZONE 3: RECENT ACTIVITY --}}
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {{-- Latest ICT Exam Results --}}
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
-                <div class="p-4 border-b border-gray-200 dark:border-gray-700">
-                    <div class="flex items-center justify-between">
-                        <h3 class="font-semibold text-gray-900 dark:text-white">Latest ICT Exam Results</h3>
-                        <a href="{{ route('admin.schools') }}" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">View all →</a>
-                    </div>
-                </div>
-                <div class="p-4">
-                    @if($recentIctAssessmentResults && $recentIctAssessmentResults->isNotEmpty())
-                        <div class="space-y-3">
-                            @foreach($recentIctAssessmentResults->take(5) as $attempt)
-                                @php
-                                    $assessment = $attempt->assessment;
-                                    $maxScore = ($assessment?->questions && $assessment->questions->count() > 0)
-                                        ? $assessment->questions->sum('points')
-                                        : 100;
-                                    $attemptScore = $attempt->score ?? 0;
-                                    $percentage = $maxScore > 0 ? ($attemptScore / $maxScore) * 100 : 0;
-                                @endphp
-                                <div class="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
-                                    <div class="flex-1 min-w-0">
-                                        <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ $attempt->user?->name ?? 'Student' }}</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                            {{ $assessment?->title ?? 'Assessment' }} · {{ $attempt->completed_at?->format('M j') ?? $attempt->created_at?->format('M j') }}
-                                        </p>
-                                    </div>
-                                    <div class="ml-3 flex items-center gap-2">
-                                        <span class="text-sm font-semibold {{ $attempt->is_passed ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                                            {{ number_format($percentage, 0) }}%
-                                        </span>
-                                        <span class="px-2 py-0.5 rounded text-xs {{ $attempt->is_passed ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' }}">
-                                            {{ $attempt->is_passed ? 'Pass' : 'Fail' }}
-                                        </span>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    @else
-                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-8">No exam results yet</p>
-                    @endif
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-sm font-medium text-slate-900 dark:text-white">{{ $u['name'] }}</p>
+                                <p class="truncate text-xs text-slate-400">{{ $u['email'] ?: ($u['login_id'] ?? '—') }}@if($u['roles']) · {{ $u['roles'] }}@endif</p>
+                            </div>
+                            <div class="flex flex-shrink-0 flex-col items-end gap-0.5">
+                                <span class="text-xs text-slate-400">{{ $u['created_at'] }}</span>
+                                <span class="flex items-center gap-1 text-xs {{ $u['is_active'] ? 'text-emerald-600' : 'text-red-400' }}">
+                                    <span class="h-1.5 w-1.5 rounded-full {{ $u['is_active'] ? 'bg-emerald-500' : 'bg-red-400' }}"></span>
+                                    {{ $u['is_active'] ? 'Active' : 'Inactive' }}
+                                </span>
+                            </div>
+                        </a>
+                    @empty
+                        <p class="px-4 py-8 text-center text-xs text-slate-400">No recent users.</p>
+                    @endforelse
                 </div>
             </div>
 
-            {{-- Latest Users --}}
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
-                <div class="p-4 border-b border-gray-200 dark:border-gray-700">
-                    <div class="flex items-center justify-between">
-                        <h3 class="font-semibold text-gray-900 dark:text-white">Latest Users</h3>
-                        <a href="{{ route('enrollments.index') }}" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">View all →</a>
-                    </div>
+            <div class="rounded-lg border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-zinc-800">
+                    <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Top Performers</h3>
+                    <span class="text-xs text-slate-400">by XP</span>
                 </div>
-                <div class="p-4">
-                    @if(count($recentUsers ?? []) > 0)
-                        <div class="space-y-3">
-                            @foreach(array_slice($recentUsers, 0, 5) as $user)
-                                <a href="{{ route('admin.users.show', $user['id']) }}" class="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 -mx-2 px-2 rounded">
-                                    <div class="flex-1 min-w-0">
-                                        <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ $user['name'] }}</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $user['email'] }}</p>
-                                    </div>
-                                    <span class="ml-3 text-xs text-gray-500 dark:text-gray-400">{{ \Carbon\Carbon::parse($user['created_at'])->diffForHumans() }}</span>
-                                </a>
-                            @endforeach
-                        </div>
-                    @else
-                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-8">No recent users</p>
-                    @endif
-                </div>
-            </div>
-
-            {{-- Latest Courses --}}
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
-                <div class="p-4 border-b border-gray-200 dark:border-gray-700">
-                    <div class="flex items-center justify-between">
-                        <h3 class="font-semibold text-gray-900 dark:text-white">Latest Courses</h3>
-                        <a href="{{ route('courses.index') }}" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">View all →</a>
-                    </div>
-                </div>
-                <div class="p-4">
-                    @if(count($recentCourses ?? []) > 0)
-                        <div class="space-y-3">
-                            @foreach(array_slice($recentCourses, 0, 5) as $course)
-                                <a href="{{ route('courses.show', $course['id']) }}" class="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 -mx-2 px-2 rounded">
-                                    <div class="flex-1 min-w-0">
-                                        <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ $course['title'] }}</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $course['instructor'] ?? 'Unknown' }}</p>
-                                    </div>
-                                    <span class="ml-3 px-2 py-0.5 rounded text-xs {{ $course['status'] === 'published' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' }}">
-                                        {{ ucfirst($course['status']) }}
-                                    </span>
-                                </a>
-                            @endforeach
-                        </div>
-                    @else
-                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-8">No recent courses</p>
-                    @endif
-                </div>
-            </div>
-        </div>
-
-        {{-- Quick Links --}}
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-6">
-            <h3 class="font-semibold text-gray-900 dark:text-white mb-4">Quick Access</h3>
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                <a href="{{ route('admin.users.index') }}" class="flex flex-col items-center p-4 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-center">
-                    <svg class="w-8 h-8 text-blue-600 dark:text-blue-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                    <span class="text-sm font-medium text-gray-900 dark:text-white">Users</span>
-                </a>
-                <a href="{{ route('courses.index') }}" class="flex flex-col items-center p-4 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-center">
-                    <svg class="w-8 h-8 text-green-600 dark:text-green-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                    <span class="text-sm font-medium text-gray-900 dark:text-white">Courses</span>
-                </a>
-                <a href="{{ route('admin.schools') }}" class="flex flex-col items-center p-4 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-center">
-                    <svg class="w-8 h-8 text-purple-600 dark:text-purple-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                    <span class="text-sm font-medium text-gray-900 dark:text-white">Schools</span>
-                </a>
-                <a href="{{ route('content-approvals.index') }}" class="flex flex-col items-center p-4 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-center">
-                    <svg class="w-8 h-8 text-orange-600 dark:text-orange-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span class="text-sm font-medium text-gray-900 dark:text-white">
-                        Approvals
-                        @if(($stats['pending_approvals'] ?? 0) > 0)
-                            <span class="ml-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
-                                {{ $stats['pending_approvals'] }}
+                <div class="divide-y divide-slate-50 dark:divide-zinc-800">
+                    @forelse(array_slice($topPerformers ?? [], 0, 6) as $i => $p)
+                        <div class="flex items-center gap-3 px-4 py-2.5">
+                            <span class="w-5 flex-shrink-0 text-center text-xs">
+                                @if($i === 0) 🥇 @elseif($i === 1) 🥈 @elseif($i === 2) 🥉
+                                @else <span class="font-bold text-slate-400">{{ $i + 1 }}</span>
+                                @endif
                             </span>
-                        @endif
-                    </span>
-                </a>
-                <a href="{{ route('badges.index') }}" class="flex flex-col items-center p-4 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-center">
-                    <svg class="w-8 h-8 text-yellow-600 dark:text-yellow-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                    </svg>
-                    <span class="text-sm font-medium text-gray-900 dark:text-white">Badges</span>
-                </a>
-                <a href="{{ route('notifications.index') }}" class="flex flex-col items-center p-4 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-center">
-                    <svg class="w-8 h-8 text-indigo-600 dark:text-indigo-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                    <span class="text-sm font-medium text-gray-900 dark:text-white">Notifications</span>
-                </a>
+                            <div class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                                {{ strtoupper(substr($p['name'], 0, 1)) }}
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-sm font-medium text-slate-900 dark:text-white">{{ $p['name'] }}</p>
+                                <p class="text-xs text-slate-400">{{ $p['badges_count'] }} badges · Lv {{ $p['level'] ?? 1 }}</p>
+                            </div>
+                            <span class="flex-shrink-0 rounded bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
+                                {{ $p['points'] }} XP
+                            </span>
+                        </div>
+                    @empty
+                        <p class="px-4 py-8 text-center text-xs text-slate-400">No points data yet.</p>
+                    @endforelse
+                </div>
             </div>
+        </div>
+
+        {{-- ── COURSES + ICT SCHOOLS ───────────────────────────── --}}
+        <div class="grid gap-4 lg:grid-cols-2">
+
+            <div class="rounded-lg border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-zinc-800">
+                    <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recent Courses</h3>
+                    <a href="{{ route('courses.index') }}" wire:navigate class="text-xs font-semibold text-orange-600 hover:text-orange-700">View all →</a>
+                </div>
+                <div class="divide-y divide-slate-50 dark:divide-zinc-800">
+                    @forelse(array_slice($recentCourses ?? [], 0, 5) as $course)
+                        <a href="{{ route('courses.show', $course['id']) }}" wire:navigate
+                           class="flex items-center gap-3 px-4 py-2.5 transition hover:bg-slate-50 dark:hover:bg-zinc-800/50">
+                            <div class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-slate-100 dark:bg-zinc-800">
+                                <svg class="h-3.5 w-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                                </svg>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-sm font-medium text-slate-900 dark:text-white">{{ $course['title'] }}</p>
+                                <p class="text-xs text-slate-400">{{ $course['instructor'] ?? 'No instructor' }} · {{ $course['enrollments'] }} enrolled</p>
+                            </div>
+                            <span class="flex-shrink-0 rounded px-2 py-0.5 text-xs font-medium
+                                {{ $course['is_published'] ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400' }}">
+                                {{ $course['is_published'] ? 'Live' : ucfirst($course['status'] ?? 'Draft') }}
+                            </span>
+                        </a>
+                    @empty
+                        <p class="px-4 py-8 text-center text-xs text-slate-400">No courses yet.</p>
+                    @endforelse
+                </div>
+            </div>
+
+            <div class="rounded-lg border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-zinc-800">
+                    <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">ICT School Performance</h3>
+                    <a href="{{ route('admin.schools') }}" wire:navigate class="text-xs font-semibold text-orange-600 hover:text-orange-700">View all →</a>
+                </div>
+                <div class="divide-y divide-slate-50 dark:divide-zinc-800">
+                    @forelse(array_slice($ictSchoolPerformance ?? [], 0, 5) as $school)
+                        <div class="px-4 py-2.5">
+                            <div class="flex items-center justify-between">
+                                <p class="mr-2 truncate text-sm font-medium text-slate-800 dark:text-slate-200">{{ $school['school_name'] }}</p>
+                                <span class="flex-shrink-0 text-xs font-bold {{ $school['pass_rate'] >= 70 ? 'text-emerald-600' : ($school['pass_rate'] >= 50 ? 'text-amber-600' : 'text-red-500') }}">
+                                    {{ $school['pass_rate'] }}%
+                                </span>
+                            </div>
+                            <div class="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
+                                <div class="h-full rounded-full {{ $school['pass_rate'] >= 70 ? 'bg-emerald-500' : ($school['pass_rate'] >= 50 ? 'bg-amber-500' : 'bg-red-500') }}"
+                                     style="width: {{ min($school['pass_rate'], 100) }}%"></div>
+                            </div>
+                            <p class="mt-1 text-xs text-slate-400">{{ number_format($school['passed_attempts']) }} / {{ number_format($school['total_attempts']) }} passed</p>
+                        </div>
+                    @empty
+                        <p class="px-4 py-8 text-center text-xs text-slate-400">No ICT data yet.</p>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+
+        {{-- ── BOTTOM ROW: APPROVALS + QUICK ACCESS + ACTIVITY ── --}}
+        <div class="grid gap-4 lg:grid-cols-3">
+
+            {{-- Pending Approvals --}}
+            @if(count($pendingApprovals ?? []) > 0)
+            <div class="rounded-lg border border-amber-200 bg-white dark:border-amber-900/40 dark:bg-zinc-900">
+                <div class="flex items-center justify-between border-b border-amber-100 px-4 py-3 dark:border-amber-900/30">
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Approvals</h3>
+                        <span class="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-700">{{ count($pendingApprovals) }}</span>
+                    </div>
+                    <a href="{{ route('content-approvals.index') }}" wire:navigate class="text-xs font-semibold text-amber-600 hover:text-amber-700">Review →</a>
+                </div>
+                <div class="divide-y divide-slate-50 dark:divide-zinc-800">
+                    @foreach(array_slice($pendingApprovals, 0, 4) as $approval)
+                        <div class="px-4 py-2.5">
+                            <p class="truncate text-sm font-medium text-slate-900 dark:text-white">{{ $approval['title'] }}</p>
+                            <p class="text-xs text-slate-400">{{ $approval['type'] }} · {{ $approval['submitted_by'] }}</p>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
+            {{-- Quick Access --}}
+            <div class="rounded-lg border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900 {{ count($pendingApprovals ?? []) === 0 ? 'lg:col-span-2' : '' }}">
+                <div class="border-b border-slate-100 px-4 py-3 dark:border-zinc-800">
+                    <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Quick Access</h3>
+                </div>
+                <div class="grid grid-cols-3 gap-2 p-3">
+                    @foreach([
+                        ['label' => 'Users',       'route' => 'admin.users.index',           'bg' => 'bg-orange-600'],
+                        ['label' => 'Camps',       'route' => 'admin.camps.index',           'bg' => 'bg-blue-600'],
+                        ['label' => 'Reports',     'route' => 'admin.daily-reports.index',   'bg' => 'bg-slate-600'],
+                        ['label' => 'Enrollments', 'route' => 'admin.enrollments',           'bg' => 'bg-slate-600'],
+                        ['label' => 'Progress',    'route' => 'admin.student-progress.index','bg' => 'bg-slate-600'],
+                        ['label' => 'Settings',    'route' => 'admin.settings',              'bg' => 'bg-slate-600'],
+                    ] as $action)
+                        @if(Route::has($action['route']))
+                            <a href="{{ route($action['route']) }}" wire:navigate
+                               class="flex items-center justify-center rounded-md px-2 py-2 text-xs font-semibold text-white transition hover:opacity-90 {{ $action['bg'] }}">
+                                {{ $action['label'] }}
+                            </a>
+                        @endif
+                    @endforeach
+                    @if(config('features.code_club', false))
+                        @foreach([
+                            ['label' => 'Code Clubs', 'route' => 'admin.code-clubs.index', 'bg' => 'bg-violet-600'],
+                            ['label' => 'Club Reports', 'route' => 'admin.club-session-reports.index', 'bg' => 'bg-violet-600'],
+                        ] as $action)
+                            @if(Route::has($action['route']))
+                                <a href="{{ route($action['route']) }}" wire:navigate
+                                   class="flex items-center justify-center rounded-md px-2 py-2 text-xs font-semibold text-white transition hover:opacity-90 {{ $action['bg'] }}">
+                                    {{ $action['label'] }}
+                                </a>
+                            @endif
+                        @endforeach
+                    @endif
+                </div>
+            </div>
+
+            {{-- This Week --}}
+            <div class="rounded-lg border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="border-b border-slate-100 px-4 py-3 dark:border-zinc-800">
+                    <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">This Week</h3>
+                </div>
+                <div class="divide-y divide-slate-50 dark:divide-zinc-800">
+                    @foreach([
+                        ['label' => 'New Courses',         'value' => $recentActivity['course_creations'] ?? 0],
+                        ['label' => 'Badges Earned',        'value' => $recentActivity['new_badges_earned'] ?? 0],
+                        ['label' => 'Challenges Done',      'value' => $recentActivity['challenges_completed'] ?? 0],
+                        ['label' => 'Discussions',          'value' => $recentActivity['discussions_created'] ?? 0],
+                    ] as $act)
+                    <div class="flex items-center justify-between px-4 py-2.5">
+                        <span class="text-sm text-slate-600 dark:text-slate-400">{{ $act['label'] }}</span>
+                        <span class="text-sm font-bold text-slate-900 dark:text-white">{{ number_format($act['value']) }}</span>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+
         </div>
     </div>
 </div>

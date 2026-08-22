@@ -10,9 +10,14 @@ use App\Models\AssessmentAttempt;
 use App\Models\IcdlExamResult;
 use App\Models\Leaderboard;
 use App\Models\Notification;
+use App\Models\StudentLessonProgress;
 use App\Models\User;
+use App\Models\UserPoint;
+use App\Support\LevelSystem;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -24,34 +29,29 @@ class StudentDashboard extends Component
 
     protected $paginationTheme = 'tailwind';
 
+    public const DAILY_XP_GOAL = 100;
+
     public function mount()
     {
-        // Refresh cache on mount
         Cache::forget('student_dashboard_' . Auth::id());
+
+        $user = Auth::user();
+        if ($user?->isCodeClubStudent()) {
+            redirect()->route('codeclub.dashboard');
+        }
     }
 
     public function markNotificationAsRead($notificationId)
     {
-        $notification = Notification::where('user_id', Auth::id())
-            ->findOrFail($notificationId);
-
-        $notification->update([
-            'is_read' => true,
-            'read_at' => now(),
-        ]);
-
+        Notification::where('user_id', Auth::id())->findOrFail($notificationId)
+            ->update(['is_read' => true, 'read_at' => now()]);
         $this->dispatch('notification-read');
     }
 
     public function markAllNotificationsAsRead()
     {
-        Notification::where('user_id', Auth::id())
-            ->where('is_read', false)
-            ->update([
-                'is_read' => true,
-                'read_at' => now(),
-            ]);
-
+        Notification::where('user_id', Auth::id())->where('is_read', false)
+            ->update(['is_read' => true, 'read_at' => now()]);
         $this->dispatch('notifications-read');
     }
 
@@ -59,265 +59,377 @@ class StudentDashboard extends Component
     {
         $user = Auth::user()->load([
             'enrollments.course.modules.lessons',
-            'badges' => fn($q) => $q->latest('user_badges.earned_at')->take(5),
+            'badges' => fn($q) => $q->latest('user_badges.earned_at')->take(6),
             'points',
             'studentProfile',
         ]);
 
         if ($user->isIctStudent()) {
             $enrollments = CourseEnrollment::where('user_id', $user->id)
-                ->with('course')
-                ->orderBy('enrolled_at', 'desc')
-                ->get();
-
+                ->with('course')->orderBy('enrolled_at', 'desc')->get();
             $examResults = $user->studentProfile
                 ? IcdlExamResult::where('student_profile_id', $user->studentProfile->id)
-                    ->with('module')
-                    ->orderByDesc('exam_date')
-                    ->get()
+                    ->with('module')->orderByDesc('exam_date')->get()
                 : collect();
-
             $assessmentAttempts = AssessmentAttempt::where('user_id', $user->id)
-                ->where('student_type', 'ict')
-                ->where('status', 'completed')
+                ->where('student_type', 'ict')->where('status', 'completed')
+                ->whereHas('assessment')
                 ->with(['assessment.questions', 'assessment.lesson', 'assessment.course'])
-                ->orderByDesc('completed_at')
-                ->take(8)
-                ->get();
+                ->orderByDesc('completed_at')->take(8)->get();
 
-            return view('livewire.dashboard.icdl-student-dashboard', [
-                'user' => $user,
-                'studentProfile' => $user->studentProfile,
-                'enrollments' => $enrollments,
-                'examResults' => $examResults,
-                'assessmentAttempts' => $assessmentAttempts,
-            ]);
+            return view('livewire.dashboard.icdl-student-dashboard', compact(
+                'user', 'enrollments', 'examResults', 'assessmentAttempts'
+            ) + ['studentProfile' => $user->studentProfile]);
         }
 
-        // Cache dashboard data for 5 minutes
         $dashboardData = Cache::remember(
             'student_dashboard_' . $user->id,
             now()->addMinutes(5),
             function () use ($user) {
                 return [
-                    'stats' => $this->getStats($user),
-                    'recentBadges' => $user->badges,
-                    'dailyChallenges' => $this->getDailyChallenges($user),
-                    'leaderboardPosition' => $this->getLeaderboardPosition($user),
-                    'learningStreak' => $this->getLearningStreak($user),
+                    'stats'              => $this->getStats($user),
+                    'levelInfo'          => $this->getLevelInfo($user),
+                    'streak'             => $this->getLearningStreak($user),
+                    'heatmap'            => $this->getActivityHeatmap($user),
+                    'dailyXp'            => $this->getDailyXp($user),
+                    'recentBadges'       => $user->badges,
+                    'dailyChallenges'    => $this->getDailyChallenges($user),
+                    'leaderboardPosition'=> $this->getLeaderboardPosition($user),
+                    'campLeaderboard'    => $this->getCampLeaderboard($user),
                 ];
             }
         );
 
-        // Get active enrollments with progress
         $activeEnrollments = CourseEnrollment::where('user_id', $user->id)
-            ->with([
-                'course' => fn($q) => $q->with(['instructor', 'modules']),
-            ])
+            ->with(['course' => fn($q) => $q->with(['instructor', 'modules'])])
             ->orderBy('enrolled_at', 'desc')
             ->paginate(6);
 
-        // Get recent notifications
-        $notifications = Notification::where('user_id', $user->id)
-            ->latest()
-            ->take(10)
-            ->get();
-
-        // Get upcoming deadlines (assignments/quizzes)
+        $notifications   = Notification::where('user_id', $user->id)->latest()->take(10)->get();
         $upcomingDeadlines = $this->getUpcomingDeadlines($user);
-
-        // Get recommended courses
-        $recommendedCourses = $this->getRecommendedCourses($user);
-
-        // Get recent certificates
         $recentCertificates = \App\Models\Certificate::where('user_id', $user->id)
-            ->with('course')
-            ->latest('issued_at')
-            ->take(3)
-            ->get();
+            ->with('course')->latest('issued_at')->take(3)->get();
+        $recentSubmissions = $this->getRecentSubmissions($user);
 
-        // Get recent submissions
-        $recentSubmissions = \App\Models\AssignmentSubmission::where('user_id', $user->id)
-            ->whereIn('status', ['submitted', 'graded', 'returned'])
-            ->with(['assignment.course', 'grader'])
-            ->latest('submitted_at')
-            ->take(5)
-            ->get();
-
-        return view('livewire.dashboard.student-dashboard', [
-            'user' => $user,
-            'stats' => $dashboardData['stats'],
-            'activeEnrollments' => $activeEnrollments,
-            'recentBadges' => $dashboardData['recentBadges'],
-            'dailyChallenges' => $dashboardData['dailyChallenges'],
-            'leaderboardPosition' => $dashboardData['leaderboardPosition'],
-            'learningStreak' => $dashboardData['learningStreak'],
-            'notifications' => $notifications,
-            'upcomingDeadlines' => $upcomingDeadlines,
-            'recommendedCourses' => $recommendedCourses,
+        return view('livewire.dashboard.student-dashboard', array_merge($dashboardData, [
+            'user'               => $user,
+            'activeEnrollments'  => $activeEnrollments,
+            'notifications'      => $notifications,
+            'upcomingDeadlines'  => $upcomingDeadlines,
             'recentCertificates' => $recentCertificates,
-            'recentSubmissions' => $recentSubmissions,
-        ]);
+            'recentSubmissions'  => $recentSubmissions,
+            'dailyXpGoal'        => self::DAILY_XP_GOAL,
+            'activeCompetition'  => $this->getActiveCompetition($user),
+        ]));
     }
 
-    private function getStats($user): array
+    // ── Level system ─────────────────────────────────────────────────────────
+
+    private function getLevelInfo(User $user): array
     {
-        $enrollments = $user->enrollments()->count();
-        $completedCourses = $user->enrollments()
-            ->whereNotNull('completed_at')
-            ->count();
-        
-        $totalPoints = $user->points?->total_points ?? 0;
-        $level = $user->points?->level ?? 1;
-        
-        $totalBadges = $user->badges()->count();
-        $completedLessons = $user->enrollments()
-            ->with('course.lessons')
-            ->get()
-            ->sum(function ($enrollment) {
-                return $enrollment->lessons_completed ?? 0;
-            });
+        $info = LevelSystem::info($user->points?->total_points ?? 0);
 
         return [
-            'enrollments' => $enrollments,
-            'completedCourses' => $completedCourses,
-            'totalPoints' => $totalPoints,
-            'level' => $level,
-            'totalBadges' => $totalBadges,
+            'level'      => $info['level'],
+            'name'       => $info['name'],
+            'color'      => $info['color'],
+            'xp'         => $info['xp'],
+            'xpInLevel'  => $info['xp_in_rank'],
+            'xpNeeded'   => $info['xp_needed'] ?: 1,
+            'progress'   => $info['progress'],
+            'nextName'   => $info['next_name'] ?? 'Max Rank',
+            'isMax'      => $info['is_max'],
+        ];
+    }
+
+    // ── Streak (lesson completion-based) ─────────────────────────────────────
+
+    private function getLearningStreak(User $user): array
+    {
+        // Use completed lessons as activity signal (much more accurate than enrollment updates)
+        $days = StudentLessonProgress::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->whereNotNull('completed_at')
+            ->where('completed_at', '>=', now()->subDays(365))
+            ->selectRaw('DATE(completed_at) as day')
+            ->groupBy('day')
+            ->orderByDesc('day')
+            ->pluck('day')
+            ->map(fn($d) => Carbon::parse($d)->format('Y-m-d'))
+            ->toArray();
+
+        $streak   = 0;
+        $check    = now()->toDateString();
+        $today    = $check;
+        $yesterday= now()->subDay()->toDateString();
+
+        // Count from today or yesterday (allow same-day gap)
+        if (!in_array($today, $days) && !in_array($yesterday, $days)) {
+            return ['current' => 0, 'longest' => $this->longestStreak($days), 'activeDays' => count($days)];
+        }
+
+        if (!in_array($today, $days)) {
+            $check = $yesterday;
+        }
+
+        while (in_array($check, $days)) {
+            $streak++;
+            $check = Carbon::parse($check)->subDay()->toDateString();
+        }
+
+        return [
+            'current'    => $streak,
+            'longest'    => $this->longestStreak($days),
+            'activeDays' => count($days),
+        ];
+    }
+
+    private function longestStreak(array $days): int
+    {
+        if (empty($days)) return 0;
+        $sorted  = collect($days)->sort()->values()->toArray();
+        $longest = $current = 1;
+        for ($i = 1; $i < count($sorted); $i++) {
+            $diff = Carbon::parse($sorted[$i])->diffInDays(Carbon::parse($sorted[$i - 1]));
+            $current = $diff === 1 ? $current + 1 : 1;
+            $longest = max($longest, $current);
+        }
+        return $longest;
+    }
+
+    // ── Activity heatmap (last 91 days) ──────────────────────────────────────
+
+    private function getActivityHeatmap(User $user): array
+    {
+        $from = now()->subDays(29)->startOfDay();
+
+        $completions = StudentLessonProgress::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->where('completed_at', '>=', $from)
+            ->selectRaw('DATE(completed_at) as day, COUNT(*) as count')
+            ->groupBy('day')
+            ->pluck('count', 'day')
+            ->toArray();
+
+        $grid = [];
+        for ($i = 29; $i >= 0; $i--) {
+            $date  = now()->subDays($i)->format('Y-m-d');
+            $count = $completions[$date] ?? 0;
+            $grid[] = [
+                'date'  => $date,
+                'count' => $count,
+                'label' => Carbon::parse($date)->format('D j'),
+                'level' => $count === 0 ? 0 : ($count === 1 ? 1 : ($count <= 3 ? 2 : ($count <= 5 ? 3 : 4))),
+            ];
+        }
+
+        return $grid;
+    }
+
+    // ── Daily XP ─────────────────────────────────────────────────────────────
+
+    private function getDailyXp(User $user): int
+    {
+        // Count XP from lessons completed today
+        return StudentLessonProgress::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->whereDate('completed_at', today())
+            ->count() * 10; // 10 XP per lesson as proxy
+    }
+
+    // ── Camp leaderboard top-5 ────────────────────────────────────────────────
+
+    private function getCampLeaderboard(User $user): array
+    {
+        // Get the user's active camp
+        $campEnrollment = $user->campEnrollments()
+            ->where('status', 'active')
+            ->with('camp')
+            ->latest()
+            ->first();
+
+        if (! $campEnrollment) {
+            return [];
+        }
+
+        // Get all students in same camp ordered by XP
+        $campmates = $campEnrollment->camp->enrollments()
+            ->where('status', 'active')
+            ->with(['student', 'student.points'])
+            ->get()
+            ->map(function ($e) {
+                return [
+                    'user_id' => $e->student_id,
+                    'user'    => $e->student,
+                    'name'    => $e->student->name ?? 'Student',
+                    'xp'      => $e->student->points?->total_points ?? 0,
+                ];
+            })
+            ->sortByDesc('xp')
+            ->values()
+            ->take(5)
+            ->toArray();
+
+        $myRank = collect($campmates)->search(fn($c) => $c['user_id'] === $user->id);
+
+        return [
+            'campName' => $campEnrollment->camp->name ?? 'Your Camp',
+            'top'      => $campmates,
+            'myRank'   => $myRank !== false ? $myRank + 1 : null,
+        ];
+    }
+
+    // ── Unchanged helpers ─────────────────────────────────────────────────────
+
+    private function getStats(User $user): array
+    {
+        $totalPoints     = $user->points?->total_points ?? 0;
+        $level           = LevelSystem::levelForXp($totalPoints);
+        $totalBadges     = $user->badges()->count();
+        $completedLessons= StudentLessonProgress::where('user_id', $user->id)
+            ->where('status', 'completed')->count();
+
+        return [
+            'enrollments'      => $user->enrollments()->count(),
+            'completedCourses' => $user->enrollments()->whereNotNull('completed_at')->count(),
+            'totalPoints'      => $totalPoints,
+            'level'            => $level,
+            'totalBadges'      => $totalBadges,
             'completedLessons' => $completedLessons,
         ];
     }
 
-    private function getDailyChallenges($user)
+    private function getDailyChallenges(User $user)
+    {
+        $userCourseIds = $user->enrollments()->pluck('course_id')->filter()->unique();
+        return DailyChallenge::where('is_active', true)
+            ->where(function($q) use ($userCourseIds) {
+                $q->whereNull('course_id');
+                if ($userCourseIds->isNotEmpty()) $q->orWhereIn('course_id', $userCourseIds);
+            })
+            ->where(function($q) {
+                $q->where('date', today()->toDateString())->orWhereNull('date');
+            })
+            ->with(['attempts' => fn($q) => $q->where('user_id', $user->id), 'course'])
+            ->orderBy('date', 'asc')
+            ->take(3)
+            ->get()
+            ->map(function ($c) use ($user) {
+                $attempt = $c->attempts->first();
+                $c->is_completed = $attempt && $attempt->is_completed;
+                $c->attempt = $attempt;
+                $c->reward_points ??= 100;
+                return $c;
+            });
+    }
+
+    private function getActiveCompetition(User $user): ?DailyChallenge
     {
         $userCourseIds = $user->enrollments()->pluck('course_id')->filter()->unique();
 
-        $challenges = DailyChallenge::where('is_active', true)
-            ->where(function($q) use ($userCourseIds) {
+        return DailyChallenge::where('is_active', true)
+            ->where('is_competition', true)
+            ->where(function ($q) {
+                $q->whereNull('competition_ends_at')
+                  ->orWhere('competition_ends_at', '>', now());
+            })
+            ->where(function ($q) use ($userCourseIds) {
                 $q->whereNull('course_id');
-
                 if ($userCourseIds->isNotEmpty()) {
                     $q->orWhereIn('course_id', $userCourseIds);
                 }
             })
-            ->where(function($q) {
-                $q->where('date', '>=', now()->toDateString())
-                  ->orWhereNull('date');
-            })
-            ->with([
-                'attempts' => fn($q) => $q->where('user_id', $user->id),
-                'course',
-            ])
-            ->orderBy('date', 'asc')
-            ->take(3)
-            ->get()
-            ->map(function ($challenge) use ($user) {
-                $attempt = $challenge->attempts->first();
-                $challenge->is_completed = $attempt && $attempt->completed_at !== null;
-                $challenge->attempt = $attempt;
-                // Ensure reward_points has a default value
-                if (is_null($challenge->reward_points)) {
-                    $challenge->reward_points = 100;
-                }
-                return $challenge;
-            });
-        
-        return $challenges;
-    }
-
-    private function getLeaderboardPosition($user)
-    {
-        $leaderboard = Leaderboard::where('type', 'overall')
-            ->where('user_id', $user->id)
+            ->with(['attempts' => fn ($q) => $q->where('user_id', $user->id)])
             ->first();
-
-        if (!$leaderboard) {
-            // Calculate and cache position
-            $totalUsers = User::whereHas('points', fn($q) => $q->where('total_points', '>', 0))
-                ->count();
-            
-            $rank = User::whereHas('points', function($q) use ($user) {
-                $q->where('total_points', '>', $user->points?->total_points ?? 0);
-            })->count() + 1;
-
-            return [
-                'rank' => $rank,
-                'total' => $totalUsers,
-                'percentage' => $totalUsers > 0 ? round(($rank / $totalUsers) * 100, 2) : 0,
-            ];
-        }
-
-        $totalUsers = Leaderboard::where('type', 'overall')->count();
-
-        return [
-            'rank' => $leaderboard->rank ?? 0,
-            'total' => $totalUsers,
-            'percentage' => $totalUsers > 0 ? round((($leaderboard->rank ?? 0) / $totalUsers) * 100, 2) : 0,
-        ];
     }
 
-    private function getLearningStreak($user)
+    private function getLeaderboardPosition(User $user): array
     {
-        // Get last 30 days of activity
-        $activities = CourseEnrollment::where('user_id', $user->id)
-            ->where('updated_at', '>=', now()->subDays(30))
-            ->selectRaw('DATE(updated_at) as date')
-            ->groupBy('date')
-            ->pluck('date')
-            ->map(fn($date) => \Carbon\Carbon::parse($date)->format('Y-m-d'))
-            ->toArray();
-
-        // Calculate current streak
-        $streak = 0;
-        $checkDate = now()->toDateString();
-
-        while (in_array($checkDate, $activities)) {
-            $streak++;
-            $checkDate = \Carbon\Carbon::parse($checkDate)->subDay()->toDateString();
-        }
-
-        return [
-            'current' => $streak,
-            'longest' => $streak, // Can be improved with historical tracking
-            'lastActivity' => !empty($activities) ? $activities[0] : null,
-        ];
+        $totalUsers = User::whereHas('points', fn($q) => $q->where('total_points', '>', 0))->count();
+        $rank = User::whereHas('points', fn($q) => $q->where('total_points', '>', $user->points?->total_points ?? 0))->count() + 1;
+        return ['rank' => $rank, 'total' => $totalUsers, 'percentage' => $totalUsers > 0 ? round(($rank / $totalUsers) * 100, 1) : 0];
     }
 
-    private function getUpcomingDeadlines($user)
+    private function getRecentSubmissions(User $user)
     {
-        // Get assignments with due dates
-        $assignments = \App\Models\Assignment::whereHas('course.enrollments', fn($q) => $q->where('user_id', $user->id))
+        $assessmentAttempts = AssessmentAttempt::query()
+            ->where('user_id', $user->id)
+            ->whereHas('assessment', fn ($q) => $q->where('assessment_type', 'assignment'))
+            ->where(function ($q) {
+                $q->where('status', 'completed')->orWhereNotNull('completed_at');
+            })
+            ->with(['assessment.course'])
+            ->latest('completed_at')
+            ->take(5)
+            ->get()
+            ->map(fn ($attempt) => (object) [
+                'title' => $attempt->assessment->title,
+                'course' => $attempt->assessment->course,
+                'status' => $attempt->score === null ? 'pending' : 'graded',
+                'submitted_at' => $attempt->completed_at,
+                'score' => $attempt->scoreAsPoints(),
+                'max_score' => $attempt->maxScore(),
+                'submission' => $attempt,
+            ]);
+
+        $legacy = \App\Models\AssignmentSubmission::where('user_id', $user->id)
+            ->whereIn('status', ['submitted', 'graded', 'returned'])
+            ->with(['assignment.course', 'grader'])
+            ->latest('submitted_at')
+            ->take(5)
+            ->get()
+            ->map(fn ($submission) => (object) [
+                'title' => $submission->assignment->title,
+                'course' => $submission->assignment->course,
+                'status' => $submission->graded_at ? 'graded' : 'pending',
+                'submitted_at' => $submission->submitted_at,
+                'score' => $submission->points_earned,
+                'max_score' => $submission->assignment->max_points ?? 100,
+                'submission' => $submission,
+            ]);
+
+        return $assessmentAttempts
+            ->concat($legacy)
+            ->sortByDesc(fn ($item) => $item->submitted_at?->timestamp ?? 0)
+            ->take(5)
+            ->values();
+    }
+
+    private function getUpcomingDeadlines(User $user): array
+    {
+        $completedAssessmentIds = AssessmentAttempt::query()
+            ->where('user_id', $user->id)
+            ->whereNotNull('score')
+            ->pluck('assessment_id');
+
+        $assessmentDeadlines = \App\Models\Assessment::query()
+            ->where('assessment_type', 'assignment')
+            ->whereHas('course.enrollments', fn ($q) => $q->where('user_id', $user->id))
+            ->whereNotIn('id', $completedAssessmentIds)
+            ->with(['course', 'lesson'])
+            ->get()
+            ->filter(fn ($assessment) => $assessment->due_date && $assessment->due_date->gte(now()))
+            ->sortBy('due_date')
+            ->take(5)
+            ->values();
+
+        $legacyAssignments = \App\Models\Assignment::whereHas('course.enrollments', fn ($q) => $q->where('user_id', $user->id))
             ->where('due_date', '>=', now())
-            ->whereNull('status')
+            ->where('status', 'active')
             ->with(['course', 'lesson'])
             ->orderBy('due_date')
             ->take(5)
             ->get();
 
-        // Get quizzes with time limits
-        $quizzes = \App\Models\Quiz::whereHas('lesson.course.enrollments', fn($q) => $q->where('user_id', $user->id))
-            ->where('is_published', true)
-            ->with(['lesson.course'])
+        $assignments = $assessmentDeadlines
+            ->concat($legacyAssignments)
+            ->sortBy(fn ($item) => $item->due_date?->timestamp ?? PHP_INT_MAX)
             ->take(5)
-            ->get();
+            ->values();
 
-        return [
-            'assignments' => $assignments,
-            'quizzes' => $quizzes,
-        ];
-    }
+        $quizzes = \App\Models\Quiz::whereHas('lesson.course.enrollments', fn ($q) => $q->where('user_id', $user->id))
+            ->where('is_published', true)->with(['lesson.course'])->take(5)->get();
 
-    private function getRecommendedCourses($user)
-    {
-        // Get courses not enrolled by user, ordered by popularity and ratings
-        return Course::where('is_published', true)
-            ->where('approval_status', 'approved')
-            ->whereDoesntHave('enrollments', fn($q) => $q->where('user_id', $user->id))
-            ->with(['instructor', 'modules'])
-            ->withCount(['enrollments', 'lessons'])
-            ->orderBy('enrollments_count', 'desc')
-            ->orderBy('is_featured', 'desc')
-            ->take(4)
-            ->get();
+        return ['assignments' => $assignments, 'quizzes' => $quizzes];
     }
 }

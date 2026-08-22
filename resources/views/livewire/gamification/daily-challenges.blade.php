@@ -15,6 +15,12 @@
         </div>
     @endif
 
+    @if(session()->has('error'))
+        <div class="bg-red-100 dark:bg-red-900/20 border border-red-400 text-red-700 dark:text-red-300 px-4 py-3 rounded relative" role="alert">
+            <span class="block sm:inline">{{ session('error') }}</span>
+        </div>
+    @endif
+
     <!-- Challenges Grid -->
     @if($challenges->count() > 0)
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -81,19 +87,13 @@
                                     Completed ✓
                                 </button>
                             @elseif($isAvailable)
-                                <button 
-                                    wire:click="completeChallenge({{ $challenge->id }})" 
-                                    class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors"
-                                    @if($attempt && !$attempt->is_completed)
-                                        wire:loading.attr="disabled"
-                                    @endif
+                                <a
+                                    href="{{ route('daily-challenges.show', $challenge) }}"
+                                    wire:navigate
+                                    class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors text-center"
                                 >
-                                    @if($attempt && !$attempt->is_completed)
-                                        Complete Challenge
-                                    @else
-                                        Start Challenge
-                                    @endif
-                                </button>
+                                    View &amp; claim
+                                </a>
                             @else
                                 <button disabled class="flex-1 px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg font-medium text-sm cursor-not-allowed">
                                     Coming Soon

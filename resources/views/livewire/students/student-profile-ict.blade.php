@@ -86,17 +86,17 @@
                         <p class="text-gray-900 dark:text-white font-medium">{{ $student->nationality ?? 'N/A' }}</p>
                     </div>
                     <div>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Email</p>
-                        <p class="text-gray-900 dark:text-white font-medium">{{ $student->user?->email ?: $student->student_id }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Login ID</p>
+                        <p class="text-gray-900 dark:text-white font-medium">{{ $student->user?->loginIdentifier() ?: $student->student_id }}</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        {{-- Enrolled Modules --}}
+        {{-- Enrolled Courses --}}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div class="px-6 py-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Enrolled Modules</h2>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Enrolled Courses</h2>
             </div>
             <div class="p-6">
                 @if($student->user->enrollments->count() > 0)
@@ -113,7 +113,7 @@
                         @endforeach
                     </div>
                 @else
-                    <p class="text-sm text-gray-600 dark:text-gray-400">No modules enrolled yet.</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">No courses enrolled yet.</p>
                 @endif
             </div>
         </div>

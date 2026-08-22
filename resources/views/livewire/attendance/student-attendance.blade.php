@@ -1,8 +1,8 @@
 <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
     {{-- Header --}}
     <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Student Attendance — Today</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ now()->format('l, F j, Y') }}</p>
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Mark Student Attendance</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ \Carbon\Carbon::parse($attendanceDate)->format('l, F j, Y') }}</p>
     </div>
 
     <div class="p-6">
@@ -12,9 +12,52 @@
             </div>
         @endif
 
+        @if (session()->has('error'))
+            <div class="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p class="text-red-800 dark:text-red-200">{{ session('error') }}</p>
+            </div>
+        @endif
+
+        <x-attendance.nav-tabs />
+
+        @if($isLocked)
+            <div class="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <p class="text-amber-800 dark:text-amber-200 text-sm">Attendance for this date is locked after {{ config('attendance.lock_time', '17:00') }}. Contact an admin to override.</p>
+            </div>
+        @endif
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Checked In</p>
+                <p class="text-2xl font-bold text-green-600 dark:text-green-400">{{ $todayStats['checked_in_today'] ?? 0 }}</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Still On Site</p>
+                <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ $todayStats['still_in_today'] ?? 0 }}</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Late</p>
+                <p class="text-2xl font-bold text-amber-600 dark:text-amber-400">{{ $todayStats['late'] ?? 0 }}</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Absent</p>
+                <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ $todayStats['absent'] ?? 0 }}</p>
+            </div>
+        </div>
+
         {{-- Filters Row --}}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                {{-- Camp --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Camp</label>
+                    <select wire:model.live="campId" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                        <option value="">All Camps</option>
+                        @foreach($camps as $camp)
+                            <option value="{{ $camp->id }}">{{ $camp->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 {{-- Date Picker --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date</label>
@@ -26,7 +69,7 @@
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Class Filter</label>
                     <select wire:model.live="classFilter" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
                         <option value="">All Classes</option>
-                        @foreach($students->pluck('class_grade')->unique()->filter() as $class)
+                        @foreach($profiles->pluck('class_grade')->unique()->filter() as $class)
                             <option value="{{ $class }}">{{ $class }}</option>
                         @endforeach
                     </select>
@@ -38,7 +81,9 @@
                     <select wire:model.live="statusFilter" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
                         <option value="">All Status</option>
                         <option value="present">Present</option>
+                        <option value="late">Late</option>
                         <option value="absent">Absent</option>
+                        <option value="unmarked">Unmarked</option>
                     </select>
                 </div>
 
@@ -51,21 +96,25 @@
         </div>
 
         {{-- Student Cards Grid --}}
+        @if(empty($roster))
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+                <p class="text-gray-500 dark:text-gray-400">No students found. Try selecting a camp or adjusting your search.</p>
+            </div>
+        @else
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-24">
-            @foreach($students as $student)
+            @foreach($roster as $row)
                 @php
-                    $currentStatus = $attendance[$student->id] ?? 'present';
-                    // Apply status filter
-                    if ($statusFilter && $currentStatus !== $statusFilter) continue;
+                    $student = $row['profile'];
+                    $currentStatus = $attendance[$student->id] ?? '';
+                    if ($statusFilter === 'unmarked' && $currentStatus !== '') continue;
+                    if ($statusFilter && $statusFilter !== 'unmarked' && $currentStatus !== $statusFilter) continue;
                 @endphp
                 
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-all" 
                      wire:key="student-{{ $student->id }}">
                     {{-- Student Photo --}}
                     <div class="flex items-center mb-4">
-                        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-lg">
-                            {{ strtoupper(substr($student->full_name, 0, 1)) }}
-                        </div>
+                        <x-user-avatar :user="$student->user" :name="$student->full_name" size="md" rounded="full" />
                         <div class="ml-3 flex-1">
                             <h3 class="font-semibold text-gray-900 dark:text-white text-sm">{{ $student->full_name }}</h3>
                             <p class="text-xs text-gray-500 dark:text-gray-400">{{ $student->student_id }}</p>
@@ -82,34 +131,52 @@
                             <span class="inline-flex px-2 py-0.5 text-[10px] rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 mt-1">
                                 {{ $categoryLabel }}
                             </span>
+                            @if($row['source'])
+                                <span class="inline-flex px-2 py-0.5 text-[10px] rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 mt-1">
+                                    {{ ucfirst(str_replace('_', ' ', $row['source'])) }}
+                                </span>
+                            @endif
                         </div>
                     </div>
 
                     {{-- Status Picker --}}
                     <div class="space-y-2">
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
-                        <div class="grid grid-cols-2 gap-2">
-                            <button type="button" 
+                        <div class="grid grid-cols-3 gap-2">
+                            <button type="button"
                                     wire:click="$set('attendance.{{ $student->id }}', 'present')"
                                     class="px-3 py-2 text-xs font-medium rounded-lg transition-all
-                                        {{ $currentStatus === 'present' 
-                                            ? 'bg-green-600 text-white shadow-md' 
+                                        {{ $currentStatus === 'present'
+                                            ? 'bg-green-600 text-white shadow-md'
                                             : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' }}">
-                                ✓ Present
+                                Present
                             </button>
-                            
-                            <button type="button" 
+
+                            <button type="button"
+                                    wire:click="$set('attendance.{{ $student->id }}', 'late')"
+                                    class="px-3 py-2 text-xs font-medium rounded-lg transition-all
+                                        {{ $currentStatus === 'late'
+                                            ? 'bg-amber-600 text-white shadow-md'
+                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' }}">
+                                Late
+                            </button>
+
+                            <button type="button"
                                     wire:click="$set('attendance.{{ $student->id }}', 'absent')"
                                     class="px-3 py-2 text-xs font-medium rounded-lg transition-all
-                                        {{ $currentStatus === 'absent' 
-                                            ? 'bg-red-600 text-white shadow-md' 
+                                        {{ $currentStatus === 'absent'
+                                            ? 'bg-red-600 text-white shadow-md'
                                             : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' }}">
-                                ✗ Absent
+                                Absent
                             </button>
                         </div>
 
-                        {{-- Clock In/Out Times (shown for present) --}}
-                        @if($currentStatus === 'present')
+                        @if($currentStatus === '')
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Not marked yet</p>
+                        @endif
+
+                        {{-- Clock In/Out Times (shown for present/late) --}}
+                        @if(in_array($currentStatus, ['present', 'late'], true))
                             <div class="mt-3 space-y-2">
                                 <div>
                                     <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -181,6 +248,7 @@
                 </div>
             @endforeach
         </div>
+        @endif
 
         {{-- Sticky Bottom Bar --}}
         <div class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg z-50">
@@ -188,8 +256,8 @@
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-6">
                         <div>
-                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Marked</p>
-                            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $totalMarked }}/{{ $students->count() }}</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Marked</p>
+                            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $markedCount }}/{{ count($roster) }}</p>
                         </div>
                         
                         <div class="flex items-center space-x-4 text-sm">
@@ -197,6 +265,12 @@
                                 <span class="w-3 h-3 bg-green-600 rounded-full mr-2"></span>
                                 <span class="text-gray-700 dark:text-gray-300">
                                     {{ collect($attendance)->filter(fn($s) => $s === 'present')->count() }} Present
+                                </span>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="w-3 h-3 bg-amber-500 rounded-full mr-2"></span>
+                                <span class="text-gray-700 dark:text-gray-300">
+                                    {{ collect($attendance)->filter(fn($s) => $s === 'late')->count() }} Late
                                 </span>
                             </div>
                             <div class="flex items-center">
@@ -208,7 +282,7 @@
                             @php
                                 $totalHoursSum = 0;
                                 foreach ($attendance as $studentId => $status) {
-                                    if ($status === 'present') {
+                                    if (in_array($status, ['present', 'late'], true)) {
                                         $clockInTime = $clockIn[$studentId] ?? null;
                                         $clockOutTime = $clockOut[$studentId] ?? null;
                                         if ($clockInTime && $clockOutTime) {
@@ -232,8 +306,10 @@
                         </div>
                     </div>
                     
-                    <button wire:click="saveAttendance" 
-                            class="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors shadow-lg hover:shadow-xl">
+                    <button wire:click="saveAttendance"
+                            @if($isLocked) disabled @endif
+                            class="px-8 py-3 font-semibold rounded-lg transition-colors shadow-lg
+                                {{ $isLocked ? 'bg-gray-400 text-gray-200 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-xl' }}">
                         Submit Attendance
                     </button>
                 </div>

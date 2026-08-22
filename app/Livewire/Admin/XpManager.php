@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Models\UserPoint;
 use App\Models\UserProgress;
 use App\Models\Course;
+use App\Services\PointsService;
+use App\Support\LevelSystem;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -94,12 +96,16 @@ class XpManager extends Component
         // Get students with XP stats
         $students = $query->paginate(20);
 
-        // Calculate XP for time period
+        // Calculate XP for time period + unify level/rank display from total XP
         foreach ($students as $student) {
             $student->period_xp = $this->calculatePeriodXp($student->id);
-            $student->course_xp = $this->courseFilter 
+            $student->course_xp = $this->courseFilter
                 ? $this->calculateCourseXp($student->id, $this->courseFilter)
                 : 0;
+            $info = LevelSystem::info($student->points?->total_points ?? 0);
+            $student->level_number = $info['level'];
+            $student->rank_name = $info['name'];
+            $student->rank_color = $info['color'];
         }
 
         // Sort
@@ -108,9 +114,10 @@ class XpManager extends Component
         return view('livewire.admin.xp-manager', [
             'students' => $students,
             'courses' => Course::where('is_published', true)->orderBy('title')->get(),
-            'totalStudents' => User::whereHas('roles', fn($q) => $q->where('name', 'student'))->count(),
+            'totalStudents' => User::whereHas('roles', fn ($q) => $q->where('name', 'student'))->count(),
             'totalXp' => UserPoint::sum('total_points'),
             'avgXp' => UserPoint::avg('total_points'),
+            'previewLevelInfo' => LevelSystem::info((int) ($this->editForm['total_points'] ?? 0)),
         ]);
     }
 
@@ -186,7 +193,7 @@ class XpManager extends Component
                 case 'total_points':
                     return $student->points->total_points ?? 0;
                 case 'level':
-                    return $student->points->level ?? 1;
+                    return LevelSystem::levelForXp($student->points->total_points ?? 0);
                 case 'period_xp':
                     return $student->period_xp;
                 case 'course_xp':
@@ -201,13 +208,7 @@ class XpManager extends Component
 
     private function recalculateLevel(UserPoint $points): void
     {
-        // Simple leveling: every 100 XP is a level
-        $level = max(1, (int) floor(($points->total_points ?? 0) / 100) + 1);
-        $pointsToNext = 100; // constant threshold
-
-        $points->level = $level;
-        $points->points_to_next_level = $pointsToNext;
-        $points->save();
+        $points->syncLevel();
     }
 
     public function sortBy($field)
@@ -225,29 +226,26 @@ class XpManager extends Component
         $user = User::with('points')->findOrFail($userId);
         $this->editingUser = $user;
 
-        // Ensure a UserPoint record exists so we don't dereference nulls
-        $points = $user->points;
-        if (!$points) {
-            $points = UserPoint::create([
-                'user_id' => $user->id,
-                'total_points' => 0,
-                'level' => 1,
-                'points_to_next_level' => 100,
-                'xp_multiplier' => null,
-                'multiplier_expires_at' => null,
-                'multiplier_reason' => null,
-            ]);
-        }
+        $points = app(PointsService::class)->ensureUserPoints($user);
+        $info = LevelSystem::info($points->total_points ?? 0);
+
         $this->editForm = [
             'total_points' => $points->total_points ?? 0,
-            'level' => $points->level ?? 1,
-            'points_to_next_level' => $points->points_to_next_level ?? 100,
+            'level' => $info['level'],
+            'points_to_next_level' => $info['xp_to_next_level'],
             'xp_multiplier' => $points->xp_multiplier,
             'multiplier_expires_at' => $points?->multiplier_expires_at?->format('Y-m-d\TH:i'),
             'multiplier_reason' => $points->multiplier_reason,
         ];
 
         $this->showEditModal = true;
+    }
+
+    public function updatedEditFormTotalPoints($value): void
+    {
+        $info = LevelSystem::info((int) $value);
+        $this->editForm['level'] = $info['level'];
+        $this->editForm['points_to_next_level'] = $info['xp_to_next_level'];
     }
 
     public function openDetailsModal($userId)
@@ -295,33 +293,37 @@ class XpManager extends Component
     {
         $this->validate([
             'editForm.total_points' => 'required|integer|min:0',
-            'editForm.level' => 'required|integer|min:1',
-            'editForm.points_to_next_level' => 'nullable|integer|min:0',
             'editForm.xp_multiplier' => 'nullable|numeric|min:0',
             'editForm.multiplier_expires_at' => 'nullable|date',
             'editForm.multiplier_reason' => 'nullable|string|max:255',
         ]);
 
-        $points = $this->editingUser->points()->firstOrNew([]);
-
-        $total = $this->editForm['total_points'];
-        // Auto-calc level: every 100 XP adds a level
-        $calculatedLevel = max(1, (int) floor($total / 100) + 1);
-        $calculatedNext = 100;
+        $points = app(PointsService::class)->ensureUserPoints($this->editingUser);
+        $info = LevelSystem::info((int) $this->editForm['total_points']);
 
         $points->fill([
-            'total_points' => $total,
-            'level' => $calculatedLevel,
-            'points_to_next_level' => $calculatedNext,
-            'xp_multiplier' => $this->editForm['xp_multiplier'],
-            'multiplier_expires_at' => $this->editForm['multiplier_expires_at'],
-            'multiplier_reason' => $this->editForm['multiplier_reason'],
+            'total_points' => (int) $this->editForm['total_points'],
+            'level' => $info['level'],
+            'points_to_next_level' => $info['xp_to_next_level'],
+            'xp_multiplier' => $this->editForm['xp_multiplier'] ?: null,
+            'multiplier_expires_at' => $this->editForm['multiplier_expires_at'] ?: null,
+            'multiplier_reason' => $this->editForm['multiplier_reason'] ?: null,
         ]);
-
         $points->save();
+        LevelSystem::sync($points);
 
-        session()->flash('message', 'XP updated for ' . $this->editingUser->name);
+        session()->flash(
+            'message',
+            'XP updated for '.$this->editingUser->name
+            .' — Level '.$info['level'].' · '.$info['name']
+        );
         $this->closeEditModal();
+    }
+
+    public function syncAllLevels(): void
+    {
+        $count = app(PointsService::class)->syncAllLevels();
+        session()->flash('message', "Synced levels and ranks for {$count} students from their total XP.");
     }
 
     public function bulkUpdateXp()
@@ -342,18 +344,20 @@ class XpManager extends Component
 
                 switch ($this->bulkOperation) {
                     case 'add':
-                        $user->points->increment('total_points', $this->bulkPoints);
+                        $user->points->addPoints((int) $this->bulkPoints);
                         break;
                     case 'subtract':
-                        $user->points->decrement('total_points', max(0, $this->bulkPoints));
+                        $newTotal = max(0, (int) $user->points->total_points - (int) $this->bulkPoints);
+                        $user->points->update(['total_points' => $newTotal]);
+                        $user->points->syncLevel();
                         break;
                     case 'set':
-                        $user->points->update(['total_points' => $this->bulkPoints]);
+                        $user->points->update(['total_points' => max(0, (int) $this->bulkPoints)]);
+                        $user->points->syncLevel();
                         break;
                 }
 
                 $user->points->refresh();
-                $this->recalculateLevel($user->points);
             }
         });
 
@@ -406,9 +410,7 @@ class XpManager extends Component
                     ]
                 );
 
-                $points->increment('total_points', $this->courseBulkPoints);
-                $points->refresh();
-                $this->recalculateLevel($points);
+                $points->addPoints((int) $this->courseBulkPoints);
 
                 // Log in user_progress without violating unique constraint (one row per user/course/type)
                 $progress = UserProgress::firstOrCreate(
@@ -490,14 +492,21 @@ class XpManager extends Component
                     // Remove this week's progress
                     $weekStart = now()->startOfWeek();
                     $weekEnd = now()->endOfWeek();
-                    
+
                     $progressToDelete = UserProgress::whereBetween('created_at', [$weekStart, $weekEnd])->get();
-                    $pointsToRemove = $progressToDelete->groupBy('user_id')->map(fn($items) => $items->sum('points_earned'));
-                    
+                    $pointsToRemove = $progressToDelete->groupBy('user_id')->map(fn ($items) => $items->sum('points_earned'));
+
                     foreach ($pointsToRemove as $userId => $points) {
-                        UserPoint::where('user_id', $userId)->decrement('total_points', $points);
+                        $record = UserPoint::where('user_id', $userId)->first();
+                        if (! $record) {
+                            continue;
+                        }
+                        $record->update([
+                            'total_points' => max(0, (int) $record->total_points - (int) $points),
+                        ]);
+                        $record->syncLevel();
                     }
-                    
+
                     UserProgress::whereBetween('created_at', [$weekStart, $weekEnd])->delete();
                     session()->flash('message', 'This week\'s XP has been reset');
                     break;
@@ -505,15 +514,22 @@ class XpManager extends Component
                 case 'course':
                     if ($this->resetCourseId) {
                         $progressToDelete = UserProgress::where('course_id', $this->resetCourseId)->get();
-                        $pointsToRemove = $progressToDelete->groupBy('user_id')->map(fn($items) => $items->sum('points_earned'));
-                        
+                        $pointsToRemove = $progressToDelete->groupBy('user_id')->map(fn ($items) => $items->sum('points_earned'));
+
                         foreach ($pointsToRemove as $userId => $points) {
-                            UserPoint::where('user_id', $userId)->decrement('total_points', $points);
+                            $record = UserPoint::where('user_id', $userId)->first();
+                            if (! $record) {
+                                continue;
+                            }
+                            $record->update([
+                                'total_points' => max(0, (int) $record->total_points - (int) $points),
+                            ]);
+                            $record->syncLevel();
                         }
-                        
+
                         UserProgress::where('course_id', $this->resetCourseId)->delete();
                         $course = Course::find($this->resetCourseId);
-                        session()->flash('message', 'XP reset for course: ' . $course->title);
+                        session()->flash('message', 'XP reset for course: '.$course->title);
                     }
                     break;
             }

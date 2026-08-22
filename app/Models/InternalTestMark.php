@@ -13,6 +13,7 @@ class InternalTestMark extends Model
     protected $fillable = [
         'student_profile_id',
         'course_module_id',
+        'course_id',
         'test_name',
         'score',
         'passed',
@@ -50,6 +51,11 @@ class InternalTestMark extends Model
     public function module(): BelongsTo
     {
         return $this->belongsTo(CourseModule::class, 'course_module_id');
+    }
+
+    public function course(): BelongsTo
+    {
+        return $this->belongsTo(Course::class, 'course_id');
     }
 
     public function creator(): BelongsTo

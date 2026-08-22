@@ -35,4 +35,25 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Google Analytics / Tag Manager / Ads
+    |--------------------------------------------------------------------------
+    |
+    | Prefer GTM (GOOGLE_GTM_ID). When set, GA4 is loaded via GTM — do not also
+    | hardcode gtag on the page. GOOGLE_GA4_MEASUREMENT_ID is used only when
+    | GTM is empty (direct gtag.js fallback).
+    |
+    | Ads Conversion ID/Label are for GTM tag configuration (and documentation).
+    | With the recommended setup, Ads optimizes on the imported GA4 event
+    | generate_lead — not a hardcoded AW- conversion snippet in Blade.
+    |
+    */
+    'google' => [
+        'gtm_id' => env('GOOGLE_GTM_ID'),
+        'ga4_measurement_id' => env('GOOGLE_GA4_MEASUREMENT_ID'),
+        'ads_conversion_id' => env('GOOGLE_ADS_CONVERSION_ID'),
+        'ads_conversion_label' => env('GOOGLE_ADS_CONVERSION_LABEL'),
+    ],
+
 ];

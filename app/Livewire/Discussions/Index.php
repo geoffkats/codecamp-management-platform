@@ -3,6 +3,7 @@
 namespace App\Livewire\Discussions;
 
 use App\Models\Discussion;
+use App\Services\DailyChallengeTrackerService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -17,9 +18,46 @@ class Index extends Component
 
     public $search = '';
     public $filter = 'all'; // 'all', 'course', 'lesson', 'my_discussions'
-    public $subjectFilter = 'all'; // 'all', 'scratch', 'python', 'web', 'javascript'
+    public $categoryFilter = 'all';
+    public $subjectFilter = 'all';
     public $courseId = null;
     public $lessonId = null;
+
+    public function mount(): void
+    {
+        abort_unless(Auth::user()->canAccessDiscussions(), 403);
+
+        $lessonParam = request()->query('lesson');
+        $courseParam = request()->query('course');
+
+        if ($lessonParam) {
+            $lesson = \App\Models\Lesson::find((int) $lessonParam);
+
+            if ($lesson) {
+                $this->lessonId = $lesson->id;
+                $this->courseId = $lesson->course_id;
+                $this->filter = 'lesson';
+            }
+        } elseif ($courseParam) {
+            $this->courseId = (int) $courseParam;
+            $this->filter = 'course';
+        }
+    }
+
+    public function updatingSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingCategoryFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilter(): void
+    {
+        $this->resetPage();
+    }
 
     public function render()
     {
@@ -33,16 +71,23 @@ class Index extends Component
             ])
             ->withCount('replies')
             ->select([
-                'id', 'title', 'content', 'user_id', 'course_id', 'lesson_id',
+                'id', 'title', 'category', 'content', 'user_id', 'course_id', 'lesson_id',
                 'subject_tag', 'is_pinned', 'has_best_answer', 'upvotes',
                 'helpful_count', 'views_count', 'scratch_project_id',
-                'code_snippets', 'created_at'
+                'code_snippets', 'created_at', 'last_reply_at'
             ])
+            ->orderByDesc('is_pinned')
+            ->latest('last_reply_at')
             ->latest('created_at');
 
         if ($this->search) {
             $query->where('title', 'like', '%' . $this->search . '%')
                   ->orWhere('content', 'like', '%' . $this->search . '%');
+        }
+
+        // Apply category filter
+        if ($this->categoryFilter && $this->categoryFilter !== 'all') {
+            $query->where('category', $this->categoryFilter);
         }
 
         // Apply subject filter
@@ -73,25 +118,17 @@ class Index extends Component
         // 3. Open courses (enrollment_type = 'open')
         // 4. Discussions without a course association (general discussions - visible to all)
         // Staff can see all discussions
-        if (!$isStaff) {
-            $userId = $user->id;
-            
-            $query->where(function ($q) use ($userId) {
-                $q->where('user_id', $userId) // User's own discussions
-                    // OR discussions from courses they're enrolled in
-                    ->orWhereHas('course.enrollments', function ($enrollmentQuery) use ($userId) {
-                        $enrollmentQuery->where('user_id', $userId);
-                    })
-                    // OR discussions from open courses (publicly accessible)
-                    ->orWhereHas('course', function ($courseQuery) {
-                        $courseQuery->where('enrollment_type', 'open');
-                    })
-                    // OR discussions without a course association (general discussions - visible to all)
-                    ->orWhereNull('course_id');
-            });
+        if (! $isStaff) {
+            $query->visibleToUser($user);
         }
 
         $discussions = $query->paginate(15);
+
+        $tracker = app(DailyChallengeTrackerService::class);
+        $forumChallenges = $tracker->activeForumChallengesForUser(Auth::id());
+        $forumChallengeProgress = $forumChallenges->mapWithKeys(function ($challenge) use ($tracker) {
+            return [$challenge->id => $tracker->evaluate($challenge, Auth::id())];
+        });
 
         // Cache stats for 5 minutes to reduce database load
         $stats = cache()->remember('discussion_stats_' . Auth::id(), 300, function () {
@@ -105,6 +142,8 @@ class Index extends Component
         return view('livewire.discussions.index', [
             'discussions' => $discussions,
             'stats' => $stats,
+            'forumChallenges' => $forumChallenges,
+            'forumChallengeProgress' => $forumChallengeProgress,
         ]);
     }
 }

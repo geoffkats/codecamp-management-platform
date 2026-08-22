@@ -70,9 +70,9 @@
                         label="Difficulty Level"
                         required
                     >
-                        <option value="Easy">Easy</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Hard">Hard</option>
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
                     </flux:select>
 
                     <flux:input

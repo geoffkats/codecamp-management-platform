@@ -135,11 +135,33 @@ class Index extends Component
             ])
             ->get();
 
+        // Active competition challenge (if any)
+        $activeCompetition = DailyChallenge::where('is_active', true)
+            ->where('is_competition', true)
+            ->where(function ($q) {
+                $q->whereNull('competition_ends_at')
+                  ->orWhere('competition_ends_at', '>', now());
+            })
+            ->first();
+
+        $competitionLeaderboard = $activeCompetition
+            ? $activeCompetition->competitionLeaderboard(10)
+            : collect();
+
+        $myCompetitionAttempt = $activeCompetition && $userId
+            ? DailyChallengeAttempt::where('challenge_id', $activeCompetition->id)
+                ->where('user_id', $userId)
+                ->first()
+            : null;
+
         return view('livewire.daily-challenges.index', [
-            'challenges' => $challenges,
-            'userAttempts' => $userAttempts,
-            'stats' => $stats,
-            'todayChallenges' => $todayChallenges,
+            'challenges'             => $challenges,
+            'userAttempts'           => $userAttempts,
+            'stats'                  => $stats,
+            'todayChallenges'        => $todayChallenges,
+            'activeCompetition'      => $activeCompetition,
+            'competitionLeaderboard' => $competitionLeaderboard,
+            'myCompetitionAttempt'   => $myCompetitionAttempt,
         ]);
     }
 }

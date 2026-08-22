@@ -3,6 +3,7 @@
 namespace App\Livewire\IcdlExamMarks;
 
 use App\Models\ActivityLog;
+use App\Models\Course;
 use App\Models\CourseModule;
 use App\Models\IcdlExamResult;
 use App\Models\StudentProfile;
@@ -17,7 +18,7 @@ class Index extends Component
     use WithPagination;
 
     public $student_id;
-    public $module_id;
+    public $course_id;
     public $exam_session = '';
     public $score = '';
     public $exam_date;
@@ -37,14 +38,14 @@ class Index extends Component
 
         $this->exam_date = now()->toDateString();
         $this->student_id = request()->query('student');
-        $this->module_id = request()->query('module');
+        $this->course_id = request()->query('course');
     }
 
     protected function rules(): array
     {
         return [
             'student_id' => 'required|exists:student_profiles,id',
-            'module_id' => 'required|exists:course_modules,id',
+            'course_id' => 'required|exists:courses,id',
             'exam_session' => 'required|string|max:255',
             'score' => 'required|numeric|min:0|max:100',
             'exam_date' => 'required|date',
@@ -61,10 +62,10 @@ class Index extends Component
         $this->validate();
 
         $student = $this->findStudent($this->student_id);
-        $module = $this->findModule($this->module_id);
+        $course = $this->findCourse($this->course_id);
 
         $duplicate = IcdlExamResult::where('student_profile_id', $student->id)
-            ->where('course_module_id', $module->id)
+            ->whereHas('module', fn($q) => $q->where('course_id', $course->id))
             ->where('exam_session', $this->exam_session)
             ->whereDate('exam_date', $this->exam_date)
             ->exists();
@@ -75,6 +76,13 @@ class Index extends Component
         }
 
         $result = (float) $this->score >= 75 ? 'pass' : 'fail';
+
+        // Get the first module for this course for ICDL
+        $module = $course->modules()->first();
+        if (!$module) {
+            session()->flash('error', 'No modules found for this course.');
+            return;
+        }
 
         $mark = IcdlExamResult::create([
             'student_profile_id' => $student->id,
@@ -124,17 +132,16 @@ class Index extends Component
             ->orderBy('full_name')
             ->get();
 
-        $modules = CourseModule::query()
-            ->whereHas('course.schools', function ($q) use ($schoolId) {
+        $courses = Course::query()
+            ->whereHas('schools', function ($q) use ($schoolId) {
                 $q->where('school_id', $schoolId)->where('is_active', true);
             })
-            ->with('course:id,title')
             ->orderBy('title')
             ->get();
 
         $history = IcdlExamResult::with(['student', 'module.course'])
             ->when($this->student_id, fn ($q) => $q->where('student_profile_id', $this->student_id))
-            ->when($this->module_id, fn ($q) => $q->where('course_module_id', $this->module_id))
+            ->when($this->course_id, fn ($q) => $q->whereHas('module', fn($q2) => $q2->where('course_id', $this->course_id)))
             ->orderByDesc('exam_date')
             ->paginate(10);
         
@@ -151,7 +158,7 @@ class Index extends Component
 
         return view('livewire.icdl-exam-marks.index', [
             'students' => $students,
-            'modules' => $modules,
+            'courses' => $courses,
             'history' => $history,
             'unlockedRecords' => $unlockedRecords,
             'lockedStudent' => $lockedStudent,
@@ -169,13 +176,13 @@ class Index extends Component
             ->findOrFail($studentId);
     }
 
-    private function findModule(int $moduleId): CourseModule
+    private function findCourse(int $courseId): Course
     {
         $user = Auth::user();
         $schoolId = $user->ictSchoolId();
 
-        return CourseModule::where('id', $moduleId)
-            ->whereHas('course.schools', function ($q) use ($schoolId) {
+        return Course::where('id', $courseId)
+            ->whereHas('schools', function ($q) use ($schoolId) {
                 $q->where('school_id', $schoolId)->where('is_active', true);
             })
             ->firstOrFail();

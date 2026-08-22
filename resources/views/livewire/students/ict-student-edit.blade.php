@@ -97,7 +97,7 @@
 
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="px-6 py-4 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 border-b border-gray-200 dark:border-gray-700">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Section D — Module Enrollment</h2>
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Section D — Course Enrollment</h2>
                     <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Only modules enabled for this school appear.</p>
                 </div>
                 <div class="p-6">
