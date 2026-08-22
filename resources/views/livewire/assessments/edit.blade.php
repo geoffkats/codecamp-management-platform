@@ -230,6 +230,8 @@
                                                     <div class="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border {{ $option->is_correct ? 'border-green-300 dark:border-green-700' : 'border-gray-200 dark:border-gray-700' }}">
                                                         @if(in_array($question->question_type, ['multiple_choice', 'true_false', 'choice']))
                                                             <input type="radio" disabled {{ $option->is_correct ? 'checked' : '' }} class="w-4 h-4 mt-1">
+                                                        @elseif($question->question_type === 'multiple_select')
+                                                            <input type="checkbox" disabled {{ $option->is_correct ? 'checked' : '' }} class="w-4 h-4 mt-1 rounded">
                                                         @endif
                                                         <div class="flex-1">
                                                             <span class="text-gray-900 dark:text-white font-medium {{ $option->is_correct ? 'text-green-600 dark:text-green-400' : '' }}">
@@ -424,21 +426,34 @@
                                 </flux:field>
                             </div>
 
-                            {{-- Options for multiple choice, true/false, choice only (matching handled separately) --}}
-                            @if(in_array($questionFormData['question_type'], ['multiple_choice', 'true_false', 'choice']))
+                            {{-- Options for multiple choice, multiple select, true/false, choice --}}
+                            @if(in_array($questionFormData['question_type'], ['multiple_choice', 'multiple_select', 'true_false', 'choice']))
                                 <div class="border-2 border-blue-200 dark:border-blue-800 rounded-xl p-6 bg-blue-50/50 dark:bg-blue-900/10">
-                                    <div class="flex items-center justify-between mb-4">
+                                    <div class="flex items-center justify-between mb-2">
                                         <h4 class="font-semibold text-gray-900 dark:text-white">Answer Options</h4>
                                         <flux:button type="button" wire:click="addQuestionOption" variant="outline" class="text-sm">
                                             + Add Option
                                         </flux:button>
                                     </div>
+                                    <p class="text-sm text-blue-800 dark:text-blue-300 mb-4">
+                                        @if($questionFormData['question_type'] === 'multiple_select')
+                                            Students can tick more than one answer. Mark every option that is correct.
+                                        @elseif($questionFormData['question_type'] === 'true_false')
+                                            Add True and False, then mark the one correct answer.
+                                        @else
+                                            Students pick one answer. Mark only one option as correct.
+                                        @endif
+                                    </p>
                                     @if(!empty($questionOptions))
                                         <div class="space-y-4">
                                             @foreach($questionOptions as $index => $option)
                                                 <div class="p-4 bg-white dark:bg-gray-800 rounded-lg border-2 border-gray-200 dark:border-gray-700">
                                                     <div class="flex items-start gap-3 mb-3">
-                                                        <input type="checkbox" wire:model="questionOptions.{{ $index }}.is_correct" class="w-5 h-5 text-blue-600 rounded mt-1">
+                                                        @if($questionFormData['question_type'] === 'multiple_select')
+                                                            <input type="checkbox" wire:model="questionOptions.{{ $index }}.is_correct" class="w-5 h-5 text-blue-600 rounded mt-1" title="Correct answer">
+                                                        @else
+                                                            <input type="radio" name="correct-option" wire:click="markCorrectOption({{ $index }})" @checked($option['is_correct'] ?? false) class="w-5 h-5 text-blue-600 mt-1" title="Correct answer">
+                                                        @endif
                                                         <flux:input wire:model="questionOptions.{{ $index }}.option_text" placeholder="Option text..." class="flex-1" />
                                                         <button type="button" wire:click="removeQuestionOption({{ $index }})" class="text-red-500 hover:text-red-700 p-2">
                                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -994,7 +1009,7 @@
                                             @endif
                                         @elseif(in_array($question->question_type, ['essay', 'short_answer', 'text', 'reflection']))
                                             <p class="text-gray-900 dark:text-white whitespace-pre-wrap">{{ $answers[$question->id] ?? 'No answer provided' }}</p>
-                                        @elseif($question->question_type === 'multiple_choice' || $question->question_type === 'choice')
+                                        @elseif(in_array($question->question_type, ['multiple_choice', 'multiple_select', 'choice']))
                                             @php
                                                 $selectedOptionIds = is_array($answers[$question->id] ?? null) ? $answers[$question->id] : [$answers[$question->id] ?? null];
                                                 $selectedOptions = $question->options->whereIn('id', $selectedOptionIds)->filter();

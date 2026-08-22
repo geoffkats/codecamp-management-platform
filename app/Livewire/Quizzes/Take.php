@@ -267,14 +267,16 @@ class Take extends Component
 
         $correctOptions = $question->options->where('is_correct', true)->pluck('id')->toArray();
         
-        if ($question->question_type === 'multiple_choice') {
+        if (in_array($question->question_type, ['multiple_choice', 'multiple_select', 'true_false', 'choice'], true)) {
             if (is_array($userAnswer)) {
+                $userAnswer = array_map('intval', $userAnswer);
+                $correctOptions = array_map('intval', $correctOptions);
                 sort($userAnswer);
                 sort($correctOptions);
                 return $userAnswer === $correctOptions ? $question->points : 0;
-            } else {
-                return in_array($userAnswer, $correctOptions) ? $question->points : 0;
             }
+
+            return in_array((int) $userAnswer, array_map('intval', $correctOptions), true) ? $question->points : 0;
         }
 
         return 0;

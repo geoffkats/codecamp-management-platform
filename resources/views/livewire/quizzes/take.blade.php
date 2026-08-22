@@ -103,11 +103,14 @@
                     @endif
 
                     <!-- Answer Options -->
-                    @if(in_array($currentQuestion->question_type, ['multiple_choice', 'true_false']) && $currentQuestion->options && $currentQuestion->options->isNotEmpty())
+                    @if(in_array($currentQuestion->question_type, ['multiple_choice', 'multiple_select', 'true_false']) && $currentQuestion->options && $currentQuestion->options->isNotEmpty())
                         @php
-                            $isMultiple = $currentQuestion->question_type === 'multiple_choice';
+                            $isMultiple = $currentQuestion->question_type === 'multiple_select';
                             $userAnswer = $answers[$currentQuestion->id] ?? null;
                         @endphp
+                        @if($isMultiple)
+                            <p class="text-sm font-medium text-blue-700 dark:text-blue-300 mb-3">Select all that apply.</p>
+                        @endif
                         <div class="space-y-3">
                             @foreach($currentQuestion->options as $option)
                                 @php
@@ -191,9 +194,12 @@
                         </div>
                     @elseif($currentQuestion->options && $currentQuestion->options->isNotEmpty())
                         @php
-                            $isMultiple = $currentQuestion->question_type === 'multiple_choice';
+                            $isMultiple = $currentQuestion->question_type === 'multiple_select';
                             $userAnswer = $answers[$currentQuestion->id] ?? null;
                         @endphp
+                        @if($isMultiple)
+                            <p class="text-sm font-medium text-blue-700 dark:text-blue-300 mb-3">Select all that apply.</p>
+                        @endif
                         <div class="space-y-3">
                             @foreach($currentQuestion->options as $option)
                                 @php

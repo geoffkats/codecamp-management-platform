@@ -313,7 +313,7 @@ class Edit extends Component
     public function updatedQuestionFormDataQuestionType()
     {
         // Clear options when changing question type (some types don't need options)
-        if (!in_array($this->questionFormData['question_type'], ['multiple_choice', 'true_false', 'choice', 'matching'])) {
+        if (!in_array($this->questionFormData['question_type'], ['multiple_choice', 'multiple_select', 'true_false', 'choice', 'matching'])) {
             $this->questionOptions = [];
         }
         
@@ -449,7 +449,8 @@ class Edit extends Component
         // Return available question types based on assessment type
         return match($this->assessment_type) {
             'quiz' => [
-                'multiple_choice' => 'Multiple Choice',
+                'multiple_choice' => 'Multiple Choice (pick one)',
+                'multiple_select' => 'Multiple Select (pick all that apply)',
                 'true_false' => 'True/False',
                 'short_answer' => 'Short Answer',
                 'essay' => 'Essay',
@@ -464,13 +465,15 @@ class Edit extends Component
                 'rubric_criteria' => 'Rubric Criteria',
             ],
             'pre_project_test' => [
-                'multiple_choice' => 'Multiple Choice',
+                'multiple_choice' => 'Multiple Choice (pick one)',
+                'multiple_select' => 'Multiple Select (pick all that apply)',
                 'true_false' => 'True/False',
                 'short_answer' => 'Short Answer',
                 'essay' => 'Essay',
             ],
             'post_project_test' => [
-                'multiple_choice' => 'Multiple Choice',
+                'multiple_choice' => 'Multiple Choice (pick one)',
+                'multiple_select' => 'Multiple Select (pick all that apply)',
                 'true_false' => 'True/False',
                 'short_answer' => 'Short Answer',
                 'essay' => 'Essay',
@@ -515,6 +518,13 @@ class Edit extends Component
         ];
     }
 
+    public function markCorrectOption(int $index): void
+    {
+        foreach ($this->questionOptions as $i => $option) {
+            $this->questionOptions[$i]['is_correct'] = $i === $index;
+        }
+    }
+
     public function removeQuestionOption($index)
     {
         unset($this->questionOptions[$index]);
@@ -551,6 +561,18 @@ class Edit extends Component
             case 'true_false':
                 if (empty($this->questionOptions) || count(array_filter($this->questionOptions, fn($o) => !empty($o['option_text']))) === 0) {
                     session()->flash('error', 'Please add at least one option for this question type.');
+                    return;
+                }
+                break;
+            case 'multiple_select':
+                $filled = array_filter($this->questionOptions, fn ($o) => ! empty($o['option_text']));
+                $correctCount = count(array_filter($filled, fn ($o) => ! empty($o['is_correct'])));
+                if (count($filled) < 2) {
+                    session()->flash('error', 'Multiple select needs at least two options.');
+                    return;
+                }
+                if ($correctCount < 2) {
+                    session()->flash('error', 'Tick at least two correct answers so students can select more than one.');
                     return;
                 }
                 break;
@@ -633,7 +655,7 @@ class Edit extends Component
         }
 
         // Save options for question types that use them
-        if (in_array($this->questionFormData['question_type'], ['multiple_choice', 'true_false', 'choice'])) {
+        if (in_array($this->questionFormData['question_type'], ['multiple_choice', 'multiple_select', 'true_false', 'choice'])) {
             // Delete old options if editing
             if ($this->editingQuestionId) {
                 // Delete old option images

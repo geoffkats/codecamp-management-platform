@@ -531,6 +531,9 @@
                         $userAnswer = $answers[$currentQuestion->id] ?? null;
                         $isMultiple = $currentQuestion->question_type === 'multiple_select';
                     @endphp
+                    @if($isMultiple)
+                        <p class="text-sm font-medium text-blue-700 dark:text-blue-300 mb-3">Select all that apply.</p>
+                    @endif
                     <div class="space-y-3" wire:key="options-{{ $currentQuestion->id }}">
                         @foreach($currentQuestion->options as $option)
                             <label wire:key="option-{{ $currentQuestion->id }}-{{ $option->id }}" class="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors
