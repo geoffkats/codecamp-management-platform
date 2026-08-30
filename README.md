@@ -53,6 +53,7 @@ CodeCamp is a modern learning platform that helps teams design, review, and publ
 
 - Role and permission aware actions.
 - Clear feedback for actions like archive, restore, and approvals.
+- VPS deploy, update, DNS, and login-cookie commands: [docs/VPS_COMMANDS.md](docs/VPS_COMMANDS.md).
 
 ## Feature Matrix
 
