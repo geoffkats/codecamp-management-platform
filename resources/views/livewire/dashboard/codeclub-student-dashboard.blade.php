@@ -1,4 +1,5 @@
 <div class="max-w-6xl mx-auto py-8 px-4 space-y-6">
+    <livewire:attendance.morning-check-in-prompt />
     <div class="rounded-2xl bg-gradient-to-r from-blue-700 to-indigo-700 text-white p-6">
         <p class="text-xs font-semibold uppercase tracking-widest text-blue-100">Code Club</p>
         <h1 class="text-2xl font-extrabold mt-1">Welcome, {{ $user->name }}</h1>
@@ -127,7 +128,7 @@
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="font-bold text-gray-900 dark:text-white">Club Leaderboard</h2>
                     @if($club)
-                        <a href="{{ route('leaderboards.index', ['clubId' => $club->id]) }}" wire:navigate class="text-xs font-bold text-blue-600">View all →</a>
+                        <a href="{{ route('leaderboards.index', ['clubId' => $club->id, 'period' => 'weekly']) }}" wire:navigate class="text-xs font-bold text-blue-600">This week →</a>
                     @endif
                 </div>
                 <div class="space-y-3">
@@ -137,7 +138,7 @@
                                 <span class="text-sm font-bold text-gray-400 w-5">{{ $index + 1 }}</span>
                                 <p class="font-semibold text-sm text-gray-900 dark:text-white">{{ $entry->user?->name ?? 'Student' }}</p>
                             </div>
-                            <p class="text-sm font-bold text-amber-600 dark:text-amber-400">{{ number_format($entry->total_points ?? 0) }} XP</p>
+                            <p class="text-sm font-bold text-amber-600 dark:text-amber-400">{{ number_format($entry->total_points ?? 0) }} this week</p>
                         </div>
                     @empty
                         <p class="text-sm text-gray-500">No leaderboard data yet.</p>

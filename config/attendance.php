@@ -2,8 +2,8 @@
 
 return [
     /** Daily code check-in allowed between these times (24h, local). */
-    'check_in_start' => env('ATTENDANCE_CHECK_IN_START', '08:00'),
-    'check_in_end'   => env('ATTENDANCE_CHECK_IN_END', '10:00'),
+    'check_in_start' => env('ATTENDANCE_CHECK_IN_START', '07:00'),
+    'check_in_end'   => env('ATTENDANCE_CHECK_IN_END', '14:00'),
 
     /** After this time, check-in counts as late (until lock). */
     'late_after' => env('ATTENDANCE_LATE_AFTER', '09:30'),

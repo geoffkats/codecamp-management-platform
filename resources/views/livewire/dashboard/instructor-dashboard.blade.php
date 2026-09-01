@@ -1,4 +1,6 @@
 <div class="flex flex-col gap-6 p-6">
+        <livewire:daily-reports.optional-reminder-banner />
+
         <!-- Welcome Header -->
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -10,6 +12,14 @@
                 </p>
             </div>
             <div class="flex flex-wrap items-center gap-3">
+                <a href="{{ route('submissions.index', ['filter' => 'pending']) }}" wire:navigate
+                   class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors shadow-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                    Grade submissions
+                    @if($pendingGradingCount > 0)
+                        <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-white text-indigo-700 text-xs font-bold">{{ $pendingGradingCount }}</span>
+                    @endif
+                </a>
                 <flux:button href="{{ route('courses.create') }}" icon="plus" variant="primary" wire:navigate>
                     Create Course
                 </flux:button>
@@ -153,14 +163,16 @@
                 </div>
             </flux:card>
 
-            <flux:card class="border-l-4 border-l-purple-500">
+            <a href="{{ route('submissions.index', ['filter' => 'pending']) }}" wire:navigate class="block">
+            <flux:card class="border-l-4 border-l-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-900/10 transition">
                 <div class="p-4">
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-sm text-gray-600 dark:text-gray-400">Pending Grading</p>
                             <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
-                                {{ $recentSubmissions->count() }}
+                                {{ $pendingGradingCount }}
                             </p>
+                            <p class="mt-1 text-xs text-purple-600 dark:text-purple-400 font-medium">Open queue →</p>
                         </div>
                         <div class="rounded-full bg-purple-100 dark:bg-purple-900/20 p-3">
                             <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -170,7 +182,84 @@
                     </div>
                 </div>
             </flux:card>
+            </a>
         </div>
+
+        <!-- Needs grading -->
+        <flux:card class="shadow-lg border border-orange-200 dark:border-orange-800">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-6 border-b border-orange-100 dark:border-orange-900/40 bg-gradient-to-r from-orange-50 to-white dark:from-orange-950/40 dark:to-gray-900">
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Needs grading</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        @if($pendingGradingCount > 0)
+                            {{ $pendingGradingCount }} {{ \Illuminate\Support\Str::plural('submission', $pendingGradingCount) }} waiting for marks
+                        @else
+                            You're all caught up — no submissions waiting for marks
+                        @endif
+                    </p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <a href="{{ route('submissions.index', ['filter' => 'pending']) }}" wire:navigate
+                       class="inline-flex items-center px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold">
+                        Pending only
+                    </a>
+                    <a href="{{ route('submissions.index') }}" wire:navigate
+                       class="inline-flex items-center px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        All submissions
+                    </a>
+                </div>
+            </div>
+            <div class="p-4 sm:p-6">
+                @if($recentSubmissions->count() > 0)
+                    <div class="divide-y divide-gray-100 dark:divide-gray-800">
+                        @foreach($recentSubmissions as $item)
+                            <div class="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+                                <div class="flex items-start gap-3 min-w-0">
+                                    <div class="h-10 w-10 shrink-0 rounded-full bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center text-white font-semibold">
+                                        {{ strtoupper(substr($item->studentName, 0, 1)) }}
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p class="font-semibold text-gray-900 dark:text-white truncate">{{ $item->studentName }}</p>
+                                        <p class="text-sm text-gray-800 dark:text-gray-200 truncate">{{ $item->title }}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                            {{ $item->courseTitle }}
+                                            · {{ $item->typeLabel }}
+                                            @if($item->submittedAt)
+                                                · {{ $item->submittedAt->diffForHumans() }}
+                                            @endif
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2 sm:shrink-0 pl-12 sm:pl-0">
+                                    <a href="{{ route('submissions.show', ['submissionId' => $item->id, 'type' => $item->type]) }}" wire:navigate
+                                       class="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium">
+                                        View
+                                    </a>
+                                    @can('grade_submissions')
+                                        <a href="{{ route('grades.grade', $item->submission) }}" wire:navigate
+                                           class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold">
+                                            Grade
+                                        </a>
+                                    @endcan
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                    @if($pendingGradingCount > $recentSubmissions->count())
+                        <div class="mt-4 text-center">
+                            <a href="{{ route('submissions.index', ['filter' => 'pending']) }}" wire:navigate
+                               class="text-sm font-semibold text-orange-700 dark:text-orange-300 hover:underline">
+                                View all {{ $pendingGradingCount }} pending submissions
+                            </a>
+                        </div>
+                    @endif
+                @else
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        When students submit assignments or quizzes, they will show up here so you can view details and give marks.
+                    </p>
+                @endif
+            </div>
+        </flux:card>
 
         <!-- Main Content Grid -->
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -228,8 +317,8 @@
                                 <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                                 </svg>
-                                <h3 class="mt-2 text-sm font-semibold text-gray-900 dark:text-white">No courses yet</h3>
-                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating your first course</p>
+                                <h3 class="mt-2 text-sm font-semibold text-gray-900 dark:text-white">No courses assigned</h3>
+                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Ask an admin to assign courses from the Users menu, or create a course if you have permission.</p>
                                 <div class="mt-6">
                                     <flux:button href="{{ route('courses.create') }}" variant="primary" wire:navigate>
                                         Create Course
@@ -283,26 +372,6 @@
                                         <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ $enrollment->user->name }}</p>
                                         <p class="text-xs text-gray-600 dark:text-gray-400 truncate">{{ $enrollment->course->title }}</p>
                                     </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </flux:card>
-                @endif
-
-                <!-- Submissions Awaiting Grading -->
-                @if($recentSubmissions->count() > 0)
-                    <flux:card>
-                        <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-                            <h2 class="text-xl font-semibold">Awaiting Grading</h2>
-                        </div>
-                        <div class="p-6 space-y-3">
-                            @foreach($recentSubmissions->take(5) as $submission)
-                                <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ $submission->title }}</p>
-                                    <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">{{ $submission->user->name }}</p>
-                                    <flux:button href="{{ route('grades.grade', $submission->submission) }}" variant="ghost" size="sm" class="mt-2 w-full" wire:navigate>
-                                        Grade
-                                    </flux:button>
                                 </div>
                             @endforeach
                         </div>

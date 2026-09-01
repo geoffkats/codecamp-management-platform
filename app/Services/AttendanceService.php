@@ -299,7 +299,7 @@ class AttendanceService
         ]);
     }
 
-    public function checkIn(StudentProfile $profile, string $code): StudentAttendance
+    public function checkIn(StudentProfile $profile, ?string $code = null): StudentAttendance
     {
         if (! $this->canCheckInNowForProfile($profile)) {
             $window = $this->checkInWindowForProfile($profile);
@@ -313,12 +313,10 @@ class AttendanceService
             throw new \RuntimeException("Check-in is only allowed during your session window ({$start}–{$end}).");
         }
 
-        $todayCode = DailyAttendanceCode::getTodayCode();
-        if (! $todayCode) {
-            throw new \RuntimeException('No attendance code has been generated for today.');
-        }
+        $todayCode = DailyAttendanceCode::getTodayCode() ?? DailyAttendanceCode::createTodayCode();
+        $submitted = strtoupper(trim((string) $code));
 
-        if (strtoupper(trim($code)) !== strtoupper($todayCode->code)) {
+        if ($submitted !== '' && $submitted !== strtoupper((string) $todayCode->code)) {
             throw new \RuntimeException('Invalid attendance code.');
         }
 
@@ -333,18 +331,21 @@ class AttendanceService
         return $this->upsertDailyRecord($profile, today(), [
             'status'      => $status,
             'clock_in'    => $now->format('H:i:s'),
-            'code_used'   => $todayCode->code,
-            'source'      => 'check_in',
+            'code_used'   => $submitted !== '' ? $todayCode->code : 'SELF',
+            'source'      => $submitted !== '' ? 'check_in' : 'self_tap',
             'recorded_by' => $profile->user_id,
             'recorded_at' => $now,
         ]);
     }
 
-    public function checkOut(StudentProfile $profile, string $code): StudentAttendance
+    public function checkOut(StudentProfile $profile, ?string $code = null): StudentAttendance
     {
-        $todayCode = DailyAttendanceCode::getTodayCode();
-        if (! $todayCode || strtoupper(trim($code)) !== strtoupper($todayCode->code)) {
-            throw new \RuntimeException('Invalid attendance code.');
+        $submitted = strtoupper(trim((string) $code));
+        if ($submitted !== '') {
+            $todayCode = DailyAttendanceCode::getTodayCode();
+            if (! $todayCode || $submitted !== strtoupper((string) $todayCode->code)) {
+                throw new \RuntimeException('Invalid attendance code.');
+            }
         }
 
         $record = $this->getRecord($profile, today());

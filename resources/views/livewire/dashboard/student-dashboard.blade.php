@@ -30,6 +30,8 @@ $streakFire = $streak['current'] >= 7 ? '🔥' : ($streak['current'] >= 3 ? '⚡
 
 <div class="max-w-7xl mx-auto px-4 py-5 space-y-5">
 
+    <livewire:attendance.morning-check-in-prompt />
+
     {{-- ═══════════════════════════════════════════════════════════════════ --}}
     {{-- HERO: Level + Streak + Daily Goal                                  --}}
     {{-- ═══════════════════════════════════════════════════════════════════ --}}
@@ -102,9 +104,9 @@ $streakFire = $streak['current'] >= 7 ? '🔥' : ($streak['current'] >= 3 ? '⚡
 
             {{-- Rank --}}
             <div class="bg-white/15 rounded-xl px-4 py-3">
-                <p class="text-[10px] font-semibold uppercase tracking-wide text-orange-100">Global Rank</p>
+                <p class="text-[10px] font-semibold uppercase tracking-wide text-orange-100">This Week</p>
                 <p class="text-2xl font-extrabold leading-tight">#{{ $leaderboardPosition['rank'] }}</p>
-                <p class="text-[10px] text-orange-200">of {{ $leaderboardPosition['total'] }} students</p>
+                <p class="text-[10px] text-orange-200">of {{ $leaderboardPosition['total'] }} classmates</p>
             </div>
         </div>
     </div>
@@ -325,8 +327,8 @@ $streakFire = $streak['current'] >= 7 ? '🔥' : ($streak['current'] >= 3 ? '⚡
             @if(!empty($campLeaderboard['top']))
             <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
                 <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-sm font-bold text-gray-800 dark:text-white">🏆 {{ $campLeaderboard['campName'] }}</h2>
-                    <a href="{{ route('leaderboards.index') }}" wire:navigate class="text-xs text-orange-600 dark:text-orange-400 hover:underline">Full →</a>
+                    <h2 class="text-sm font-bold text-gray-800 dark:text-white">🏆 {{ $campLeaderboard['campName'] }} · this week</h2>
+                    <a href="{{ route('leaderboards.index', array_filter(['period' => 'weekly', 'campId' => $campLeaderboard['campId'] ?? null])) }}" wire:navigate class="text-xs text-orange-600 dark:text-orange-400 hover:underline">Full →</a>
                 </div>
                 <div class="space-y-2">
                     @foreach($campLeaderboard['top'] as $i => $member)
@@ -341,7 +343,7 @@ $streakFire = $streak['current'] >= 7 ? '🔥' : ($streak['current'] >= 3 ? '⚡
                         <span class="flex-1 text-xs font-semibold {{ $isMe ? 'text-orange-700 dark:text-orange-300' : 'text-gray-700 dark:text-gray-300' }} truncate">
                             {{ $isMe ? 'You' : $member['name'] }}
                         </span>
-                        <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400">{{ number_format($member['xp']) }} XP</span>
+                        <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400">{{ number_format($member['xp']) }} this week</span>
                     </div>
                     @endforeach
                 </div>

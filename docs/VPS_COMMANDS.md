@@ -268,6 +268,13 @@ systemctl restart php8.3-fpm
 nginx -t
 ```
 
+**Laravel scheduler** (student codes + 16:00 optional report reminder):
+
+```bash
+crontab -l | grep schedule || (crontab -l 2>/dev/null; echo "* * * * * cd /var/www/codecamp && php artisan schedule:run >> /dev/null 2>&1") | crontab -
+crontab -l
+```
+
 ---
 
 ## 8. Logs and health

@@ -94,7 +94,7 @@
                     <p class="text-gray-600 dark:text-gray-400">
                         @if(!$todayRecord || !$todayRecord->clock_in)
                             @if($canCheckInNow)
-                                Enter today's attendance code to check in
+                                Tap the button to mark yourself present. No code needed.
                             @elseif($isCodeClubStudent && !$hasSessionToday)
                                 Check-in is only available on your club's scheduled session days.
                             @elseif($checkInStatus === 'before')
@@ -104,11 +104,11 @@
                             @elseif($checkInStatus === 'after')
                                 Today's session has ended. Check-in is closed.
                             @else
-                                Check-in is closed. Window is {{ $checkInWindow['start'] ?? '08:00' }}–{{ $checkInWindow['end'] ?? '10:00' }}.
+                                Check-in is closed. Window is {{ $checkInWindow['start'] ?? '07:00' }}–{{ $checkInWindow['end'] ?? '14:00' }}.
                             @endif
                         @elseif(!$todayRecord->clock_out)
                             @if($canCheckOut)
-                                Enter today's attendance code to check out
+                                Tap to check out when you leave.
                             @else
                                 You can check out in {{ $minutesRemaining }} minute(s)
                             @endif
@@ -120,25 +120,19 @@
 
                 @if(!$todayRecord || !$todayRecord->clock_out)
                     <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Attendance Code</label>
-                            <input type="text"
-                                   wire:model="code"
-                                   placeholder="Enter code (e.g., ABC123)"
-                                   class="w-full px-4 py-3 text-center text-2xl font-mono font-bold uppercase border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                   maxlength="10">
-                        </div>
-
                         <div class="flex gap-3">
                             @if(!$todayRecord || !$todayRecord->clock_in)
                                 <button wire:click="checkIn"
+                                        wire:loading.attr="disabled"
                                         @if(!$canCheckInNow) disabled @endif
                                         class="flex-1 px-6 py-4 font-semibold rounded-lg transition-colors shadow-lg
                                             {{ $canCheckInNow ? 'bg-green-600 hover:bg-green-700 text-white hover:shadow-xl' : 'bg-gray-400 text-gray-200 cursor-not-allowed' }}">
-                                    Check In
+                                    <span wire:loading.remove wire:target="checkIn">I'm here — check in</span>
+                                    <span wire:loading wire:target="checkIn">Checking in…</span>
                                 </button>
                             @else
                                 <button wire:click="checkOut"
+                                        wire:loading.attr="disabled"
                                         @if(!$canCheckOut) disabled @endif
                                         class="flex-1 px-6 py-4 font-semibold rounded-lg transition-colors shadow-lg
                                             {{ $canCheckOut ? 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-xl' : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-60' }}">

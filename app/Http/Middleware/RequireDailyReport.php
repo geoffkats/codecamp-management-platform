@@ -61,8 +61,9 @@ class RequireDailyReport
                 return $next($request);
             }
 
-            return redirect()->route('daily-reports.submit')
-                ->with('error', 'Daily report required before continuing.');
+            // Optional: never block the app. Instructors get a dashboard
+            // reminder and a 16:00 notification instead.
+            return $next($request);
         }
 
         // Students and other roles bypass the daily report requirement
