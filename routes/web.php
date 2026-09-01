@@ -322,6 +322,10 @@ Route::middleware(['auth'])->group(function () {
         });
     });
 
+    Route::middleware(['can:award_course_xp'])->prefix('admin')->name('admin.')->group(function () {
+        Route::get('/xp-manager', \App\Livewire\Admin\XpManager::class)->name('xp-manager');
+    });
+
     // Admin Routes - Enrollment Management (Admin/Supervisor only)
     Route::middleware(['can:manage_users'])->prefix('admin')->name('admin.')->group(function () {
         Route::get('/enrollments', \App\Livewire\Admin\EnrollmentManagement::class)->name('enrollments');
@@ -330,7 +334,6 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/schools/{school}/students', \App\Livewire\Admin\SchoolStudents::class)->name('schools.students');
         Route::get('/icdl-workflow', \App\Livewire\Admin\IcdlWorkflow::class)->name('icdl-workflow');
             Route::get('/icdl-exam-marks', \App\Livewire\Admin\IcdlExamMarks::class)->name('icdl-exam-marks');
-        Route::get('/xp-manager', \App\Livewire\Admin\XpManager::class)->name('xp-manager');
         Route::get('/settings', \App\Livewire\Admin\SystemSettings::class)->name('settings');
         Route::get('/feedback', \App\Livewire\Admin\ManageTeacherFeedback::class)->name('feedback');
 

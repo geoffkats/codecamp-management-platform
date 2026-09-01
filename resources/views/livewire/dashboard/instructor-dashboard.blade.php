@@ -265,6 +265,7 @@
                         <a href="{{ route('attendance.dashboard') }}" wire:navigate class="px-4 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:text-zinc-100 dark:hover:bg-zinc-800">Attendance</a>
                         <a href="{{ route('leaderboards.index') }}" wire:navigate class="px-4 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:text-zinc-100 dark:hover:bg-zinc-800">Leaderboard</a>
                         <a href="{{ Route::has('lessons.locks') ? route('lessons.locks') : url('/lesson-locks') }}" wire:navigate class="px-4 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:text-zinc-100 dark:hover:bg-zinc-800">Lesson locks</a>
+                        <a href="{{ route('admin.xp-manager') }}" wire:navigate class="px-4 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:text-zinc-100 dark:hover:bg-zinc-800">Award XP</a>
                         <a href="{{ route('daily-reports.submit') }}" wire:navigate class="px-4 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:text-zinc-100 dark:hover:bg-zinc-800">Daily report</a>
                     </div>
                 </div>

@@ -2,9 +2,16 @@
     <!-- Header -->
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">XP Manager</h1>
-            <p class="mt-1 text-gray-600 dark:text-gray-400">Click a student, choose their course, then award XP to that class.</p>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">{{ $canManageAllXp ? 'XP Manager' : 'Award XP' }}</h1>
+            <p class="mt-1 text-gray-600 dark:text-gray-400">
+                @if($canManageAllXp)
+                    Click a student, choose their course, then award XP to that class.
+                @else
+                    Award XP to students in your courses. Filter by class, then click Award XP.
+                @endif
+            </p>
         </div>
+        @if($canManageAllXp)
         <div class="flex items-center gap-3">
             <flux:button wire:click="syncAllLevels" variant="primary" wire:confirm="Recalculate every student's level and rank from their total XP?">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -25,6 +32,7 @@
                 Reset All XP
             </flux:button>
         </div>
+        @endif
     </div>
 
     @if (session('message'))
@@ -380,6 +388,7 @@
                     </div>
 
                     <!-- Bonus Multiplier Section -->
+                    @if($canManageAllXp)
                     <div>
                         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                             <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -444,6 +453,7 @@
                             </div>
                         </div>
                     </div>
+                    @endif
 
                     <!-- Action Buttons -->
                     <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -455,14 +465,16 @@
                         </p>
                         <div class="flex items-center gap-3">
                             <flux:button type="button" wire:click="closeEditModal" variant="subtle">
-                                Cancel
+                                Done
                             </flux:button>
+                            @if($canManageAllXp)
                             <flux:button type="button" wire:click="saveEdit" variant="primary">
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                                 </svg>
                                 Save multiplier
                             </flux:button>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -533,7 +545,7 @@
                         @php
                             $breakdown = collect($xpHistory)->groupBy('type')->map(fn($items) => $items->sum('points'));
                         @endphp
-                        @foreach(['course_enrolled' => 'Enrollments', 'lesson_completed' => 'Lessons', 'course_completed' => 'Completions', 'admin_award' => 'Admin awards'] as $type => $label)
+                        @foreach(['course_enrolled' => 'Enrollments', 'lesson_completed' => 'Lessons', 'course_completed' => 'Completions', 'admin_award' => 'Staff awards'] as $type => $label)
                             <div class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                                 <p class="text-xs text-gray-600 dark:text-gray-400">{{ $label }}</p>
                                 <p class="text-lg font-bold text-gray-900 dark:text-white">

@@ -117,6 +117,13 @@ class AppServiceProvider extends AuthServiceProvider
             return $user->hasPermission('manage_badges') || $user->isAdmin();
         });
 
+        Gate::define('award_course_xp', function (User $user) {
+            return $user->isAdmin()
+                || $user->isSupervisor()
+                || $user->isTeacher()
+                || (config('features.code_club', false) && $user->hasCodeClubAccess());
+        });
+
         Gate::define('manage_challenges', function (User $user) {
             return $user->isAdmin()
                 || $user->isSupervisor()

@@ -40,6 +40,10 @@ class XpManager extends Component
     public $awardOperation = 'add';
     public $awardMessage = '';
 
+    public bool $canManageAllXp = false;
+
+    private $managedCoursesCache = null;
+
     // Course bulk award
     public $showCourseBulkModal = false;
     public $courseBulkCourseId = null;
@@ -76,8 +80,14 @@ class XpManager extends Component
 
     public function mount()
     {
-        if (!Auth::user()->hasAnyRole(['admin'])) {
-            abort(403);
+        $user = Auth::user();
+
+        abort_unless($user && $user->can('award_course_xp'), 403);
+
+        $this->canManageAllXp = $user->isAdmin() || $user->isSupervisor();
+
+        if ($this->courseFilter && ! $this->canAccessCourse((int) $this->courseFilter)) {
+            $this->courseFilter = '';
         }
 
         if ($this->courseFilter) {
@@ -87,29 +97,10 @@ class XpManager extends Component
 
     public function render()
     {
-        $query = User::whereHas('roles', function($q) {
-            $q->where('name', 'student');
-        })->with(['points', 'enrollments.course']);
+        $query = $this->studentQuery()->with(['points', 'enrollments.course']);
 
-        // Search filter
-        if ($this->search) {
-            $query->where(function($q) {
-                $q->where('name', 'like', '%' . $this->search . '%')
-                  ->orWhere('email', 'like', '%' . $this->search . '%');
-            });
-        }
-
-        // Course filter
-        if ($this->courseFilter) {
-            $query->whereHas('enrollments', function($q) {
-                $q->where('course_id', $this->courseFilter);
-            });
-        }
-
-        // Get students with XP stats
         $students = $query->paginate(20);
 
-        // Calculate XP for time period + unify level/rank display from total XP
         foreach ($students as $student) {
             $student->period_xp = $this->calculatePeriodXp($student->id);
             $student->course_xp = $this->courseFilter
@@ -121,26 +112,28 @@ class XpManager extends Component
             $student->rank_color = $info['color'];
         }
 
-        // Sort
         $students = $this->applySorting($students);
 
         $editingEnrollments = collect();
         if ($this->editingUser) {
             $editingEnrollments = CourseEnrollment::query()
                 ->where('user_id', $this->editingUser->id)
+                ->when(! $this->canManageAllXp, fn ($q) => $q->whereIn('course_id', $this->managedCourseIds()))
                 ->with('course')
                 ->orderByRaw('CASE WHEN completed_at IS NULL THEN 0 ELSE 1 END')
                 ->orderByDesc('enrolled_at')
                 ->get();
         }
 
+        $studentIdsSubquery = $this->studentQuery()->select('users.id');
+
         return view('livewire.admin.xp-manager', [
             'students' => $students,
-            'courses' => Course::where('is_published', true)->orderBy('title')->get(),
+            'courses' => $this->managedCourses(),
             'editingEnrollments' => $editingEnrollments,
-            'totalStudents' => User::whereHas('roles', fn ($q) => $q->where('name', 'student'))->count(),
-            'totalXp' => UserPoint::sum('total_points'),
-            'avgXp' => UserPoint::avg('total_points'),
+            'totalStudents' => $this->studentQuery()->count(),
+            'totalXp' => UserPoint::query()->whereIn('user_id', $this->studentQuery()->select('users.id'))->sum('total_points'),
+            'avgXp' => UserPoint::query()->whereIn('user_id', $this->studentQuery()->select('users.id'))->avg('total_points'),
         ]);
     }
 
@@ -155,27 +148,104 @@ class XpManager extends Component
 
     private function getCurrentPageStudentIds(): array
     {
-        $query = User::whereHas('roles', function($q) {
-            $q->where('name', 'student');
-        });
+        $students = $this->applySorting($this->studentQuery()->with('points')->paginate(20));
+
+        return $students->getCollection()->pluck('id')->toArray();
+    }
+
+    private function studentQuery()
+    {
+        $query = User::query()
+            ->whereHas('roles', fn ($q) => $q->where('name', 'student'))
+            ->where('id', '!=', Auth::id());
+
+        $managedIds = $this->managedCourseIds();
+
+        if (! $this->canManageAllXp) {
+            if ($managedIds === []) {
+                $query->whereRaw('0 = 1');
+            } else {
+                $query->whereHas('enrollments', fn ($q) => $q->whereIn('course_id', $managedIds));
+            }
+        }
 
         if ($this->search) {
-            $query->where(function($q) {
-                $q->where('name', 'like', '%' . $this->search . '%')
-                  ->orWhere('email', 'like', '%' . $this->search . '%');
+            $query->where(function ($q) {
+                $q->where('name', 'like', '%'.$this->search.'%')
+                    ->orWhere('email', 'like', '%'.$this->search.'%');
             });
         }
 
         if ($this->courseFilter) {
-            $query->whereHas('enrollments', function($q) {
-                $q->where('course_id', $this->courseFilter);
-            });
+            $courseId = (int) $this->courseFilter;
+            if ($this->canAccessCourse($courseId)) {
+                $query->whereHas('enrollments', fn ($q) => $q->where('course_id', $courseId));
+            } else {
+                $query->whereRaw('0 = 1');
+            }
         }
 
-        $students = $query->paginate(20);
-        $students = $this->applySorting($students);
+        return $query;
+    }
 
-        return $students->getCollection()->pluck('id')->toArray();
+    private function managedCourses()
+    {
+        if ($this->managedCoursesCache !== null) {
+            return $this->managedCoursesCache;
+        }
+
+        $query = Course::query()->orderBy('title');
+
+        if ($this->canManageAllXp) {
+            return $this->managedCoursesCache = $query->where('is_published', true)->get();
+        }
+
+        return $this->managedCoursesCache = $query->accessibleBy(Auth::user())->get();
+    }
+
+    /**
+     * @return array<int>
+     */
+    private function managedCourseIds(): array
+    {
+        return $this->managedCourses()->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    private function canAccessCourse(int $courseId): bool
+    {
+        return in_array($courseId, $this->managedCourseIds(), true);
+    }
+
+    private function assertCanAccessCourse(int $courseId): void
+    {
+        abort_unless($this->canAccessCourse($courseId), 403);
+    }
+
+    private function assertCanManageStudent(int $userId): void
+    {
+        $query = User::query()
+            ->where('id', $userId)
+            ->whereHas('roles', fn ($q) => $q->where('name', 'student'));
+
+        if (! $this->canManageAllXp) {
+            $ids = $this->managedCourseIds();
+            abort_unless($ids !== [], 403);
+            $query->whereHas('enrollments', fn ($q) => $q->whereIn('course_id', $ids));
+        }
+
+        abort_unless($query->exists(), 403);
+    }
+
+    private function assertCanAwardToStudentCourse(int $userId, int $courseId): void
+    {
+        abort_unless($this->canAccessCourse($courseId), 403);
+
+        $enrolled = CourseEnrollment::query()
+            ->where('user_id', $userId)
+            ->where('course_id', $courseId)
+            ->exists();
+
+        abort_unless($enrolled, 403, 'This student is not in that course.');
     }
 
     private function calculatePeriodXp($userId)
@@ -246,6 +316,8 @@ class XpManager extends Component
 
     public function openEditModal($userId)
     {
+        $this->assertCanManageStudent((int) $userId);
+
         $user = User::with(['points', 'enrollments.course'])->findOrFail($userId);
         $this->editingUser = $user;
 
@@ -269,7 +341,12 @@ class XpManager extends Component
             ? (int) $this->courseFilter
             : null;
 
-        $enrolledIds = $user->enrollments->pluck('course_id')->map(fn ($id) => (int) $id)->all();
+        $enrolledIds = $user->enrollments
+            ->pluck('course_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $this->canAccessCourse($id))
+            ->values()
+            ->all();
 
         if ($filterCourseId && in_array($filterCourseId, $enrolledIds, true)) {
             $this->awardCourseId = $filterCourseId;
@@ -289,6 +366,8 @@ class XpManager extends Component
 
     public function openDetailsModal($userId)
     {
+        $this->assertCanManageStudent((int) $userId);
+
         $user = User::with(['points', 'enrollments.course'])->findOrFail($userId);
         $this->detailsUser = $user;
 
@@ -347,6 +426,8 @@ class XpManager extends Component
             'awardCourseId.exists' => 'This student is not enrolled in that course.',
         ]);
 
+        $this->assertCanAwardToStudentCourse((int) $this->editingUser->id, (int) $this->awardCourseId);
+
         $amount = $this->awardOperation === 'subtract'
             ? -(int) $this->awardPoints
             : (int) $this->awardPoints;
@@ -357,7 +438,7 @@ class XpManager extends Component
             $amount,
             $this->awardReason ?: null,
             Auth::id(),
-            'xp_manager_student'
+            $this->canManageAllXp ? 'xp_manager_student' : 'instructor_award'
         );
 
         if ($applied === 0) {
@@ -376,6 +457,8 @@ class XpManager extends Component
 
     public function saveEdit()
     {
+        abort_unless($this->canManageAllXp, 403);
+
         $this->validate([
             'editForm.xp_multiplier' => 'nullable|numeric|min:0',
             'editForm.multiplier_expires_at' => 'nullable|date',
@@ -398,6 +481,8 @@ class XpManager extends Component
 
     public function syncAllLevels(): void
     {
+        abort_unless($this->canManageAllXp, 403);
+
         $count = app(PointsService::class)->syncAllLevels();
         session()->flash('message', "Synced levels and ranks for {$count} students from their total XP.");
     }
@@ -416,6 +501,8 @@ class XpManager extends Component
         ], [
             'bulkCourseId.required' => 'Choose the course this XP belongs to.',
         ]);
+
+        $this->assertCanAccessCourse((int) $this->bulkCourseId);
 
         $amount = $this->bulkOperation === 'subtract'
             ? -(int) $this->bulkPoints
@@ -440,9 +527,9 @@ class XpManager extends Component
                 (int) $userId,
                 (int) $this->bulkCourseId,
                 $amount,
-                'Bulk award by admin',
+                'Bulk award by '.($this->canManageAllXp ? 'admin' : 'instructor'),
                 Auth::id(),
-                'xp_manager_bulk'
+                $this->canManageAllXp ? 'xp_manager_bulk' : 'instructor_bulk'
             );
             $awarded++;
         }
@@ -459,7 +546,12 @@ class XpManager extends Component
 
     public function openCourseBulkModal($courseId = null)
     {
-        $this->courseBulkCourseId = $courseId ?? $this->courseFilter;
+        $target = $courseId ?? $this->courseFilter;
+        if ($target && ! $this->canAccessCourse((int) $target)) {
+            abort(403);
+        }
+
+        $this->courseBulkCourseId = $target;
         $this->courseBulkPoints = 0;
         $this->courseBulkReason = '';
         $this->showCourseBulkModal = true;
@@ -479,6 +571,8 @@ class XpManager extends Component
             'courseBulkReason' => 'nullable|string|max:255',
         ]);
 
+        $this->assertCanAccessCourse((int) $this->courseBulkCourseId);
+
         $studentIds = CourseEnrollment::query()
             ->currentClass(null, (int) $this->courseBulkCourseId)
             ->pluck('user_id')
@@ -493,9 +587,9 @@ class XpManager extends Component
                 (int) $userId,
                 (int) $this->courseBulkCourseId,
                 (int) $this->courseBulkPoints,
-                $this->courseBulkReason ?: 'Bulk course award by admin',
+                $this->courseBulkReason ?: 'Bulk course award by '.($this->canManageAllXp ? 'admin' : 'instructor'),
                 Auth::id(),
-                'xp_manager_course'
+                $this->canManageAllXp ? 'xp_manager_course' : 'instructor_course'
             );
             $count++;
         }
@@ -511,6 +605,8 @@ class XpManager extends Component
 
     public function openResetModal($type = 'all', $courseId = null)
     {
+        abort_unless($this->canManageAllXp, 403);
+
         $this->resetType = $type;
         $this->resetCourseId = $courseId;
         $this->showResetModal = true;
@@ -524,6 +620,8 @@ class XpManager extends Component
 
     public function confirmReset()
     {
+        abort_unless($this->canManageAllXp, 403);
+
         try {
             DB::beginTransaction();
             
