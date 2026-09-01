@@ -115,16 +115,20 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/submit', \App\Livewire\ClubSessionReports\Submit::class)->name('submit');
     });
 
+    Route::get('/lesson-locks', \App\Livewire\Lessons\LessonLocks::class)->name('lessons.locks');
+
     // Lessons Routes
     Route::prefix('lessons')->name('lessons.')->group(function () {
         Route::get('/', \App\Livewire\Lessons\Index::class)->name('index');
-        Route::get('/locks', \App\Livewire\Lessons\LessonLocks::class)->name('locks');
-        Route::get('/{lesson}/view', \App\Livewire\Lessons\View::class)->name('view');
-        Route::post('/{lesson}/complete', [\App\Http\Controllers\Lessons\CompletionController::class, 'store'])->name('complete');
-        Route::get('/{lesson}', \App\Livewire\Lessons\View::class)->name('show');
+        Route::redirect('/locks', '/lesson-locks');
         Route::middleware(['can:edit_courses'])->group(function () {
             Route::get('/create', \App\Livewire\Lessons\Create::class)->name('create');
-            Route::get('/{lesson}/edit', \App\Livewire\Lessons\Edit::class)->name('edit');
+        });
+        Route::get('/{lesson}/view', \App\Livewire\Lessons\View::class)->whereNumber('lesson')->name('view');
+        Route::post('/{lesson}/complete', [\App\Http\Controllers\Lessons\CompletionController::class, 'store'])->whereNumber('lesson')->name('complete');
+        Route::get('/{lesson}', \App\Livewire\Lessons\View::class)->whereNumber('lesson')->name('show');
+        Route::middleware(['can:edit_courses'])->group(function () {
+            Route::get('/{lesson}/edit', \App\Livewire\Lessons\Edit::class)->whereNumber('lesson')->name('edit');
         });
     });
 

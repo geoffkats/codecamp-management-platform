@@ -238,6 +238,10 @@ class Sidebar extends Component
 
             $route = $item['route'] ?? null;
 
+            if (! empty($item['url'])) {
+                return true;
+            }
+
             return ! $route || \Illuminate\Support\Facades\Route::has($route);
         }));
     }
