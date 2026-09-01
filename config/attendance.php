@@ -17,6 +17,9 @@ return [
     /** Default clock-out for manual bulk present marks. */
     'default_clock_out' => env('ATTENDANCE_DEFAULT_CLOCK_OUT', '17:00'),
 
+    /** Close forgotten check-ins after the session ends. */
+    'auto_checkout' => filter_var(env('ATTENDANCE_AUTO_CHECKOUT', true), FILTER_VALIDATE_BOOLEAN),
+
     /** How many days back teachers may mark or correct attendance. */
     'teacher_backfill_days' => (int) env('ATTENDANCE_TEACHER_BACKFILL_DAYS', 30),
 

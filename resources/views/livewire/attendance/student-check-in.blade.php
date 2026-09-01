@@ -61,6 +61,9 @@
                             <div class="text-2xl font-bold text-blue-700 dark:text-blue-300">
                                 {{ $todayRecord->formattedClockOut() ?? '--:--' }}
                             </div>
+                            @if($todayRecord->clock_out && str_contains((string) $todayRecord->notes, 'Auto checked out'))
+                                <span class="text-xs text-blue-500 dark:text-blue-300 font-medium">Auto checked out</span>
+                            @endif
                         </div>
                     </div>
 
@@ -114,6 +117,9 @@
                             @endif
                         @else
                             You've completed your attendance for today
+                            @if(str_contains((string) $todayRecord->notes, 'Auto checked out'))
+                                (auto checked out because checkout was forgotten)
+                            @endif
                         @endif
                     </p>
                 </div>

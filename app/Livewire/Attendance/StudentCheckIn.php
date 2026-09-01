@@ -33,6 +33,9 @@ class StudentCheckIn extends Component
     public function mount(): void
     {
         $this->loadStudentProfile();
+        if ($this->studentProfile) {
+            $this->attendance->autoCheckOutForgotten(onlyProfile: $this->studentProfile);
+        }
         $this->refreshCheckInState();
         $this->loadTodayRecord();
     }

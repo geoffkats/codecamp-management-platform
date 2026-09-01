@@ -325,6 +325,8 @@ class AttendanceService
             throw new \RuntimeException('Already checked in today at ' . ($existing->formattedClockIn() ?? 'unknown time') . '.');
         }
 
+        $this->autoCheckOutForgotten(onlyProfile: $profile);
+
         $now = now();
         $status = $this->isLateCheckInForProfile($profile, $now) ? 'late' : 'present';
 
@@ -369,6 +371,96 @@ class AttendanceService
         ]);
 
         return $record->fresh();
+    }
+
+    /**
+     * Close check-ins that were never tapped out after the session ended.
+     */
+    public function autoCheckOutForgotten(?Carbon $now = null, ?StudentProfile $onlyProfile = null): int
+    {
+        if (! config('attendance.auto_checkout', true)) {
+            return 0;
+        }
+
+        $now = $now ?? now();
+        $count = 0;
+
+        $query = StudentAttendance::query()
+            ->whereNotNull('clock_in')
+            ->where(function ($q) {
+                $q->whereNull('clock_out')->orWhere('clock_out', '');
+            })
+            ->whereIn('status', ['present', 'late'])
+            ->whereDate('attendance_date', '<=', $now->toDateString())
+            ->with(['studentProfile', 'club.schedules']);
+
+        if ($onlyProfile) {
+            $query->where('student_profile_id', $onlyProfile->id);
+        }
+
+        foreach ($query->get() as $record) {
+            $outAt = $this->forgottenCheckoutAt($record);
+
+            if (! $outAt) {
+                continue;
+            }
+
+            $dayEnded = $record->attendance_date->lt($now->copy()->startOfDay());
+            if (! $dayEnded && $now->lt($outAt)) {
+                continue;
+            }
+
+            $clockIn = $record->clockInCarbon();
+            if ($clockIn && $outAt->lte($clockIn)) {
+                $outAt = $clockIn->copy()->addMinute();
+            }
+
+            $note = 'Auto checked out (forgot to tap out).';
+            $notes = trim((string) $record->notes);
+            if (! str_contains($notes, 'Auto checked out')) {
+                $notes = $notes === '' ? $note : $notes."\n".$note;
+            }
+
+            $record->update([
+                'clock_out' => $outAt->format('H:i:s'),
+                'notes' => $notes,
+            ]);
+            $count++;
+        }
+
+        return $count;
+    }
+
+    private function forgottenCheckoutAt(StudentAttendance $record): ?Carbon
+    {
+        $date = $record->attendance_date?->toDateString();
+        if (! $date) {
+            return null;
+        }
+
+        $time = config('attendance.default_clock_out', '17:00');
+
+        if ($record->club_id) {
+            $time = config('attendance.club_default_session_end', '16:30');
+            $club = $record->club;
+            if ($club) {
+                $schedule = $this->clubScheduleForDate($club, $record->attendance_date);
+                $time = $schedule?->effectiveSessionEnd($club)
+                    ?? ($club->session_end ? substr((string) $club->session_end, 0, 5) : $time);
+            }
+        } elseif ($record->studentProfile && $this->isCodeClubProfile($record->studentProfile)) {
+            $window = $this->checkInWindowForProfile($record->studentProfile, $record->attendance_date);
+            $time = $window['session_end'] ?? config('attendance.club_default_session_end', '16:30');
+        }
+
+        return Carbon::parse($date.' '.$this->normalizeClockTime((string) $time));
+    }
+
+    private function normalizeClockTime(string $time): string
+    {
+        $time = substr(trim($time), 0, 8);
+
+        return strlen($time) === 5 ? $time.':00' : $time;
     }
 
     public function markManual(
