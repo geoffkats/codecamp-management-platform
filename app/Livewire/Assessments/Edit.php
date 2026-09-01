@@ -761,20 +761,8 @@ class Edit extends Component
         $attempt = AssessmentAttempt::with(['user', 'assessment.questions.options'])
             ->find($attemptId);
         
-        // Verify authorization - teacher can only view attempts from their scope
-        if ($attempt && Auth::user()->isIctTeacher()) {
-            $schoolId = Auth::user()->ictSchoolId();
-            if (!$schoolId || $attempt->student_type !== 'ict' || (int) $attempt->school_id !== (int) $schoolId) {
-                abort(403, 'You can only view attempts from your school.');
-            }
-        } elseif ($attempt && Auth::user()->isTeacher()) {
-            if ($attempt->student_type !== 'codecamp') {
-                abort(403, 'You can only view attempts from your own courses.');
-            }
-
-            if (!$attempt->assessment->course || $attempt->assessment->course->instructor_id !== Auth::id()) {
-                abort(403, 'You can only view attempts from your own courses.');
-            }
+        if ($attempt) {
+            \App\Support\SubmissionAccess::authorizeView(Auth::user(), $attempt);
         }
         
         $this->selectedAttempt = $attempt;

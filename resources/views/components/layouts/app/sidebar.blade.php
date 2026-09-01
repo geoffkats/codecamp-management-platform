@@ -158,6 +158,10 @@
                     fail(({ status, preventDefault }) => {
                         if (status !== 419) return;
                         preventDefault();
+                        if ((window.location.pathname || '').startsWith('/login')) {
+                            window.location.reload();
+                            return;
+                        }
                         window.location.replace('/login');
                     });
                 });

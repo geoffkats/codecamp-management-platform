@@ -4,7 +4,9 @@ namespace App\Livewire\Dashboard;
 
 use App\Models\CourseEnrollment;
 use App\Models\Notification;
+use App\Models\User;
 use App\Models\UserPoint;
+use App\Models\UserProgress;
 use App\Services\AttendanceService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -57,12 +59,26 @@ class CodeClubStudentDashboard extends Component
 
             $memberIds = $club->activeMemberships()->pluck('student_id');
 
-            $clubLeaderboard = UserPoint::query()
-                ->with('user')
-                ->whereHas('user', fn ($q) => $q->whereIn('id', $memberIds))
-                ->orderByDesc('total_points')
+            $weeklyXp = UserProgress::query()
+                ->whereIn('user_id', $memberIds)
+                ->where('created_at', '>=', now()->startOfWeek())
+                ->selectRaw('user_id, COALESCE(SUM(points_earned), 0) as xp')
+                ->groupBy('user_id')
+                ->pluck('xp', 'user_id');
+
+            $clubLeaderboard = User::query()
+                ->whereIn('id', $memberIds)
+                ->get()
+                ->map(function (User $member) use ($weeklyXp) {
+                    return (object) [
+                        'user_id' => $member->id,
+                        'user' => $member,
+                        'total_points' => (int) ($weeklyXp[$member->id] ?? 0),
+                    ];
+                })
+                ->sortByDesc('total_points')
                 ->take(5)
-                ->get();
+                ->values();
         }
 
         $enrollments = CourseEnrollment::where('user_id', $user->id)

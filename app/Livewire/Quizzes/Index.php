@@ -32,6 +32,10 @@ class Index extends Component
             // AND the quiz must be approved AND not locked
             $query->where('approval_status', 'approved')
                   ->where('is_locked', false)
+                  ->where(function ($lessonLock) {
+                      $lessonLock->whereNull('lesson_id')
+                          ->orWhereHas('lesson', fn ($lessonQuery) => $lessonQuery->where('is_locked', false));
+                  })
                   ->where(function($q) use ($user) {
                       // From enrolled courses
                       $q->whereHas('course.enrollments', fn($enrollmentQuery) => $enrollmentQuery->where('user_id', $user->id))

@@ -5,7 +5,7 @@ namespace App\Livewire\Dashboard;
 use App\Models\ContentApproval;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
-use App\Models\DailyChallenge;
+use App\Services\TrainerSubmissionQueue;
 use App\Support\ProgramScope;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -42,17 +42,16 @@ class InstructorDashboard extends Component
             }
         );
 
-        // Get courses
-        $courses = Course::where('instructor_id', $user->id)
+        $courses = Course::accessibleBy($user)
             ->with(['enrollments', 'modules', 'lessons'])
             ->withCount(['enrollments', 'lessons'])
             ->orderBy('created_at', 'desc')
             ->paginate(6);
 
-        // Recent submissions awaiting grading
-        $recentSubmissions = $this->getRecentSubmissions($user);
+        $queue = app(TrainerSubmissionQueue::class);
+        $pendingGradingCount = $queue->pendingCount($user);
+        $recentSubmissions = $queue->recentPending($user, 8);
 
-        // Student analytics
         $studentAnalytics = $this->getStudentAnalytics($user);
 
         return view('livewire.dashboard.instructor-dashboard', [
@@ -62,6 +61,7 @@ class InstructorDashboard extends Component
             'recentEnrollments' => $dashboardData['recentEnrollments'],
             'topPerformingCourses' => $dashboardData['topPerformingCourses'],
             'courses' => $courses,
+            'pendingGradingCount' => $pendingGradingCount,
             'recentSubmissions' => $recentSubmissions,
             'studentAnalytics' => $studentAnalytics,
         ]);
@@ -70,21 +70,21 @@ class InstructorDashboard extends Component
     private function enrollmentQuery($user)
     {
         return ProgramScope::applyCourseEnrollmentScope(
-            CourseEnrollment::query()->whereHas('course', fn ($q) => $q->where('instructor_id', $user->id)),
+            CourseEnrollment::query()->whereHas('course', fn ($q) => $q->accessibleBy($user)),
             $user
         );
     }
 
     private function getStats($user): array
     {
-        $courses = Course::where('instructor_id', $user->id);
+        $courses = Course::accessibleBy($user);
         $totalEnrollments = $this->enrollmentQuery($user)->count();
-        
+
         return [
-            'totalCourses' => $courses->count(),
-            'publishedCourses' => $courses->where('is_published', true)->count(),
-            'draftCourses' => $courses->where('approval_status', 'draft')->count(),
-            'pendingApprovals' => $courses->where('approval_status', 'pending')->count(),
+            'totalCourses' => (clone $courses)->count(),
+            'publishedCourses' => (clone $courses)->where('is_published', true)->count(),
+            'draftCourses' => (clone $courses)->where('approval_status', 'draft')->count(),
+            'pendingApprovals' => (clone $courses)->where('approval_status', 'pending')->count(),
             'totalEnrollments' => $totalEnrollments,
             'activeStudents' => (int) ($this->enrollmentQuery($user)
                 ->whereNotNull('enrolled_at')
@@ -98,11 +98,10 @@ class InstructorDashboard extends Component
     {
         // Get IDs of lessons from courses this user owns
         $lessonIds = \App\Models\Lesson::whereHas('module.course', function ($q) use ($user) {
-            $q->where('instructor_id', $user->id);
+            $q->accessibleBy($user);
         })->pluck('id');
 
-        // Get IDs of courses this user owns
-        $courseIds = Course::where('instructor_id', $user->id)->pluck('id');
+        $courseIds = Course::accessibleBy($user)->pluck('id');
 
         // Get pending approvals for lessons
         $lessonApprovals = ContentApproval::where('approvable_type', 'App\Models\Lesson')
@@ -137,7 +136,7 @@ class InstructorDashboard extends Component
 
     private function getTopPerformingCourses($user)
     {
-        return Course::where('instructor_id', $user->id)
+        return Course::accessibleBy($user)
             ->withCount(['enrollments', 'lessons'])
             ->with(['enrollments' => function ($q) {
                 $q->selectRaw('course_id, AVG(progress_percentage) as avg_progress, COUNT(*) as student_count')
@@ -146,48 +145,6 @@ class InstructorDashboard extends Component
             ->orderBy('enrollments_count', 'desc')
             ->take(5)
             ->get();
-    }
-
-    private function getRecentSubmissions($user)
-    {
-        $enrolledUserIds = $this->enrollmentQuery($user)->pluck('user_id');
-
-        $assessmentSubmissions = \App\Models\AssessmentAttempt::query()
-            ->whereHas('assessment', fn ($q) => $q
-                ->where('assessment_type', 'assignment')
-                ->whereHas('course', fn ($cq) => $cq->where('instructor_id', $user->id))
-            )
-            ->whereIn('user_id', $enrolledUserIds)
-            ->where('status', 'completed')
-            ->whereNull('score')
-            ->with(['assessment', 'user'])
-            ->latest('completed_at')
-            ->take(10)
-            ->get()
-            ->map(fn ($attempt) => (object) [
-                'title' => $attempt->assessment->title,
-                'user' => $attempt->user,
-                'submission' => $attempt,
-            ]);
-
-        $legacySubmissions = \App\Models\AssignmentSubmission::whereHas('assignment.course', fn ($q) => $q->where('instructor_id', $user->id))
-            ->whereIn('user_id', $enrolledUserIds)
-            ->whereNull('graded_at')
-            ->with(['assignment', 'user'])
-            ->latest()
-            ->take(10)
-            ->get()
-            ->map(fn ($submission) => (object) [
-                'title' => $submission->assignment->title,
-                'user' => $submission->user,
-                'submission' => $submission,
-            ]);
-
-        return $assessmentSubmissions
-            ->concat($legacySubmissions)
-            ->sortByDesc(fn ($item) => $item->submission->completed_at ?? $item->submission->created_at ?? now())
-            ->take(10)
-            ->values();
     }
 
     private function getStudentAnalytics($user)

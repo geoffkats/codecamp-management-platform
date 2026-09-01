@@ -24,14 +24,20 @@ class LessonCompletionService
         ];
         
         $missing = [];
-        
-        // Check all assessments (quizzes, tests, etc)
-        $requiredAssessments = $lesson->assessments()->get();
-        $eligibleAssessments = $requiredAssessments->where('assessment_type', '!=', 'assignment');
+
+        $lesson->loadMissing(['assessments', 'assignments']);
+        $requiredAssessments = $lesson->assessments;
+        $quizAssessments = $requiredAssessments->where('assessment_type', '!=', 'assignment');
+        $assignmentAssessments = $requiredAssessments->where('assessment_type', 'assignment');
+        $legacyAssignments = $lesson->assignments;
+
+        $hasRequiredWork = $quizAssessments->isNotEmpty()
+            || $assignmentAssessments->isNotEmpty()
+            || $legacyAssignments->isNotEmpty();
 
         $minimumMinutes = $lesson->duration_minutes ? max(1, (int) $lesson->duration_minutes) : 15;
 
-        if ($eligibleAssessments->isEmpty()) {
+        if (! $hasRequiredWork) {
             $progress = StudentLessonProgress::where('user_id', $user->id)
                 ->where('lesson_id', $lesson->id)
                 ->first();
@@ -54,10 +60,57 @@ class LessonCompletionService
             }
         }
 
-        foreach ($eligibleAssessments as $assessment) {
-            if ($assessment->assessment_type === 'assignment') {
-                continue;
+        foreach ($assignmentAssessments as $assessment) {
+            $submitted = $assessment->attempts()
+                ->where('user_id', $user->id)
+                ->where(function ($q) {
+                    $q->where('status', 'completed')->orWhereNotNull('completed_at');
+                })
+                ->exists();
+
+            if (! $submitted) {
+                $requirements['required_assignments'][] = [
+                    'id' => $assessment->id,
+                    'title' => $assessment->title,
+                    'type' => 'assignment',
+                ];
+
+                $missing[] = [
+                    'type' => 'assignment',
+                    'id' => $assessment->id,
+                    'title' => $assessment->title,
+                    'type_label' => 'Assignment',
+                    'route' => 'assessments.take',
+                    'message' => 'Submit: '.$assessment->title,
+                ];
             }
+        }
+
+        foreach ($legacyAssignments as $assignment) {
+            $submitted = $assignment->submissions()
+                ->where('user_id', $user->id)
+                ->whereIn('status', ['submitted', 'graded', 'returned'])
+                ->exists();
+
+            if (! $submitted) {
+                $requirements['required_assignments'][] = [
+                    'id' => $assignment->id,
+                    'title' => $assignment->title,
+                    'type' => 'assignment',
+                ];
+
+                $missing[] = [
+                    'type' => 'assignment',
+                    'id' => $assignment->id,
+                    'title' => $assignment->title,
+                    'type_label' => 'Assignment',
+                    'route' => 'assignments.submit',
+                    'message' => 'Submit: '.$assignment->title,
+                ];
+            }
+        }
+
+        foreach ($quizAssessments as $assessment) {
             $hasCompleted = false;
             
             // For quizzes and other assessments, check if there's a passed attempt
@@ -121,6 +174,27 @@ class LessonCompletionService
             ];
         }
 
+        if ($assessment->is_locked) {
+            return [
+                'can_access' => false,
+                'missing' => [[
+                    'type' => 'locked',
+                    'message' => 'This quiz is locked. Wait for your instructor to unlock it.',
+                ]],
+            ];
+        }
+
+        $lesson = $assessment->lesson;
+        if ($lesson && $lesson->is_locked) {
+            return [
+                'can_access' => false,
+                'missing' => [[
+                    'type' => 'locked',
+                    'message' => 'This lesson is locked. Wait for your instructor to unlock it.',
+                ]],
+            ];
+        }
+
         return ['can_access' => true, 'missing' => []];
     }
 
@@ -140,6 +214,11 @@ class LessonCompletionService
         if (!empty($check['requirements']['required_assessments'])) {
             $count = count($check['requirements']['required_assessments']);
             $messages[] = "Complete {$count} required assessment(s)";
+        }
+
+        if (!empty($check['requirements']['required_assignments'])) {
+            $count = count($check['requirements']['required_assignments']);
+            $messages[] = "Submit {$count} assignment(s)";
         }
 
         if (!empty($check['requirements']['minimum_minutes']) && isset($check['requirements']['time_spent_minutes'])) {

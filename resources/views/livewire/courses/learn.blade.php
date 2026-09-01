@@ -8,6 +8,9 @@
     }
     $nextLessonId = null;
     foreach ($allLessons as $lesson) {
+        if ($lesson->is_locked) {
+            continue;
+        }
         if (!$this->isLessonCompleted($lesson->id)) {
             $nextLessonId = $lesson->id;
             break;
@@ -102,6 +105,9 @@
                                         <a href="{{ route('lessons.view', $lesson) }}" wire:navigate class="text-base font-semibold text-gray-900 dark:text-white hover:text-amber-600 dark:hover:text-amber-400">
                                             {{ $lesson->title }}
                                         </a>
+                                        @if($lesson->is_locked)
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">Locked</span>
+                                        @endif
                                     </div>
                                     <div class="flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
                                         <span>{{ $points }} XP</span>
@@ -112,7 +118,9 @@
                                 </div>
                                 <div class="flex items-center gap-4">
                                     <span class="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
-                                        @if($isCompleted)
+                                        @if($lesson->is_locked)
+                                            Locked
+                                        @elseif($isCompleted)
                                             Completed
                                         @elseif($isCurrent)
                                             Current
@@ -120,7 +128,7 @@
                                             Not started
                                         @endif
                                     </span>
-                                    @if($isCurrent)
+                                    @if($isCurrent && !$lesson->is_locked)
                                         <flux:button href="{{ route('lessons.view', $lesson) }}" variant="primary" size="sm" wire:navigate>
                                             Continue
                                         </flux:button>

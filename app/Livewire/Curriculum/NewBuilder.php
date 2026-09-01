@@ -29,7 +29,7 @@ class NewBuilder extends Component
     use HandlesBuilderArchiving;
 
     public $courseId;
-    protected $course;
+    public $course = null;
     
     // State machine - single source of truth for UI state
     public $viewState = 'welcome'; // welcome | lesson-form | module-form | assessment-form | build-empty | not-found
@@ -114,9 +114,16 @@ class NewBuilder extends Component
             $this->isApprover = $this->isAdmin || $this->isSupervisor;
         }
 
-        if ($this->courseId && ! $this->course) {
+        if ($this->courseId) {
             $this->loadCourse(false);
         }
+    }
+
+    public function dehydrate(): void
+    {
+        $this->course = null;
+        $this->lesson = null;
+        $this->selectedAssessment = null;
     }
 
     /**
@@ -132,8 +139,8 @@ class NewBuilder extends Component
             return;
         }
 
-        // $course is protected (not in the snapshot). Keep the current
-        // view until loadCourse() has actually run for this request.
+        // Course is reloaded from courseId after each request. Keep the
+        // current view until loadCourse() has actually run.
         if (!$this->course) {
             return;
         }
@@ -759,14 +766,14 @@ class NewBuilder extends Component
             return;
         }
 
-        $lesson->is_locked = !$lesson->is_locked;
-        $lesson->save();
+        $locked = ! $lesson->is_locked;
+        app(\App\Services\LessonLockService::class)->setLessonLocked($lesson, $locked);
 
-        $status = $lesson->is_locked ? 'locked' : 'unlocked';
+        $status = $locked ? 'locked' : 'unlocked';
         session()->flash('message', "Lesson {$status} successfully!");
 
         if ($this->selectedId === $lessonId && isset($this->formData['is_locked'])) {
-            $this->formData['is_locked'] = $lesson->is_locked;
+            $this->formData['is_locked'] = $locked;
         }
 
         $this->loadCourse();

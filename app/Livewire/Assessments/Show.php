@@ -34,6 +34,13 @@ class Show extends Component
         ]);
 
         $user = Auth::user();
+
+        if (! $user->hasAnyRole(['admin', 'supervisor', 'teacher', 'codecamp_trainer'])) {
+            if ($this->assessment->is_locked || $this->assessment->lesson?->is_locked) {
+                abort(403, 'This assessment is currently locked. Wait for your instructor to unlock the lesson.');
+            }
+        }
+
         $attemptQuery = AssessmentAttempt::where('assessment_id', $assessment->id)
             ->where('user_id', $user->id);
 

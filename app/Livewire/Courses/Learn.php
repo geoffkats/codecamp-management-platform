@@ -64,6 +64,10 @@ class Learn extends Component
                     ->where('lesson_id', $lesson->id)
                     ->first();
                 
+                if ($lesson->is_locked) {
+                    continue;
+                }
+
                 if (!$progress || !$progress->is_completed) {
                     return $lesson;
                 }

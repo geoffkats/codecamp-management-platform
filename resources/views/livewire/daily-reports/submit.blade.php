@@ -52,10 +52,14 @@
                 <select wire:model.live="courseId"
                         class="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                     <option value="">Select a course…</option>
-                    @foreach($courses as $course)
+                    @forelse($courses as $course)
                         <option value="{{ $course->id }}">{{ $course->title }}</option>
-                    @endforeach
+                    @empty
+                    @endforelse
                 </select>
+                @if($courses->isEmpty())
+                    <p class="mt-1 text-xs text-amber-600 dark:text-amber-400">No courses assigned yet. Ask an admin to give you course access from the Users menu.</p>
+                @endif
                 @error('courseId') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
             </div>
         </div>
@@ -87,6 +91,37 @@
                    class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-orange-600 focus:ring-orange-500" />
             <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">This report requires follow-up action</span>
         </label>
+    </div>
+
+    {{-- ── Pedagogical approaches ──────────────────────────────────── --}}
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+        <h2 class="text-sm font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">Pedagogical approaches applied today</h2>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 mb-4">Tick each approach you used, then briefly say how.</p>
+
+        <div class="space-y-3">
+            @foreach($approachOptions as $key => $option)
+                <div class="p-4 rounded-xl bg-gray-50 dark:bg-gray-700/40 space-y-2">
+                    <label class="flex items-start gap-3 cursor-pointer select-none">
+                        <input type="checkbox" wire:model.live="approaches.{{ $key }}.used"
+                               class="mt-0.5 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-orange-600 focus:ring-orange-500" />
+                        <span>
+                            <span class="block text-sm font-semibold text-gray-800 dark:text-gray-200">{{ $option['label'] }}</span>
+                            <span class="block text-xs text-gray-500 dark:text-gray-400">{{ $option['hint'] }}</span>
+                        </span>
+                    </label>
+                    @if(!empty($approaches[$key]['used']))
+                        <div class="pl-7">
+                            <textarea wire:model="approaches.{{ $key }}.description" rows="2"
+                                      placeholder="How did you use this today?"
+                                      class="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"></textarea>
+                            @error("approaches.{$key}.description")
+                                <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    @endif
+                </div>
+            @endforeach
+        </div>
     </div>
 
     {{-- ── Section 3: Attendance ───────────────────────────────────── --}}

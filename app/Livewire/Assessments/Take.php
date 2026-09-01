@@ -623,18 +623,28 @@ class Take extends Component
                     return;
                 }
 
-                if (isset($settings['max_words']) && $settings['max_words'] !== null && $wordCount > $settings['max_words']) {
-                    session()->flash('error', "Your answer to question '{$question->question_text}' exceeds the maximum words ({$settings['max_words']}). Please shorten it before submitting.");
-                    return;
-                }
-
-                if (isset($settings['min_chars']) && $settings['min_chars'] !== null && $charCount < $settings['min_chars']) {
+                if (isset($settings['min_chars']) && $settings['min_chars'] !== null && (int) $settings['min_chars'] > 0 && $charCount < (int) $settings['min_chars']) {
                     session()->flash('error', "Your answer to question '{$question->question_text}' must be at least {$settings['min_chars']} characters.");
                     return;
                 }
 
-                if (isset($settings['min_words']) && $settings['min_words'] !== null && $wordCount < $settings['min_words']) {
-                    session()->flash('error', "Your answer to question '{$question->question_text}' must be at least {$settings['min_words']} words.");
+                $minWords = isset($settings['min_words']) ? (int) $settings['min_words'] : 0;
+                $maxWords = isset($settings['max_words']) && $settings['max_words'] !== '' && $settings['max_words'] !== null
+                    ? (int) $settings['max_words']
+                    : 0;
+
+                // Assignment prompts (e.g. "Live, Upload, or both?") can be one word.
+                if ($this->assessment->assessment_type === 'assignment' && $question->question_type === 'short_answer') {
+                    $minWords = 0;
+                }
+
+                if ($maxWords > 0 && $wordCount > $maxWords) {
+                    session()->flash('error', "Your answer to question '{$question->question_text}' exceeds the maximum words ({$maxWords}). Please shorten it before submitting.");
+                    return;
+                }
+
+                if ($minWords > 0 && $wordCount < $minWords) {
+                    session()->flash('error', "Your answer to question '{$question->question_text}' must be at least {$minWords} words.");
                     return;
                 }
             }
@@ -690,15 +700,29 @@ class Take extends Component
 
         // Award XP only when fully auto-graded and passed
         if (!$needsManualGrading && $this->isPassed && $this->assessment->xp_reward) {
-            $user = Auth::user();
-            $points = $user->points()->firstOrCreate([
-                'user_id' => $user->id,
-            ], [
-                'total_points' => 0,
-                'level' => 1,
-            ]);
+            $courseId = (int) ($this->assessment->course_id ?? 0);
+            $lessonId = $this->assessment->lesson_id ? (int) $this->assessment->lesson_id : null;
 
-            $points->addPoints((int) $this->assessment->xp_reward);
+            if ($courseId > 0) {
+                app(\App\Services\PointsService::class)->awardTrackedCourseXp(
+                    (int) Auth::id(),
+                    $courseId,
+                    (int) $this->assessment->xp_reward,
+                    'quiz_completed',
+                    $lessonId,
+                    ['source' => 'assessment_auto']
+                );
+            } else {
+                $user = Auth::user();
+                $points = $user->points()->firstOrCreate([
+                    'user_id' => $user->id,
+                ], [
+                    'total_points' => 0,
+                    'level' => 1,
+                ]);
+
+                $points->addPoints((int) $this->assessment->xp_reward);
+            }
         }
 
         // Check and award badges for perfect scores

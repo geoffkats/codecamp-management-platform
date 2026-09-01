@@ -4,6 +4,7 @@
     $badges = [
         'pending_approvals' => $pendingApprovalCount ?? 0,
         'pending_feedback' => $pendingFeedbackCount ?? 0,
+        'pending_submissions' => $pendingSubmissionsCount ?? 0,
     ];
 @endphp
 

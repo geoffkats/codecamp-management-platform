@@ -21,8 +21,8 @@ class LessonForm extends Component
     public $lessonId = null;
     public $moduleId = null;
     public $selectedId = null;
-    protected $course;
-    protected $lesson;
+    public $course = null;
+    public $lesson = null;
     public $formData = [];
     public $pdfUpload = null;
     public $slideUpload = null;
@@ -50,6 +50,12 @@ class LessonForm extends Component
     {
         $this->cacheUserRoles();
         $this->loadCourse();
+    }
+
+    public function dehydrate(): void
+    {
+        $this->course = null;
+        $this->lesson = null;
     }
 
     protected function cacheUserRoles(): void

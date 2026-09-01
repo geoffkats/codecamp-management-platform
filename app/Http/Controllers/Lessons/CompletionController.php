@@ -45,6 +45,13 @@ class CompletionController extends Controller
             abort(403, 'You must be enrolled in this course to complete lessons.');
         }
 
+        if (! $isInstructor && ! $isIctTeacherWithAccess) {
+            $check = app(\App\Services\LessonCompletionService::class)->canCompleteLesson($lesson, $user);
+            if (! $check['can_complete']) {
+                return back()->with('error', 'Submit the lesson assignment (and any required quizzes) before marking this lesson complete.');
+            }
+        }
+
         DB::transaction(function () use ($lesson, $course, $user) {
             $timeSpent = $this->calculateTimeSpent($lesson->id, $user->id);
             $points = $this->resolvePoints($lesson->difficulty_level);

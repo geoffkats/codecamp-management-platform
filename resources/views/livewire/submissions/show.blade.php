@@ -162,6 +162,25 @@
                 </div>
             </div>
 
+            @if($type === 'assessment' && count($reviewQuestions) > 0)
+                <div class="mb-6">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Question answers</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ $autoCorrectCount }} correct
+                            · {{ $autoIncorrectCount }} incorrect
+                            @if($manualCount > 0)
+                                · {{ $manualCount }} {{ \Illuminate\Support\Str::plural('question', $manualCount) }} to mark
+                            @endif
+                        </p>
+                    </div>
+                    @include('livewire.submissions.partials.question-review', [
+                        'reviewQuestions' => $reviewQuestions,
+                        'allowScoring' => false,
+                    ])
+                </div>
+            @endif
+
             @if($type === 'assessment')
                 @php
                     $submissionText = $submission->submissionText();

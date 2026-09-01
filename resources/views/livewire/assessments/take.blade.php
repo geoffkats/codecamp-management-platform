@@ -988,8 +988,6 @@
                         <span
                             wire:loading
                             wire:target="{{ $uploadWireTarget }}"
-                            wire:loading.remove
-                            wire:target="submitAssessment"
                             class="flex items-center gap-2">
                             <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

@@ -39,8 +39,13 @@ class Index extends Component
         $query = Assessment::where('assessment_type', 'assignment');
 
         if ($user->hasRole('student')) {
-            // Students only see assignments from courses they're enrolled in
-            $query->whereHas('course.enrollments', fn ($q) => $q->where('user_id', $user->id));
+            // Students only see unlocked assignments from courses they're enrolled in
+            $query->where('is_locked', false)
+                ->where(function ($lessonLock) {
+                    $lessonLock->whereNull('lesson_id')
+                        ->orWhereHas('lesson', fn ($lessonQuery) => $lessonQuery->where('is_locked', false));
+                })
+                ->whereHas('course.enrollments', fn ($q) => $q->where('user_id', $user->id));
         } elseif ($clubContext) {
             $query->whereHas('course.enrollments', fn ($q) => $q->whereIn('user_id', $clubStudentIds ?: [-1]));
         } elseif (!$isTeacher) {

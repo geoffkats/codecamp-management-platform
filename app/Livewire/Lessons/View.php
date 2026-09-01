@@ -50,7 +50,7 @@ class View extends Component
             'module.course.instructor:id,name',
             'quizzes:id,lesson_id,title,time_limit',
             'assignments:id,lesson_id,title,due_date',
-            'assessments:id,lesson_id,title,time_limit_minutes,passing_score',
+            'assessments:id,lesson_id,title,assessment_type,time_limit_minutes,passing_score',
         ]);
 
         $this->course = $this->lesson->module->course;
@@ -272,8 +272,23 @@ class View extends Component
         if ($this->isLessonCompleted) {
             return;
         }
-        // Bypass completion requirements and video checks.
-        $this->canComplete = true;
+
+        $check = app(LessonCompletionService::class)->canCompleteLesson($this->lesson, Auth::user());
+        $this->completionStatus = $check;
+        $this->canComplete = $check['can_complete'];
+
+        if (! $this->canComplete) {
+            $first = $check['missing'][0] ?? [];
+            $detail = $first['message'] ?? $first['title'] ?? null;
+            session()->flash(
+                'error',
+                $detail
+                    ? $detail.' You cannot mark this lesson complete yet.'
+                    : 'Finish the required assignment or quiz before marking this lesson complete.'
+            );
+
+            return;
+        }
         
         // Wrap everything in a transaction for data integrity
         DB::transaction(function () {
@@ -499,7 +514,7 @@ class View extends Component
     {
         $modules = CourseModule::where('course_id', $this->course->id)
             ->with(['lessons' => fn($q) => $q->orderBy('order_index')
-                ->select('id', 'module_id', 'title', 'order_index', 'lesson_type')])
+                ->select('id', 'module_id', 'title', 'order_index', 'lesson_type', 'is_locked')])
             ->orderBy('order_index')
             ->get();
 

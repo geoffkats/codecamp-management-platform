@@ -53,6 +53,65 @@ class CourseEnrollment extends Model
         return $this->belongsTo(CodeClub::class, 'club_id');
     }
 
+    public function scopeCurrentClass($query, ?int $campId = null, ?int $courseId = null)
+    {
+        $query->whereNull('completed_at')->whereNotNull('course_id');
+
+        if ($campId) {
+            // Legacy rows often have null camp_id; still treat them as this camp's open class.
+            $query->where(function ($q) use ($campId) {
+                $q->where('camp_id', $campId)->orWhereNull('camp_id');
+            });
+        }
+
+        if ($courseId) {
+            $query->where('course_id', $courseId);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Count only XP from a student's current (unfinished) class.
+     * Old / finished courses still award career XP, but they do not rank here.
+     */
+    public static function constrainProgressToCurrentClass($query, ?int $campId = null, ?int $courseId = null): void
+    {
+        $query->whereExists(function ($sub) use ($campId, $courseId) {
+            $sub->selectRaw('1')
+                ->from('course_enrollments')
+                ->whereColumn('course_enrollments.user_id', 'user_progress.user_id')
+                ->whereColumn('course_enrollments.course_id', 'user_progress.course_id')
+                ->whereNull('course_enrollments.completed_at');
+
+            if ($campId) {
+                $sub->where(function ($q) use ($campId) {
+                    $q->where('course_enrollments.camp_id', $campId)
+                        ->orWhereNull('course_enrollments.camp_id');
+                });
+            }
+
+            if ($courseId) {
+                $sub->where('course_enrollments.course_id', $courseId);
+            }
+        });
+    }
+
+    /**
+     * Mark unfinished classes in this camp as done so the student cannot keep
+     * ranking there after they transfer, drop, or move to another camp.
+     */
+    public static function closeOpenClassesInCamp(int $userId, int $campId): void
+    {
+        static::query()
+            ->where('user_id', $userId)
+            ->whereNull('completed_at')
+            ->where(function ($q) use ($campId) {
+                $q->where('camp_id', $campId)->orWhereNull('camp_id');
+            })
+            ->update(['completed_at' => now()]);
+    }
+
     protected static function booted(): void
     {
         static::creating(function (self $enrollment) {

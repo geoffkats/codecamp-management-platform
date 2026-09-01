@@ -102,14 +102,7 @@ class Index extends Component
                     $query->whereRaw('1 = 0');
                 }
             } else {
-                // Other teachers can see their own courses regardless of status
-                $query->where(function ($q) {
-                    $q->where('instructor_id', Auth::id())
-                      ->orWhere(function ($subQ) {
-                          $subQ->where('is_published', true)
-                               ->where('approval_status', 'approved');
-                      });
-                });
+                $query->accessibleBy($user);
             }
         } else {
             // For other users, only show published and approved courses

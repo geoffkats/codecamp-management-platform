@@ -1,7 +1,14 @@
 <div class="max-w-4xl mx-auto py-8 px-4 sm:px-6 space-y-6">
+<style>
+    @media print {
+        nav, aside, .print\\:hidden, button { display: none !important; }
+        .max-w-4xl { max-width: none; padding: 0; }
+        .shadow-sm, .rounded-2xl { box-shadow: none !important; }
+    }
+</style>
 
     {{-- Back + actions bar --}}
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between print:hidden">
         <a href="{{ route('admin.daily-reports.index') }}"
            class="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,6 +114,51 @@
         <p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line leading-relaxed">{{ $report->issues }}</p>
     </div>
     @endif
+
+    @php $approachRows = $report->approachReportRows(); @endphp
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden print:break-inside-avoid">
+        <div class="flex items-center justify-between gap-2 p-5 border-b border-gray-100 dark:border-gray-700">
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="text-sm font-bold text-gray-700 dark:text-gray-300">Pedagogical approaches</h2>
+                    <p class="text-xs text-gray-400">How the instructor taught today</p>
+                </div>
+            </div>
+            <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">
+                {{ $report->usedApproachCount() }}/{{ count($approachRows) }} used
+            </span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-gray-100 dark:divide-gray-700">
+            @foreach($approachRows as $approach)
+                <div class="p-5 {{ $approach['used'] ? 'bg-indigo-50/40 dark:bg-indigo-950/20' : '' }}">
+                    <div class="flex items-start gap-3">
+                        @if($approach['used'])
+                            <span class="mt-0.5 w-5 h-5 rounded-full bg-green-500 text-white flex items-center justify-center flex-shrink-0">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                            </span>
+                        @else
+                            <span class="mt-0.5 w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0"></span>
+                        @endif
+                        <div class="min-w-0">
+                            <p class="text-sm font-bold text-gray-900 dark:text-white">{{ $approach['label'] }}</p>
+                            @if($approach['used'] && $approach['description'] !== '')
+                                <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 whitespace-pre-line leading-relaxed">{{ $approach['description'] }}</p>
+                            @elseif($approach['used'])
+                                <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">Used today — no note added.</p>
+                            @else
+                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Not used today</p>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    </div>
 
     {{-- Attendance --}}
     <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">

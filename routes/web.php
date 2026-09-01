@@ -118,6 +118,7 @@ Route::middleware(['auth'])->group(function () {
     // Lessons Routes
     Route::prefix('lessons')->name('lessons.')->group(function () {
         Route::get('/', \App\Livewire\Lessons\Index::class)->name('index');
+        Route::get('/locks', \App\Livewire\Lessons\LessonLocks::class)->name('locks');
         Route::get('/{lesson}/view', \App\Livewire\Lessons\View::class)->name('view');
         Route::post('/{lesson}/complete', [\App\Http\Controllers\Lessons\CompletionController::class, 'store'])->name('complete');
         Route::get('/{lesson}', \App\Livewire\Lessons\View::class)->name('show');

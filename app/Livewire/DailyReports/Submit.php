@@ -33,6 +33,7 @@ class Submit extends Component
     public $issuesText = '';
     public $followUpRequired = false;
     public $attachments = [];
+    public array $approaches = [];
 
     public $attendance = [];
     public $mentions = [];
@@ -50,6 +51,11 @@ class Submit extends Component
         $this->staff   = $this->loadStaff();
         $this->camps   = CodeCamp::whereIn('status', ['upcoming', 'active'])->orderBy('start_date')->get(['id', 'name', 'status']);
 
+        if ($this->courses->count() === 1) {
+            $this->courseId = $this->courses->first()->id;
+            $this->updatedCourseId();
+        }
+
         $activeCamps = $this->camps->where('status', 'active');
         if ($activeCamps->count() === 1) {
             $this->campId = $activeCamps->first()->id;
@@ -58,6 +64,7 @@ class Submit extends Component
         $this->attendance = [];
         $this->mentions = [['mentionable_type' => User::class, 'mentionable_id' => null, 'role' => 'recognition', 'note' => null]];
         $this->issues = [['title' => '', 'description' => '', 'severity' => 'normal', 'assigned_to' => null]];
+        $this->approaches = DailyReport::emptyApproaches();
     }
 
     public function updatedCourseId(): void
@@ -187,6 +194,7 @@ class Submit extends Component
                     'summary' => $this->summary,
                     'challenges' => $this->challenges,
                     'issues' => $this->issuesText,
+                    'pedagogical_approaches' => $this->serializedApproaches(),
                     'follow_up_required' => (bool) $this->followUpRequired,
                     'submitted_at' => now(),
                 ]
@@ -266,9 +274,17 @@ class Submit extends Component
 
     public function rules(): array
     {
-        return [
+        $rules = [
             'reportDate' => 'required|date',
-            'courseId' => 'required|exists:courses,id',
+            'courseId' => [
+                'required',
+                'exists:courses,id',
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    if (! Course::accessibleBy(Auth::user())->where('id', $value)->exists()) {
+                        $fail('You do not have access to that course.');
+                    }
+                },
+            ],
             'summary' => 'nullable|string',
             'challenges' => 'nullable|string',
             'issuesText' => 'nullable|string',
@@ -286,6 +302,37 @@ class Submit extends Component
             'issues.*.severity' => 'nullable|in:normal,high,critical',
             'issues.*.assigned_to' => 'nullable|exists:users,id',
         ];
+
+        foreach (array_keys(DailyReport::PEDAGOGICAL_APPROACHES) as $key) {
+            $rules["approaches.{$key}.used"] = 'boolean';
+            $rules["approaches.{$key}.description"] = [
+                'nullable',
+                'string',
+                'max:500',
+                function (string $attribute, mixed $value, \Closure $fail) use ($key) {
+                    if (! empty($this->approaches[$key]['used']) && trim((string) $value) === '') {
+                        $fail('Add a brief note on how this approach was used.');
+                    }
+                },
+            ];
+        }
+
+        return $rules;
+    }
+
+    private function serializedApproaches(): array
+    {
+        $out = DailyReport::emptyApproaches();
+
+        foreach (array_keys($out) as $key) {
+            $used = (bool) ($this->approaches[$key]['used'] ?? false);
+            $out[$key] = [
+                'used' => $used,
+                'description' => $used ? trim((string) ($this->approaches[$key]['description'] ?? '')) : '',
+            ];
+        }
+
+        return $out;
     }
 
     private function loadStaff()
@@ -297,11 +344,7 @@ class Submit extends Component
 
     private function loadInstructorCourses()
     {
-        $userId = Auth::id();
-        return Course::where('instructor_id', $userId)
-            ->orWhereHas('collaborators', function ($q) use ($userId) {
-                $q->where('user_id', $userId);
-            })
+        return Course::accessibleBy(Auth::user())
             ->orderBy('title')
             ->get(['id', 'title']);
     }
@@ -332,6 +375,7 @@ class Submit extends Component
             'students' => $this->students,
             'staff'    => $this->staff,
             'camps'    => $this->camps,
+            'approachOptions' => DailyReport::PEDAGOGICAL_APPROACHES,
         ]);
     }
 }

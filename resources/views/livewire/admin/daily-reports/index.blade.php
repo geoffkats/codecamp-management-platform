@@ -87,6 +87,14 @@
                             &middot; Submitted at {{ $report->submitted_at->format('H:i') }}
                         @endif
                     </p>
+                    @php $usedApproaches = $report->appliedApproaches(); @endphp
+                    @if(count($usedApproaches))
+                        <div class="flex flex-wrap gap-1.5 mt-2">
+                            @foreach($usedApproaches as $approach)
+                                <span class="inline-flex px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold">{{ $approach['label'] }}</span>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
 
                 {{-- Badges --}}

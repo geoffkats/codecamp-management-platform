@@ -3,7 +3,7 @@
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
             <h1 class="text-3xl font-bold text-gray-900 dark:text-white">XP Manager</h1>
-            <p class="mt-1 text-gray-600 dark:text-gray-400">Manage student experience points across all courses</p>
+            <p class="mt-1 text-gray-600 dark:text-gray-400">Click a student, choose their course, then award XP to that class.</p>
         </div>
         <div class="flex items-center gap-3">
             <flux:button wire:click="syncAllLevels" variant="primary" wire:confirm="Recalculate every student's level and rank from their total XP?">
@@ -110,21 +110,27 @@
                 <p class="text-sm font-medium text-blue-900 dark:text-blue-100">
                     {{ count($selectedStudents) }} student(s) selected
                 </p>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 flex-wrap">
+                    <select wire:model="bulkCourseId" class="px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-lg text-sm dark:bg-blue-900/50 dark:text-white min-w-[12rem]">
+                        <option value="">Choose course</option>
+                        @foreach($courses as $course)
+                            <option value="{{ $course->id }}">{{ $course->title }}</option>
+                        @endforeach
+                    </select>
                     <select wire:model="bulkOperation" class="px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-lg text-sm dark:bg-blue-900/50 dark:text-white">
                         <option value="add">Add XP</option>
                         <option value="subtract">Subtract XP</option>
-                        <option value="set">Set XP to</option>
                     </select>
-                    <input type="number" wire:model="bulkPoints" placeholder="Points" min="0"
+                    <input type="number" wire:model="bulkPoints" placeholder="Points" min="1"
                         class="w-32 px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-lg text-sm dark:bg-blue-900/50 dark:text-white">
                     <flux:button wire:click="bulkUpdateXp" variant="primary" size="sm">
-                        Apply
+                        Apply to course
                     </flux:button>
                     <flux:button wire:click="$set('selectedStudents', [])" variant="subtle" size="sm">
                         Clear
                     </flux:button>
                 </div>
+                @error('bulkCourseId')<p class="text-xs text-red-600 w-full mt-2">{{ $message }}</p>@enderror
             </div>
         </div>
     @endif
@@ -247,9 +253,7 @@
                             </td>
                             <td class="px-4 py-3 text-right">
                                 <flux:button wire:click="openEditModal({{ $student->id }})" variant="subtle" size="sm">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </svg>
+                                    Award XP
                                 </flux:button>
                             </td>
                         </tr>
@@ -274,8 +278,7 @@
     <!-- Edit Modal -->
     @if($showEditModal && $editingUser)
         <flux:modal name="edit-xp" :show="$showEditModal" wire:model="showEditModal" class="!max-w-3xl">
-            <form wire:submit.prevent="saveEdit">
-                <div class="p-6 space-y-6">
+            <div class="p-6 space-y-6">
                     <!-- Header with User Info -->
                     <div class="flex items-center gap-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                         <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
@@ -302,51 +305,78 @@
                         </div>
                     </div>
 
-                    <!-- Core Stats Section -->
+                    <!-- Award XP to a course -->
+                    @php
+                        $selectedEnrollment = $editingEnrollments->firstWhere('course_id', (int) $awardCourseId);
+                    @endphp
                     <div>
                         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                             <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                             </svg>
-                            Core Experience Points
+                            Award XP to a course
                         </h3>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Total Points
-                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-normal block mt-0.5">Student's cumulative XP — level &amp; rank update from this</span>
-                                </label>
-                                <div class="relative">
-                                    <input type="number" min="0" wire:model.live="editForm.total_points"
-                                        class="w-full pl-10 pr-4 py-2.5 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                    <svg class="w-5 h-5 text-yellow-500 absolute left-3 top-3" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                    </svg>
-                                </div>
-                                @error('editForm.total_points')<p class="text-sm text-red-600 mt-1">{{ $message }}</p>@enderror
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                            XP is attached to the class you pick. This Week / This Month ranks only count their current class.
+                        </p>
+                        @if($editingEnrollments->isEmpty())
+                            <div class="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 p-4 text-sm text-amber-800 dark:text-amber-200">
+                                This student has no course enrollments. Enroll them in a class before awarding XP.
                             </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Level <span class="text-xs font-normal text-gray-500">(auto)</span>
-                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-normal block mt-0.5">Every 100 XP = +1 level</span>
-                                </label>
-                                <div class="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">
-                                    Level {{ $previewLevelInfo['level'] }}
+                        @else
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Course</label>
+                                    <select wire:model.live="awardCourseId" class="w-full px-4 py-2.5 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                                        <option value="">Choose a course</option>
+                                        @foreach($editingEnrollments as $enrollment)
+                                            <option value="{{ $enrollment->course_id }}">
+                                                {{ $enrollment->course?->title ?? 'Course #'.$enrollment->course_id }}
+                                                @if($enrollment->completed_at)
+                                                    (finished)
+                                                @else
+                                                    (current class)
+                                                @endif
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @error('awardCourseId')<p class="text-sm text-red-600 mt-1">{{ $message }}</p>@enderror
+                                    @if($selectedEnrollment?->completed_at)
+                                        <p class="text-xs text-amber-700 dark:text-amber-300 mt-2">
+                                            This class is finished. XP still adds to All Time, not this week's class board.
+                                        </p>
+                                    @endif
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Action</label>
+                                    <select wire:model="awardOperation" class="w-full px-4 py-2.5 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                                        <option value="add">Add XP</option>
+                                        <option value="subtract">Remove XP</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Points</label>
+                                    <input type="number" min="1" max="10000" wire:model="awardPoints" placeholder="e.g. 50"
+                                        class="w-full px-4 py-2.5 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                                    @error('awardPoints')<p class="text-sm text-red-600 mt-1">{{ $message }}</p>@enderror
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Reason (optional)</label>
+                                    <input type="text" wire:model="awardReason" maxlength="255" placeholder="Bonus, correction, event..."
+                                        class="w-full px-4 py-2.5 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
                                 </div>
                             </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Rank <span class="text-xs font-normal text-gray-500">(auto)</span>
-                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-normal block mt-0.5">Based on total XP band</span>
-                                </label>
-                                <div class="px-4 py-2.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-200 font-semibold">
-                                    {{ $previewLevelInfo['name'] }}
-                                    <span class="text-xs font-normal text-purple-600 dark:text-purple-300 ml-1">
-                                        ({{ $previewLevelInfo['xp_to_next_level'] }} XP to next level)
-                                    </span>
-                                </div>
+                            <div class="flex justify-end mt-4">
+                                <flux:button type="button" wire:click="awardStudentXp" variant="primary" :disabled="!$awardCourseId">
+                                    Award to this course
+                                </flux:button>
                             </div>
-                        </div>
+                            @if($awardMessage)
+                                <div class="mt-3 rounded-lg border border-green-200 bg-green-50 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-200 px-4 py-2 text-sm">
+                                    {{ $awardMessage }}
+                                </div>
+                            @endif
+                        @endif
                     </div>
 
                     <!-- Bonus Multiplier Section -->
@@ -421,22 +451,21 @@
                             <svg class="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
                             </svg>
-                            Changes will be logged and visible to the student immediately
+                            Changes apply immediately. Class ranks use the course you selected above.
                         </p>
                         <div class="flex items-center gap-3">
                             <flux:button type="button" wire:click="closeEditModal" variant="subtle">
                                 Cancel
                             </flux:button>
-                            <flux:button type="submit" variant="primary">
+                            <flux:button type="button" wire:click="saveEdit" variant="primary">
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                                 </svg>
-                                Save Changes
+                                Save multiplier
                             </flux:button>
                         </div>
                     </div>
                 </div>
-            </form>
         </flux:modal>
     @endif
 
@@ -504,7 +533,7 @@
                         @php
                             $breakdown = collect($xpHistory)->groupBy('type')->map(fn($items) => $items->sum('points'));
                         @endphp
-                        @foreach(['course_enrolled' => 'Enrollments', 'lesson_completed' => 'Lessons', 'course_completed' => 'Completions', 'quiz_completed' => 'Quizzes'] as $type => $label)
+                        @foreach(['course_enrolled' => 'Enrollments', 'lesson_completed' => 'Lessons', 'course_completed' => 'Completions', 'admin_award' => 'Admin awards'] as $type => $label)
                             <div class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                                 <p class="text-xs text-gray-600 dark:text-gray-400">{{ $label }}</p>
                                 <p class="text-lg font-bold text-gray-900 dark:text-white">
@@ -550,6 +579,12 @@
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                                                 </svg>
                                             </div>
+                                        @elseif($activity['type'] === 'admin_award')
+                                            <div class="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                                                <svg class="w-5 h-5 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                </svg>
+                                            </div>
                                         @else
                                             <div class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-900/30 flex items-center justify-center">
                                                 <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -582,6 +617,9 @@
                                                         {{ $activity['lesson'] }}
                                                     </p>
                                                 @endif
+                                                @if(!empty($activity['metadata']['reason']))
+                                                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{{ $activity['metadata']['reason'] }}</p>
+                                                @endif
                                                 <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">
                                                     <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -592,8 +630,8 @@
                                                 </p>
                                             </div>
                                             <div class="flex-shrink-0 text-right">
-                                                <span class="inline-flex items-center gap-1 px-3 py-1 bg-green-100 dark:bg-green-900/30 rounded-full text-sm font-bold text-green-700 dark:text-green-300">
-                                                    +{{ $activity['points'] }}
+                                                <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-bold {{ $activity['points'] >= 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' }}">
+                                                    {{ $activity['points'] >= 0 ? '+' : '' }}{{ $activity['points'] }}
                                                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                                                     </svg>
@@ -620,7 +658,7 @@
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
-                        Edit XP
+                        Award XP
                     </flux:button>
                     <flux:button wire:click="closeDetailsModal" variant="subtle">
                         Close
@@ -641,7 +679,7 @@
                     </div>
                     <div>
                         <h2 class="text-xl font-bold text-gray-900 dark:text-white">Award XP to Course</h2>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Give points to every approved student in a course.</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Give points to every student currently in this class.</p>
                     </div>
                 </div>
 
@@ -669,7 +707,7 @@
 
                     @if($courseBulkCourseId)
                         <div class="rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 p-4 text-sm text-blue-800 dark:text-blue-200">
-                            Everyone enrolled (approved) in the selected course will receive the XP amount above. Progress will be logged as "bulk_award".
+                            Students currently in this class will receive the XP. It is logged against this course so week/month ranks can count it.
                         </div>
                     @endif
                 </div>

@@ -61,9 +61,25 @@ class AppServiceProvider extends AuthServiceProvider
         ]);
 
         Route::bind('submission', function (string $value) {
-            return AssignmentSubmission::find($value)
-                ?? AssessmentAttempt::find($value)
-                ?? abort(404);
+            $attempt = AssessmentAttempt::with('assessment.course')->find($value);
+            $legacy = AssignmentSubmission::with('assignment.course')->find($value);
+            $user = auth()->user();
+
+            if ($attempt && $legacy && $user) {
+                $canAttempt = \App\Support\SubmissionAccess::canView($user, $attempt);
+                $canLegacy = \App\Support\SubmissionAccess::canView($user, $legacy);
+
+                if ($canAttempt && ! $canLegacy) {
+                    return $attempt;
+                }
+                if ($canLegacy && ! $canAttempt) {
+                    return $legacy;
+                }
+
+                return $attempt;
+            }
+
+            return $attempt ?? $legacy ?? abort(404);
         });
         
         $this->registerPolicies();

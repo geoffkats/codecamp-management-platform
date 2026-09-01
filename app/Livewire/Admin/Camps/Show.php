@@ -4,6 +4,7 @@ namespace App\Livewire\Admin\Camps;
 
 use App\Models\CampEnrollment;
 use App\Models\CodeCamp;
+use App\Models\CourseEnrollment;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -181,6 +182,7 @@ class Show extends Component
 
         if ($previousActive) {
             $previousActive->update(['status' => 'transferred', 'completed_at' => now()]);
+            CourseEnrollment::closeOpenClassesInCamp($studentId, (int) $previousActive->camp_id);
         }
 
         CampEnrollment::updateOrCreate(
@@ -229,6 +231,8 @@ class Show extends Component
                 ->where('status', 'active')
                 ->update(['status' => 'transferred', 'completed_at' => now()]);
 
+            CourseEnrollment::closeOpenClassesInCamp((int) $studentId, (int) $this->camp->id);
+
             // Create new enrollment in target camp (upsert to avoid duplicates)
             CampEnrollment::updateOrCreate(
                 ['camp_id' => $targetCamp->id, 'student_id' => $studentId],
@@ -268,6 +272,8 @@ class Show extends Component
         CampEnrollment::where('camp_id', $this->camp->id)
             ->where('student_id', $this->removeStudentId)
             ->update(['status' => 'dropped', 'completed_at' => now(), 'notes' => $this->removeNote ?: null]);
+
+        CourseEnrollment::closeOpenClassesInCamp((int) $this->removeStudentId, (int) $this->camp->id);
 
         $this->closeRemoveModal();
         session()->flash('message', 'Student removed from this camp.');

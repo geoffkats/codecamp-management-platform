@@ -61,20 +61,20 @@
                 </div>
         @endswitch
     </div>
-</div>
 
-<style>
-    #curriculum-builder-shell.cb-collapsed #curriculum-outline {
-        width: 0;
-        border-right-width: 0;
-    }
-    #curriculum-builder-shell.cb-collapsed #curriculum-outline-toggle {
-        left: 0;
-    }
-    #curriculum-outline {
-        transition: width 180ms ease-out, border-width 180ms ease-out;
-    }
-    #curriculum-outline-toggle {
-        transition: left 180ms ease-out;
-    }
-</style>
+    <style>
+        #curriculum-builder-shell.cb-collapsed #curriculum-outline {
+            width: 0;
+            border-right-width: 0;
+        }
+        #curriculum-builder-shell.cb-collapsed #curriculum-outline-toggle {
+            left: 0;
+        }
+        #curriculum-outline {
+            transition: width 180ms ease-out, border-width 180ms ease-out;
+        }
+        #curriculum-outline-toggle {
+            transition: left 180ms ease-out;
+        }
+    </style>
+</div>

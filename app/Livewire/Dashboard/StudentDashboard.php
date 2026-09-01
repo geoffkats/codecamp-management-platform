@@ -13,6 +13,7 @@ use App\Models\Notification;
 use App\Models\StudentLessonProgress;
 use App\Models\User;
 use App\Models\UserPoint;
+use App\Models\UserProgress;
 use App\Support\LevelSystem;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -252,30 +253,45 @@ class StudentDashboard extends Component
             return [];
         }
 
-        // Get all students in same camp ordered by XP
         $campmates = $campEnrollment->camp->enrollments()
             ->where('status', 'active')
-            ->with(['student', 'student.points'])
-            ->get()
-            ->map(function ($e) {
+            ->with(['student'])
+            ->get();
+
+        $weeklyXp = UserProgress::query()
+            ->whereIn('user_id', $campmates->pluck('student_id'))
+            ->where('created_at', '>=', now()->startOfWeek());
+
+        CourseEnrollment::constrainProgressToCurrentClass(
+            $weeklyXp,
+            (int) $campEnrollment->camp_id
+        );
+
+        $weeklyXp = $weeklyXp
+            ->selectRaw('user_progress.user_id, COALESCE(SUM(user_progress.points_earned), 0) as xp')
+            ->groupBy('user_progress.user_id')
+            ->pluck('xp', 'user_id');
+
+        $ranked = $campmates
+            ->map(function ($e) use ($weeklyXp) {
                 return [
                     'user_id' => $e->student_id,
                     'user'    => $e->student,
                     'name'    => $e->student->name ?? 'Student',
-                    'xp'      => $e->student->points?->total_points ?? 0,
+                    'xp'      => (int) ($weeklyXp[$e->student_id] ?? 0),
                 ];
             })
             ->sortByDesc('xp')
-            ->values()
-            ->take(5)
-            ->toArray();
+            ->values();
 
-        $myRank = collect($campmates)->search(fn($c) => $c['user_id'] === $user->id);
+        $myRank = $ranked->search(fn ($c) => $c['user_id'] === $user->id);
 
         return [
             'campName' => $campEnrollment->camp->name ?? 'Your Camp',
-            'top'      => $campmates,
+            'campId'   => $campEnrollment->camp_id,
+            'top'      => $ranked->take(5)->all(),
             'myRank'   => $myRank !== false ? $myRank + 1 : null,
+            'period'   => 'week',
         ];
     }
 
@@ -345,9 +361,45 @@ class StudentDashboard extends Component
 
     private function getLeaderboardPosition(User $user): array
     {
-        $totalUsers = User::whereHas('points', fn($q) => $q->where('total_points', '>', 0))->count();
-        $rank = User::whereHas('points', fn($q) => $q->where('total_points', '>', $user->points?->total_points ?? 0))->count() + 1;
-        return ['rank' => $rank, 'total' => $totalUsers, 'percentage' => $totalUsers > 0 ? round(($rank / $totalUsers) * 100, 1) : 0];
+        $campId = $user->currentCamp()?->id;
+        $courseIds = CourseEnrollment::query()
+            ->where('user_id', $user->id)
+            ->currentClass($campId)
+            ->pluck('course_id')
+            ->filter()
+            ->all();
+
+        if ($courseIds === []) {
+            return ['rank' => 1, 'total' => 1, 'percentage' => 100, 'period' => 'week'];
+        }
+
+        $peerIds = CourseEnrollment::query()
+            ->currentClass($campId)
+            ->whereIn('course_id', $courseIds)
+            ->distinct()
+            ->pluck('user_id');
+
+        $weeklyXp = UserProgress::query()
+            ->whereIn('user_id', $peerIds)
+            ->where('created_at', '>=', now()->startOfWeek());
+
+        CourseEnrollment::constrainProgressToCurrentClass($weeklyXp, $campId ? (int) $campId : null);
+
+        $weeklyXp = $weeklyXp
+            ->selectRaw('user_progress.user_id, COALESCE(SUM(user_progress.points_earned), 0) as xp')
+            ->groupBy('user_progress.user_id')
+            ->pluck('xp', 'user_id');
+
+        $myXp = (int) ($weeklyXp[$user->id] ?? 0);
+        $ahead = $peerIds->filter(fn ($peerId) => (int) ($weeklyXp[$peerId] ?? 0) > $myXp)->count();
+        $total = max($peerIds->count(), 1);
+
+        return [
+            'rank' => $ahead + 1,
+            'total' => $total,
+            'percentage' => round((($ahead + 1) / $total) * 100, 1),
+            'period' => 'week',
+        ];
     }
 
     private function getRecentSubmissions(User $user)

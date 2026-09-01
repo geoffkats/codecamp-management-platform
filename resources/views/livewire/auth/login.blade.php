@@ -9,6 +9,18 @@
         <!-- Session Status -->
         <x-auth-session-status :status="session('status')" />
 
+        @if (session('error'))
+            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                {{ session('error') }}
+            </div>
+        @endif
+
+        @if ($errors->any())
+            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                {{ $errors->first() }}
+            </div>
+        @endif
+
         <form method="POST" action="{{ route('login.store') }}" class="space-y-5">
             @csrf
 
@@ -22,6 +34,7 @@
                     autofocus
                     autocomplete="username"
                     placeholder="e.g. STU-2026-0001 or CC-2026-0001"
+                    value="{{ old('email') }}"
                     class="w-full"
                 />
                 <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">

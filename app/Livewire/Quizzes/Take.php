@@ -70,8 +70,10 @@ class Take extends Component
         $user = Auth::user();
         
         // Check if quiz is locked
-        if ($this->assessment->is_locked && !$user->hasAnyRole(['admin', 'supervisor'])) {
-            abort(403, 'This quiz is currently locked.');
+        if (! $user->hasAnyRole(['admin', 'supervisor', 'teacher', 'codecamp_trainer'])) {
+            if ($this->assessment->is_locked || $this->assessment->lesson?->is_locked) {
+                abort(403, 'This quiz is currently locked. Wait for your instructor to unlock the lesson.');
+            }
         }
 
         // Check if quiz is approved
@@ -232,16 +234,32 @@ class Take extends Component
         ]);
 
         // Award XP if passed
-        if ($this->isPassed && $this->assessment->lesson->xp_reward) {
-            $user = Auth::user();
-            $points = $user->points()->firstOrCreate([
-                'user_id' => $user->id,
-            ], [
-                'total_points' => 0,
-                'level' => 1,
-            ]);
+        if ($this->isPassed && $this->assessment->lesson?->xp_reward) {
+            $courseId = (int) ($this->assessment->course_id
+                ?? $this->assessment->lesson?->module?->course_id
+                ?? 0);
+            $lessonId = $this->assessment->lesson_id ? (int) $this->assessment->lesson_id : null;
 
-            $points->addPoints((int) $this->assessment->lesson->xp_reward);
+            if ($courseId > 0) {
+                app(\App\Services\PointsService::class)->awardTrackedCourseXp(
+                    (int) Auth::id(),
+                    $courseId,
+                    (int) $this->assessment->lesson->xp_reward,
+                    'quiz_completed',
+                    $lessonId,
+                    ['source' => 'quiz']
+                );
+            } else {
+                $user = Auth::user();
+                $points = $user->points()->firstOrCreate([
+                    'user_id' => $user->id,
+                ], [
+                    'total_points' => 0,
+                    'level' => 1,
+                ]);
+
+                $points->addPoints((int) $this->assessment->lesson->xp_reward);
+            }
         }
 
         // Check and award badges for perfect quiz scores

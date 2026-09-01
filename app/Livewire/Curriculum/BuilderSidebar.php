@@ -15,8 +15,8 @@ class BuilderSidebar extends Component
     use ComputesBuilderStructure;
 
     public $courseId;
-    protected $course;
-    protected $courses;
+    public $course = null;
+    public $courses = null;
     public $canManageCourse = false;
     public $selectedType = null;
     public $selectedId = null;
@@ -36,15 +36,26 @@ class BuilderSidebar extends Component
         $this->selectedId = $selectedId;
         $this->selectedModuleId = $selectedModuleId;
 
-        $this->hydrateStructure();
+        $this->reloadStructure();
+    }
+
+    public function hydrate(): void
+    {
+        $this->reloadStructure();
+    }
+
+    public function dehydrate(): void
+    {
+        $this->course = null;
+        $this->courses = null;
     }
 
     public function refreshCourse(): void
     {
-        $this->hydrateStructure();
+        $this->reloadStructure();
     }
 
-    protected function hydrateStructure(): void
+    protected function reloadStructure(): void
     {
         if ($this->courseId) {
             $this->course = Course::withTrashed()->with([
@@ -198,7 +209,7 @@ class BuilderSidebar extends Component
 
     public function render()
     {
-        $this->hydrateStructure();
+        $this->reloadStructure();
 
         return view('livewire.curriculum.builder-sidebar', [
             'course' => $this->course,

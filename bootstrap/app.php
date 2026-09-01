@@ -12,7 +12,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Add session validation middleware to web group
+        $middleware->trustProxies(at: '*');
+
+        $middleware->web(prepend: [
+            \App\Http\Middleware\FixSessionCookie::class,
+        ]);
+
         $middleware->web(append: [
             \App\Http\Middleware\EnsureUserExists::class,
         ]);
@@ -36,6 +41,8 @@ return Application::configure(basePath: dirname(__DIR__))
                 return response()->json(['message' => 'Session expired'], 419);
             }
 
-            return redirect('/login');
+            return redirect('/login')
+                ->withInput($request->only('email', 'remember'))
+                ->with('error', 'Your session expired. Please sign in again.');
         });
     })->create();

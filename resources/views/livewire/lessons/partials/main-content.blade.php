@@ -195,7 +195,7 @@
     </x-lazy-section>
 @endif
 
-@if(!$isLessonCompleted)
+@if(!$isLessonCompleted && $canComplete)
     <form method="POST" action="{{ route('lessons.complete', $lesson->id) }}" class="flex">
         @csrf
         <button

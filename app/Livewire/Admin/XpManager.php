@@ -6,10 +6,12 @@ use App\Models\User;
 use App\Models\UserPoint;
 use App\Models\UserProgress;
 use App\Models\Course;
+use App\Models\CourseEnrollment;
 use App\Services\PointsService;
 use App\Support\LevelSystem;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
@@ -28,8 +30,15 @@ class XpManager extends Component
     // Bulk operations
     public $selectedStudents = [];
     public $bulkPoints = 0;
-    public $bulkOperation = 'add'; // add, subtract, set
+    public $bulkOperation = 'add'; // add, subtract
+    public $bulkCourseId = null;
     public $selectAll = false;
+
+    public $awardCourseId = null;
+    public $awardPoints = 0;
+    public $awardReason = '';
+    public $awardOperation = 'add';
+    public $awardMessage = '';
 
     // Course bulk award
     public $showCourseBulkModal = false;
@@ -69,6 +78,10 @@ class XpManager extends Component
     {
         if (!Auth::user()->hasAnyRole(['admin'])) {
             abort(403);
+        }
+
+        if ($this->courseFilter) {
+            $this->bulkCourseId = $this->courseFilter;
         }
     }
 
@@ -111,13 +124,23 @@ class XpManager extends Component
         // Sort
         $students = $this->applySorting($students);
 
+        $editingEnrollments = collect();
+        if ($this->editingUser) {
+            $editingEnrollments = CourseEnrollment::query()
+                ->where('user_id', $this->editingUser->id)
+                ->with('course')
+                ->orderByRaw('CASE WHEN completed_at IS NULL THEN 0 ELSE 1 END')
+                ->orderByDesc('enrolled_at')
+                ->get();
+        }
+
         return view('livewire.admin.xp-manager', [
             'students' => $students,
             'courses' => Course::where('is_published', true)->orderBy('title')->get(),
+            'editingEnrollments' => $editingEnrollments,
             'totalStudents' => User::whereHas('roles', fn ($q) => $q->where('name', 'student'))->count(),
             'totalXp' => UserPoint::sum('total_points'),
             'avgXp' => UserPoint::avg('total_points'),
-            'previewLevelInfo' => LevelSystem::info((int) ($this->editForm['total_points'] ?? 0)),
         ]);
     }
 
@@ -223,29 +246,45 @@ class XpManager extends Component
 
     public function openEditModal($userId)
     {
-        $user = User::with('points')->findOrFail($userId);
+        $user = User::with(['points', 'enrollments.course'])->findOrFail($userId);
         $this->editingUser = $user;
 
         $points = app(PointsService::class)->ensureUserPoints($user);
-        $info = LevelSystem::info($points->total_points ?? 0);
 
         $this->editForm = [
             'total_points' => $points->total_points ?? 0,
-            'level' => $info['level'],
-            'points_to_next_level' => $info['xp_to_next_level'],
+            'level' => LevelSystem::levelForXp($points->total_points ?? 0),
+            'points_to_next_level' => null,
             'xp_multiplier' => $points->xp_multiplier,
             'multiplier_expires_at' => $points?->multiplier_expires_at?->format('Y-m-d\TH:i'),
             'multiplier_reason' => $points->multiplier_reason,
         ];
 
-        $this->showEditModal = true;
-    }
+        $currentCourseId = CourseEnrollment::query()
+            ->where('user_id', $user->id)
+            ->currentClass()
+            ->value('course_id');
 
-    public function updatedEditFormTotalPoints($value): void
-    {
-        $info = LevelSystem::info((int) $value);
-        $this->editForm['level'] = $info['level'];
-        $this->editForm['points_to_next_level'] = $info['xp_to_next_level'];
+        $filterCourseId = $this->courseFilter
+            ? (int) $this->courseFilter
+            : null;
+
+        $enrolledIds = $user->enrollments->pluck('course_id')->map(fn ($id) => (int) $id)->all();
+
+        if ($filterCourseId && in_array($filterCourseId, $enrolledIds, true)) {
+            $this->awardCourseId = $filterCourseId;
+        } elseif ($currentCourseId) {
+            $this->awardCourseId = (int) $currentCourseId;
+        } else {
+            $this->awardCourseId = $enrolledIds[0] ?? null;
+        }
+
+        $this->awardPoints = 0;
+        $this->awardReason = '';
+        $this->awardOperation = 'add';
+        $this->awardMessage = '';
+        $this->showDetailsModal = false;
+        $this->showEditModal = true;
     }
 
     public function openDetailsModal($userId)
@@ -253,14 +292,13 @@ class XpManager extends Component
         $user = User::with(['points', 'enrollments.course'])->findOrFail($userId);
         $this->detailsUser = $user;
 
-        // Get complete XP history with details
         $this->xpHistory = UserProgress::where('user_id', $userId)
             ->with(['course', 'lesson'])
             ->whereNotNull('points_earned')
-            ->where('points_earned', '>', 0)
+            ->where('points_earned', '!=', 0)
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(function($progress) {
+            ->map(function ($progress) {
                 return [
                     'id' => $progress->id,
                     'type' => $progress->type,
@@ -286,25 +324,67 @@ class XpManager extends Component
     {
         $this->showEditModal = false;
         $this->editingUser = null;
-        $this->reset('editForm');
+        $this->reset(['editForm', 'awardCourseId', 'awardPoints', 'awardReason', 'awardOperation', 'awardMessage']);
+    }
+
+    public function awardStudentXp()
+    {
+        if (! $this->editingUser) {
+            return;
+        }
+
+        $this->validate([
+            'awardCourseId' => [
+                'required',
+                'integer',
+                Rule::exists('course_enrollments', 'course_id')->where('user_id', $this->editingUser->id),
+            ],
+            'awardPoints' => 'required|integer|min:1|max:10000',
+            'awardOperation' => 'required|in:add,subtract',
+            'awardReason' => 'nullable|string|max:255',
+        ], [
+            'awardCourseId.required' => 'Choose the course this XP belongs to.',
+            'awardCourseId.exists' => 'This student is not enrolled in that course.',
+        ]);
+
+        $amount = $this->awardOperation === 'subtract'
+            ? -(int) $this->awardPoints
+            : (int) $this->awardPoints;
+
+        $applied = app(PointsService::class)->awardAdminCourseXp(
+            (int) $this->editingUser->id,
+            (int) $this->awardCourseId,
+            $amount,
+            $this->awardReason ?: null,
+            Auth::id(),
+            'xp_manager_student'
+        );
+
+        if ($applied === 0) {
+            $this->awardMessage = 'No XP to remove for this student.';
+            return;
+        }
+
+        $course = Course::find($this->awardCourseId);
+        $verb = $applied >= 0 ? 'Awarded' : 'Removed';
+
+        $this->awardMessage = $verb.' '.number_format(abs($applied)).' XP in '.($course?->title ?? 'the selected course').'.';
+        $this->editingUser = User::with(['points', 'enrollments.course'])->find($this->editingUser->id);
+        $this->awardPoints = 0;
+        $this->awardReason = '';
     }
 
     public function saveEdit()
     {
         $this->validate([
-            'editForm.total_points' => 'required|integer|min:0',
             'editForm.xp_multiplier' => 'nullable|numeric|min:0',
             'editForm.multiplier_expires_at' => 'nullable|date',
             'editForm.multiplier_reason' => 'nullable|string|max:255',
         ]);
 
         $points = app(PointsService::class)->ensureUserPoints($this->editingUser);
-        $info = LevelSystem::info((int) $this->editForm['total_points']);
 
         $points->fill([
-            'total_points' => (int) $this->editForm['total_points'],
-            'level' => $info['level'],
-            'points_to_next_level' => $info['xp_to_next_level'],
             'xp_multiplier' => $this->editForm['xp_multiplier'] ?: null,
             'multiplier_expires_at' => $this->editForm['multiplier_expires_at'] ?: null,
             'multiplier_reason' => $this->editForm['multiplier_reason'] ?: null,
@@ -312,11 +392,7 @@ class XpManager extends Component
         $points->save();
         LevelSystem::sync($points);
 
-        session()->flash(
-            'message',
-            'XP updated for '.$this->editingUser->name
-            .' — Level '.$info['level'].' · '.$info['name']
-        );
+        session()->flash('message', 'XP multiplier updated for '.$this->editingUser->name);
         $this->closeEditModal();
     }
 
@@ -334,35 +410,51 @@ class XpManager extends Component
         }
 
         $this->validate([
-            'bulkPoints' => 'required|integer|min:0',
+            'bulkCourseId' => 'required|exists:courses,id',
+            'bulkPoints' => 'required|integer|min:1|max:10000',
+            'bulkOperation' => 'required|in:add,subtract',
+        ], [
+            'bulkCourseId.required' => 'Choose the course this XP belongs to.',
         ]);
 
-        DB::transaction(function() {
-            foreach ($this->selectedStudents as $userId) {
-                $user = User::find($userId);
-                if (!$user || !$user->points) continue;
+        $amount = $this->bulkOperation === 'subtract'
+            ? -(int) $this->bulkPoints
+            : (int) $this->bulkPoints;
 
-                switch ($this->bulkOperation) {
-                    case 'add':
-                        $user->points->addPoints((int) $this->bulkPoints);
-                        break;
-                    case 'subtract':
-                        $newTotal = max(0, (int) $user->points->total_points - (int) $this->bulkPoints);
-                        $user->points->update(['total_points' => $newTotal]);
-                        $user->points->syncLevel();
-                        break;
-                    case 'set':
-                        $user->points->update(['total_points' => max(0, (int) $this->bulkPoints)]);
-                        $user->points->syncLevel();
-                        break;
-                }
+        $awarded = 0;
+        $skipped = 0;
+        $service = app(PointsService::class);
 
-                $user->points->refresh();
+        foreach ($this->selectedStudents as $userId) {
+            $enrolled = CourseEnrollment::query()
+                ->where('user_id', $userId)
+                ->where('course_id', $this->bulkCourseId)
+                ->exists();
+
+            if (! $enrolled) {
+                $skipped++;
+                continue;
             }
-        });
 
-        session()->flash('message', 'Bulk XP update applied to ' . count($this->selectedStudents) . ' students');
-        $this->reset(['selectedStudents', 'bulkPoints']);
+            $service->awardAdminCourseXp(
+                (int) $userId,
+                (int) $this->bulkCourseId,
+                $amount,
+                'Bulk award by admin',
+                Auth::id(),
+                'xp_manager_bulk'
+            );
+            $awarded++;
+        }
+
+        $course = Course::find($this->bulkCourseId);
+        $message = "Applied {$this->bulkPoints} XP in ".($course?->title ?? 'the course')." for {$awarded} student(s).";
+        if ($skipped > 0) {
+            $message .= " Skipped {$skipped} not enrolled in that course.";
+        }
+
+        session()->flash('message', $message);
+        $this->reset(['selectedStudents', 'bulkPoints', 'selectAll']);
     }
 
     public function openCourseBulkModal($courseId = null)
@@ -387,74 +479,34 @@ class XpManager extends Component
             'courseBulkReason' => 'nullable|string|max:255',
         ]);
 
-        try {
-            DB::beginTransaction();
+        $studentIds = CourseEnrollment::query()
+            ->currentClass(null, (int) $this->courseBulkCourseId)
+            ->pluck('user_id')
+            ->unique()
+            ->all();
 
-            // Get all students enrolled in the course
-            $students = User::whereHas('roles', function($q) {
-                $q->where('name', 'student');
-            })->whereHas('enrollments', function($q) {
-                $q->where('course_id', $this->courseBulkCourseId)
-                  ->where('status', 'approved');
-            })->get();
+        $count = 0;
+        $service = app(PointsService::class);
 
-            $count = 0;
-            foreach ($students as $student) {
-                // Ensure points record exists and award points
-                $points = $student->points()->firstOrCreate(
-                    ['user_id' => $student->id],
-                    [
-                        'total_points' => 0,
-                        'level' => 1,
-                        'points_to_next_level' => 100,
-                    ]
-                );
-
-                $points->addPoints((int) $this->courseBulkPoints);
-
-                // Log in user_progress without violating unique constraint (one row per user/course/type)
-                $progress = UserProgress::firstOrCreate(
-                    [
-                        'user_id' => $student->id,
-                        'course_id' => $this->courseBulkCourseId,
-                        'type' => 'course_enrolled',
-                    ],
-                    [
-                        'points_earned' => 0,
-                        'metadata' => [],
-                    ]
-                );
-
-                $newPointsEarned = ($progress->points_earned ?? 0) + $this->courseBulkPoints;
-                $progress->points_earned = $newPointsEarned;
-
-                // Merge metadata entries to keep audit trail of multiple bulk awards
-                $meta = is_array($progress->metadata) ? $progress->metadata : ($progress->metadata ? json_decode($progress->metadata, true) : []);
-                $meta[] = [
-                    'reason' => $this->courseBulkReason ?: 'Bulk course award by admin',
-                    'awarded_by' => Auth::id(),
-                    'source' => 'bulk_award',
-                    'awarded_at' => now()->toDateTimeString(),
-                    'points' => $this->courseBulkPoints,
-                ];
-
-                $progress->metadata = $meta;
-                $progress->save();
-
-                $count++;
-            }
-
-            DB::commit();
-
-            $course = Course::find($this->courseBulkCourseId);
-            session()->flash('message', "Successfully awarded {$this->courseBulkPoints} XP to {$count} students in {$course->title}");
-
-            $this->closeCourseBulkModal();
-        } catch (\Exception $e) {
-            DB::rollBack();
-            \Log::error('Course bulk XP award failed: ' . $e->getMessage());
-            session()->flash('error', 'Failed to award XP. Please try again.');
+        foreach ($studentIds as $userId) {
+            $service->awardAdminCourseXp(
+                (int) $userId,
+                (int) $this->courseBulkCourseId,
+                (int) $this->courseBulkPoints,
+                $this->courseBulkReason ?: 'Bulk course award by admin',
+                Auth::id(),
+                'xp_manager_course'
+            );
+            $count++;
         }
+
+        $course = Course::find($this->courseBulkCourseId);
+        session()->flash(
+            'message',
+            "Awarded {$this->courseBulkPoints} XP to {$count} student(s) currently in ".($course?->title ?? 'the course').'.'
+        );
+
+        $this->closeCourseBulkModal();
     }
 
     public function openResetModal($type = 'all', $courseId = null)
@@ -551,6 +603,7 @@ class XpManager extends Component
 
     public function updatedCourseFilter()
     {
+        $this->bulkCourseId = $this->courseFilter ?: null;
         $this->resetPage();
     }
 

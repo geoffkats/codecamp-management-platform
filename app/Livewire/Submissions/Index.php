@@ -41,6 +41,14 @@ class Index extends Component
     public $sortOrder = 'desc';
     public $currentPage = 1;
 
+    protected $queryString = [
+        'search' => ['except' => ''],
+        'filter' => ['except' => 'all'],
+        'submissionType' => ['except' => 'all'],
+        'courseId' => ['except' => null],
+        'campId' => ['except' => null],
+    ];
+
     public function previousPage()
     {
         if ($this->currentPage > 1) {
@@ -97,11 +105,7 @@ class Index extends Component
     {
         $user = Auth::user();
 
-        $query->whereHas($relation, function ($q) use ($user) {
-            $q->where('instructor_id', $user->id)
-                ->orWhereHas('collaborators', fn ($c) => $c->where('user_id', $user->id))
-                ->orWhereHas('enrollments', fn ($e) => $e->where('user_id', $user->id));
-        });
+        $query->whereHas($relation, fn ($q) => $q->accessibleBy($user));
     }
 
     private function scopedStudentUserIds(): ?array
@@ -164,16 +168,6 @@ class Index extends Component
         // Only show submitted assignments (not drafts)
         $query->whereIn('status', ['submitted', 'graded', 'returned']);
 
-        if ($this->filter === 'pending') {
-            $query->whereNull('graded_at')->where('status', 'submitted');
-        } elseif ($this->filter === 'graded') {
-            $query->whereNotNull('graded_at');
-        } elseif ($this->filter === 'overdue') {
-            $query->whereHas('assignment', function ($q) {
-                $q->where('due_date', '<', now());
-            })->whereNull('graded_at')->where('status', 'submitted');
-        }
-
         if ($this->courseId) {
             $query->whereHas('assignment', fn ($q) => $q->where('course_id', $this->courseId));
         }
@@ -214,12 +208,10 @@ class Index extends Component
             $query->visibleTo($user);
         } elseif ($user->isTeacher()) {
             $query->where(function ($q) use ($user) {
-                $q->where('student_type', 'codecamp')
-                    ->whereHas('assessment.course', function ($courseQuery) use ($user) {
-                        $courseQuery->where('instructor_id', $user->id)
-                            ->orWhereHas('collaborators', fn ($c) => $c->where('user_id', $user->id))
-                            ->orWhereHas('enrollments', fn ($e) => $e->where('user_id', $user->id));
-                    });
+                $q->where(function ($st) {
+                    $st->whereNull('student_type')
+                        ->orWhere('student_type', '!=', 'ict');
+                })->whereHas('assessment.course', fn ($courseQuery) => $courseQuery->accessibleBy($user));
             });
 
             if ($scopedStudentIds !== null && $scopedStudentIds !== []) {
@@ -239,12 +231,6 @@ class Index extends Component
                     $q->where('name', 'like', '%' . $this->search . '%');
                 });
             });
-        }
-
-        if ($this->filter === 'pending') {
-            $query->whereNull('score'); // Pending grading
-        } elseif ($this->filter === 'graded') {
-            $query->whereNotNull('score');
         }
 
         if ($this->courseId) {
@@ -333,9 +319,26 @@ class Index extends Component
             }
         }
 
-        // Sort submissions
-        $sortedSubmissions = $allSubmissions->sortBy(function ($sub) {
-            return match($this->sortBy) {
+        $stats = [
+            'total' => $allSubmissions->count(),
+            'pending' => $allSubmissions->where('graded_at', null)->where('status', '!=', 'draft')->count(),
+            'graded' => $allSubmissions->where('graded_at', '!=', null)->count(),
+            'overdue' => $allSubmissions->filter(function ($sub) {
+                return $sub['due_date'] && $sub['due_date']->isPast() && $sub['graded_at'] === null && $sub['status'] !== 'draft';
+            })->count(),
+        ];
+
+        $filteredSubmissions = match ($this->filter) {
+            'pending' => $allSubmissions->filter(fn ($sub) => $sub['graded_at'] === null && $sub['status'] !== 'draft'),
+            'graded' => $allSubmissions->filter(fn ($sub) => $sub['graded_at'] !== null),
+            'overdue' => $allSubmissions->filter(function ($sub) {
+                return $sub['due_date'] && $sub['due_date']->isPast() && $sub['graded_at'] === null && $sub['status'] !== 'draft';
+            }),
+            default => $allSubmissions,
+        };
+
+        $sortedSubmissions = $filteredSubmissions->sortBy(function ($sub) {
+            return match ($this->sortBy) {
                 'title' => strtolower($sub['title']),
                 'due_date' => $sub['due_date']?->timestamp ?? 0,
                 default => $sub['submitted_at']?->timestamp ?? 0,
@@ -352,26 +355,17 @@ class Index extends Component
         $items = $sortedSubmissions->forPage($currentPage, $perPage);
         $total = $sortedSubmissions->count();
 
-        // Calculate stats
-        $stats = [
-            'total' => $allSubmissions->count(),
-            'pending' => $allSubmissions->where('graded_at', null)->where('status', '!=', 'draft')->count(),
-            'graded' => $allSubmissions->where('graded_at', '!=', null)->count(),
-            'overdue' => $allSubmissions->filter(function($sub) {
-                return $sub['due_date'] && $sub['due_date']->isPast() && $sub['graded_at'] === null && $sub['status'] === 'submitted';
-            })->count(),
-        ];
-
         // Get available courses for filter
         $user = Auth::user();
         $clubContext = ProgramScope::isClubFacilitatorContext($user);
         $clubStudentIds = $clubContext ? ProgramScope::clubStudentUserIds($user) : [];
 
-        $courses = $clubContext
-            ? \App\Models\Course::whereHas('enrollments', fn ($q) => $q->whereIn('user_id', $clubStudentIds ?: [-1]))->get()
-            : ($user->hasRole('teacher')
-                ? \App\Models\Course::accessibleBy($user)->get()
-                : \App\Models\Course::whereHas('enrollments', fn($q) => $q->where('user_id', $user->id))->get());
+        $courses = match (true) {
+            $user->isAdmin() || $user->isSupervisor() => \App\Models\Course::query()->orderBy('title')->get(),
+            $clubContext => \App\Models\Course::whereHas('enrollments', fn ($q) => $q->whereIn('user_id', $clubStudentIds ?: [-1]))->orderBy('title')->get(),
+            $user->isTeacher() => \App\Models\Course::accessibleBy($user)->orderBy('title')->get(),
+            default => \App\Models\Course::whereHas('enrollments', fn ($q) => $q->where('user_id', $user->id))->orderBy('title')->get(),
+        };
 
         $showCampFilter = ProgramScope::context($user) !== 'codeclub';
 

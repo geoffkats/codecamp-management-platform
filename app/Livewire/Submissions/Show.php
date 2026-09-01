@@ -4,6 +4,8 @@ namespace App\Livewire\Submissions;
 
 use App\Models\AssignmentSubmission;
 use App\Models\AssessmentAttempt;
+use App\Services\AssessmentAttemptReview;
+use App\Support\SubmissionAccess;
 use App\Support\SubmissionFile;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -17,62 +19,36 @@ class Show extends Component
 
     public function mount($submissionId, $type = 'assignment')
     {
-        // Load the correct submission model based on type
+        $type = in_array($type, ['assessment', 'assignment'], true) ? $type : 'assignment';
+
         if ($type === 'assessment') {
-            $this->submission = AssessmentAttempt::with(['assessment.course', 'user'])
-                ->findOrFail($submissionId);
+            $this->submission = AssessmentAttempt::with(['assessment.course', 'assessment.questions.options', 'user'])
+                ->find($submissionId);
+
+            if (! $this->submission) {
+                $this->submission = AssignmentSubmission::with(['assignment.course', 'user', 'grader'])
+                    ->findOrFail($submissionId);
+                $type = 'assignment';
+            }
         } else {
             $this->submission = AssignmentSubmission::with(['assignment.course', 'user', 'grader'])
-                ->findOrFail($submissionId);
+                ->find($submissionId);
+
+            if (! $this->submission) {
+                $this->submission = AssessmentAttempt::with(['assessment.course', 'assessment.questions.options', 'user'])
+                    ->findOrFail($submissionId);
+                $type = 'assessment';
+            }
         }
-        
+
         $this->type = $type;
-        
-        // Authorization check — staff identity wins over leftover student role
-        $user = Auth::user();
 
-        if ($user->isAdmin() || $user->isSupervisor()) {
-            // full access
-        } elseif ($user->isIctTeacher()) {
-            if ($type === 'assessment') {
-                $schoolId = $user->ictSchoolId();
-                if (! $schoolId || $this->submission->student_type !== 'ict' || (int) $this->submission->school_id !== (int) $schoolId) {
-                    abort(403, 'You can only view submissions from your school.');
-                }
-            } else {
-                abort(403, 'You can only view submissions from your school.');
-            }
-        } elseif ($user->isTeacher()) {
-            if ($type === 'assessment') {
-                if ($this->submission->student_type !== 'codecamp') {
-                    abort(403, 'You can only view submissions from your own courses.');
-                }
-
-                $course = $this->submission->assessment->course ?? null;
-                if (! $course || ! $course->isStaffFor($user)) {
-                    abort(403, 'You can only view submissions from your own courses.');
-                }
-            } else {
-                $course = $this->submission->assignment->course ?? null;
-                if (! $course || ! $course->isStaffFor($user)) {
-                    abort(403, 'You can only view submissions from your own courses.');
-                }
-            }
-        } elseif ($user->isStudent() || $user->hasRole('student')) {
-            if ($this->submission->user_id !== $user->id) {
-                abort(403, 'You can only view your own submissions.');
-            }
-        } else {
-            abort(403, 'You do not have permission to view this submission.');
-        }
+        SubmissionAccess::authorizeView(Auth::user(), $this->submission);
     }
 
     public function downloadAttachment($filePath, $fileName = null)
     {
-        $user = Auth::user();
-        if ($user->hasRole('student') && $this->submission->user_id !== $user->id) {
-            abort(403, 'You can only download attachments from your own submissions.');
-        }
+        SubmissionAccess::authorizeView(Auth::user(), $this->submission);
 
         return SubmissionFile::downloadResponse(
             (string) $filePath,
@@ -85,13 +61,17 @@ class Show extends Component
         $isOverdue = false;
         $isGraded = false;
         $percentage = null;
-        
+        $reviewQuestions = [];
+        $autoCorrectCount = 0;
+        $autoIncorrectCount = 0;
+        $manualCount = 0;
+
         if ($this->type === 'assignment') {
-            $isOverdue = $this->submission->assignment 
-                && $this->submission->assignment->due_date 
-                && $this->submission->assignment->due_date->isPast() 
-                && !$this->submission->graded_at;
-            
+            $isOverdue = $this->submission->assignment
+                && $this->submission->assignment->due_date
+                && $this->submission->assignment->due_date->isPast()
+                && ! $this->submission->graded_at;
+
             $isGraded = $this->submission->graded_at !== null;
             $maxPoints = $this->submission->assignment?->max_points ?? 0;
             $pointsEarned = $this->submission->points_earned;
@@ -99,15 +79,23 @@ class Show extends Component
                 ? round(((float) $pointsEarned / $maxPoints) * 100, 1)
                 : ($isGraded ? 0.0 : null);
         } else {
-            // Assessment attempt
             $isGraded = $this->submission->score !== null;
             $percentage = $isGraded ? $this->submission->scorePercentage() : null;
+            $this->submission->loadMissing(['assessment.questions.options']);
+            $reviewQuestions = app(AssessmentAttemptReview::class)->rows($this->submission);
+            $autoCorrectCount = collect($reviewQuestions)->where('needs_manual', false)->where('is_correct', true)->count();
+            $autoIncorrectCount = collect($reviewQuestions)->where('needs_manual', false)->where('is_correct', false)->count();
+            $manualCount = collect($reviewQuestions)->where('needs_manual', true)->count();
         }
 
         return view('livewire.submissions.show', [
             'isOverdue' => $isOverdue,
             'isGraded' => $isGraded,
             'percentage' => $percentage,
+            'reviewQuestions' => $reviewQuestions,
+            'autoCorrectCount' => $autoCorrectCount,
+            'autoIncorrectCount' => $autoIncorrectCount,
+            'manualCount' => $manualCount,
         ]);
     }
 }

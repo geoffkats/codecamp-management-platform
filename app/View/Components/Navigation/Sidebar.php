@@ -2,9 +2,10 @@
 
 namespace App\View\Components\Navigation;
 
-use Illuminate\View\Component;
 use App\Models\User;
+use App\Services\TrainerSubmissionQueue;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\View\Component;
 
 class Sidebar extends Component
 {
@@ -33,6 +34,7 @@ class Sidebar extends Component
     public $pendingInvitationsCount;
     public $pendingApprovalCount;
     public $pendingFeedbackCount;
+    public $pendingSubmissionsCount;
     public $unreadNotificationsCount;
 
     /** @var array<int, array<string, mixed>> */
@@ -125,6 +127,11 @@ class Sidebar extends Component
             60,
             fn() => $this->getUnreadNotificationsCount()
         );
+
+        $this->pendingSubmissionsCount = 0;
+        if ($this->isAdmin || $this->isSupervisor || $this->showCodecampTeacherSection || $this->showCodeClubFacilitatorSection) {
+            $this->pendingSubmissionsCount = app(TrainerSubmissionQueue::class)->cachedPendingCount($user);
+        }
     }
 
     private function getPendingInvitationsCount()

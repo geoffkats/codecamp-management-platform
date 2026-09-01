@@ -407,48 +407,13 @@ class Results extends Component
 
     protected function authorizeAccess(): void
     {
-        $user = Auth::user();
-
-        if ($user->hasRole('student')) {
-            if ($this->attempt->user_id !== $user->id) {
-                abort(403, 'You can only view your own results.');
-            }
-
-            return;
-        }
-
-        if ($user->isIctTeacher()) {
-            $schoolId = $user->ictSchoolId();
-
-            if (!$schoolId || $this->attempt->student_type !== 'ict' || (int) $this->attempt->school_id !== (int) $schoolId) {
-                abort(403, 'You can only view results from your school.');
-            }
-
-            return;
-        }
-
-        if ($user->isTeacher()) {
-            if ($this->attempt->student_type !== 'codecamp') {
-                abort(403, 'You can only view results from your own courses.');
-            }
-
-            $course = $this->attempt->assessment->course ?? null;
-            if (! $course || ! $course->isStaffFor($user)) {
-                abort(403, 'You can only view results from your own courses.');
-            }
-
-            return;
-        }
-
-        if (!$user->isAdmin() && !$user->isSupervisor()) {
-            abort(403, 'You do not have permission to view this result.');
-        }
+        \App\Support\SubmissionAccess::authorizeView(Auth::user(), $this->attempt);
     }
 
     public function submitGrade(): void
     {
         $user = Auth::user();
-        if (!$user->hasAnyRole(['admin', 'supervisor', 'teacher'])) {
+        if (!$user->can('grade_submissions')) {
             return;
         }
 
@@ -547,7 +512,7 @@ class Results extends Component
         $manualCount = collect($reviewQuestions)->where('needs_manual', true)->count();
 
         return view('livewire.assessments.results', [
-            'canGrade' => Auth::user()->hasAnyRole(['admin', 'supervisor', 'teacher']),
+            'canGrade' => Auth::user()->can('grade_submissions'),
             'reviewQuestions' => $reviewQuestions,
             'autoEarnedPoints' => $autoEarned,
             'autoGradablePoints' => $autoMax,

@@ -8,6 +8,7 @@ use App\Models\CodeClubMembership;
 use App\Models\StudentAttendance;
 use App\Models\StudentProfile;
 use App\Services\AttendanceService;
+use App\Services\TrainerSubmissionQueue;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -71,6 +72,10 @@ class ClubFacilitatorDashboard extends Component
             ->whereIn('status', ['present', 'late'])
             ->count();
 
+        $queue = app(TrainerSubmissionQueue::class);
+        $pendingGradingCount = $queue->pendingCount($user);
+        $recentSubmissions = $queue->recentPending($user, 5);
+
         return view('livewire.dashboard.club-facilitator-dashboard', [
             'user' => $user,
             'clubs' => $clubs,
@@ -80,6 +85,8 @@ class ClubFacilitatorDashboard extends Component
             'activeMembers' => $activeMembers,
             'recentReports' => $recentReports,
             'attendanceThisMonth' => $attendanceThisMonth,
+            'pendingGradingCount' => $pendingGradingCount,
+            'recentSubmissions' => $recentSubmissions,
         ]);
     }
 

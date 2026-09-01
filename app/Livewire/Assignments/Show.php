@@ -32,7 +32,7 @@ class Show extends Component
                        $user->hasRole('supervisor');
         
         // Check if assignment is locked for students
-        if (!$isInstructor && $this->assignment->is_locked) {
+        if (!$isInstructor && ($this->assignment->is_locked || $this->assignment->lesson?->is_locked)) {
             // Assignment is locked - students cannot access
             return; // Will show locked view
         }
@@ -133,15 +133,32 @@ class Show extends Component
 
         // Award XP for submission
         if ($this->assignment->lesson && $this->assignment->lesson->xp_reward) {
-            $user = Auth::user();
-            if (!$user->points) {
-                \App\Models\UserPoint::create([
-                    'user_id' => $user->id,
-                    'total_points' => 0,
-                    'level' => 1,
-                ]);
+            $courseId = (int) ($this->assignment->course_id
+                ?? $this->assignment->lesson?->module?->course_id
+                ?? 0);
+            $lessonId = $this->assignment->lesson_id ? (int) $this->assignment->lesson_id : null;
+
+            if ($courseId > 0) {
+                app(\App\Services\PointsService::class)->awardTrackedCourseXp(
+                    (int) Auth::id(),
+                    $courseId,
+                    (int) $this->assignment->lesson->xp_reward,
+                    'quiz_completed',
+                    $lessonId,
+                    ['source' => 'assignment_submit']
+                );
+            } else {
+                $user = Auth::user();
+                if (! $user->points) {
+                    \App\Models\UserPoint::create([
+                        'user_id' => $user->id,
+                        'total_points' => 0,
+                        'level' => 1,
+                    ]);
+                    $user->load('points');
+                }
+                $user->points->addPoints((int) $this->assignment->lesson->xp_reward);
             }
-            $user->points->addPoints((int) $this->assignment->lesson->xp_reward);
         }
 
         session()->flash('message', 'Assignment submitted successfully!');

@@ -11,6 +11,25 @@ class DailyReport extends Model
 {
     use HasFactory;
 
+    public const PEDAGOGICAL_APPROACHES = [
+        'instant_reward' => [
+            'label' => 'Instant reward',
+            'hint' => 'Points, shout-outs, stickers, or other immediate recognition',
+        ],
+        'project_wall' => [
+            'label' => 'Project wall',
+            'hint' => 'Student work displayed for peers to see',
+        ],
+        'choice_menu' => [
+            'label' => 'Choice menu',
+            'hint' => 'Students chose an activity, path, or challenge',
+        ],
+        'five_minute_breaks' => [
+            'label' => '5-minute breaks',
+            'hint' => 'Short movement or brain breaks during the session',
+        ],
+    ];
+
     protected $fillable = [
         'report_date',
         'course_id',
@@ -20,6 +39,7 @@ class DailyReport extends Model
         'summary',
         'challenges',
         'issues',
+        'pedagogical_approaches',
         'follow_up_required',
         'submitted_at',
         'locked_at',
@@ -30,9 +50,72 @@ class DailyReport extends Model
         return [
             'report_date' => 'date',
             'follow_up_required' => 'boolean',
+            'pedagogical_approaches' => 'array',
             'submitted_at' => 'datetime',
             'locked_at' => 'datetime',
         ];
+    }
+
+    public static function emptyApproaches(): array
+    {
+        $rows = [];
+
+        foreach (array_keys(self::PEDAGOGICAL_APPROACHES) as $key) {
+            $rows[$key] = [
+                'used' => false,
+                'description' => '',
+            ];
+        }
+
+        return $rows;
+    }
+
+    public function appliedApproaches(): array
+    {
+        $saved = is_array($this->pedagogical_approaches) ? $this->pedagogical_approaches : [];
+        $applied = [];
+
+        foreach (self::PEDAGOGICAL_APPROACHES as $key => $meta) {
+            $row = $saved[$key] ?? null;
+
+            if (! is_array($row) || empty($row['used'])) {
+                continue;
+            }
+
+            $applied[] = [
+                'key' => $key,
+                'label' => $meta['label'],
+                'description' => trim((string) ($row['description'] ?? '')),
+            ];
+        }
+
+        return $applied;
+    }
+
+    public function approachReportRows(): array
+    {
+        $saved = is_array($this->pedagogical_approaches) ? $this->pedagogical_approaches : [];
+        $rows = [];
+
+        foreach (self::PEDAGOGICAL_APPROACHES as $key => $meta) {
+            $row = $saved[$key] ?? [];
+            $used = is_array($row) && ! empty($row['used']);
+
+            $rows[] = [
+                'key' => $key,
+                'label' => $meta['label'],
+                'hint' => $meta['hint'],
+                'used' => $used,
+                'description' => $used ? trim((string) ($row['description'] ?? '')) : '',
+            ];
+        }
+
+        return $rows;
+    }
+
+    public function usedApproachCount(): int
+    {
+        return count($this->appliedApproaches());
     }
 
     public function course(): BelongsTo

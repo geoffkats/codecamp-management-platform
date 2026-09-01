@@ -321,7 +321,11 @@ document.addEventListener('livewire:init', () => {
             }
             preventDefault();
             const path = window.location.pathname || '/';
-            window.location.replace(path.startsWith('/livewire') ? '/dashboard' : (path + window.location.search));
+            if (path.startsWith('/login')) {
+                window.location.reload();
+                return;
+            }
+            window.location.replace('/login');
         });
     });
 });

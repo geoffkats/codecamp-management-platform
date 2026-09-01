@@ -1,3 +1,4 @@
+<div class="min-h-screen bg-gray-50 dark:bg-gray-950" wire:key="leaderboards-root">
 @php
 use App\Livewire\Leaderboards\Index as LeaderboardIndex;
 
@@ -15,8 +16,6 @@ $podiumStyle = [
 ];
 @endphp
 
-<div class="min-h-screen bg-gray-50 dark:bg-gray-950" wire:key="leaderboards-root">
-
     {{-- Hero — solid orange (700 = dark but clearly orange) --}}
     <div class="bg-orange-700 text-white">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
@@ -31,9 +30,9 @@ $podiumStyle = [
                     <h1 class="text-3xl sm:text-4xl font-black tracking-tight">Leaderboard</h1>
                     <p class="mt-2 text-orange-100 max-w-xl">
                         @if($isStaff)
-                            Track student XP, levels, and badges across camps and courses.
+                            This Week and This Month rank XP earned in the selected camp or course. All Time is career XP.
                         @else
-                            See where you stand — climb the ranks and unlock your next level.
+                            This Week and This Month count only XP from your current class and camp. Going back to a finished course does not count. All Time is career XP.
                         @endif
                     </p>
                 </div>
@@ -79,7 +78,7 @@ $podiumStyle = [
                     <div>
                         <p class="text-xs font-bold uppercase tracking-widest text-gray-400">Your Rank</p>
                         <p class="text-lg font-bold text-gray-900 dark:text-white">
-                            {{ number_format($currentUserRank['points']) }} XP
+                            {{ number_format($currentUserRank['points']) }} {{ $pointsLabel }} XP
                             <span class="text-sm font-normal text-gray-500">· Level {{ $currentUserRank['level'] ?? 1 }} · {{ $currentUserRank['levelName'] ?? 'Beginner' }}</span>
                         </p>
                         <p class="text-xs text-gray-500">of {{ number_format($totalActiveUsers) }} students</p>
@@ -110,6 +109,7 @@ $podiumStyle = [
                                class="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 pl-9 pr-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-600 outline-none"/>
                     </div>
                 </div>
+                @if($camps->isNotEmpty())
                 <div>
                     <label class="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Code Camp</label>
                     <select wire:model.live="campId"
@@ -120,6 +120,7 @@ $podiumStyle = [
                         @endforeach
                     </select>
                 </div>
+                @endif
                 @if($clubs->isNotEmpty())
                 <div>
                     <label class="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Code Club</label>
@@ -137,13 +138,44 @@ $podiumStyle = [
                     <select wire:model.live="courseId"
                             class="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-600 outline-none">
                         <option value="">All courses</option>
+                        @forelse($courses as $course)
+                        <option value="{{ $course->id }}">{{ $course->title }}</option>
+                        @empty
+                        <option value="" disabled>No courses available</option>
+                        @endforelse
+                    </select>
+                </div>
+            </div>
+            @if(! $campId && ! $courseId && ! $clubId)
+            <p class="text-xs text-amber-700 dark:text-amber-300">
+                Pick a camp and/or course above to open that class leaderboard.
+            </p>
+            @endif
+            @endif
+
+            @unless($isStaff)
+            <div class="rounded-lg border border-orange-200 dark:border-orange-900/50 bg-orange-50 dark:bg-orange-950/20 px-4 py-3">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-orange-700 dark:text-orange-300 mb-1">Your class board</p>
+                @if($selectedCourseTitle)
+                    <p class="text-sm font-bold text-gray-900 dark:text-white">{{ $selectedCourseTitle }}</p>
+                @elseif($courses->isNotEmpty())
+                    <p class="text-sm font-bold text-gray-900 dark:text-white">{{ $courses->first()->title }}</p>
+                @else
+                    <p class="text-sm text-gray-600 dark:text-gray-300">No active class enrollment found.</p>
+                @endif
+                @if($courses->count() > 1)
+                <div class="mt-3">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Switch course</label>
+                    <select wire:model.live="courseId"
+                            class="w-full sm:max-w-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-600 outline-none">
                         @foreach($courses as $course)
                         <option value="{{ $course->id }}">{{ $course->title }}</option>
                         @endforeach
                     </select>
                 </div>
+                @endif
             </div>
-            @endif
+            @endunless
 
             <div class="flex flex-col lg:flex-row lg:items-center gap-3">
                 <div class="flex flex-wrap gap-2">
@@ -159,17 +191,33 @@ $podiumStyle = [
                     </button>
                 </div>
                 <div class="flex flex-wrap gap-2 lg:ml-auto">
-                    @foreach(['all' => 'All Time', 'monthly' => 'This Month', 'weekly' => 'This Week'] as $val => $label)
+                    @foreach(['all' => 'All Time (career)', 'monthly' => 'This Month', 'weekly' => 'This Week'] as $val => $label)
                     <button wire:click="filterByPeriod('{{ $val }}')"
                             class="px-4 py-2 rounded-lg text-xs font-bold transition {{ $period === $val ? 'bg-blue-700 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-950/30' }}">
                         {{ $label }}
                     </button>
                     @endforeach
                 </div>
-                @if($search || $campId || $clubId || $courseId || $period !== 'all' || $leaderboardType !== 'overall')
+                @if($search || $campId || $clubId || ($isStaff && $courseId) || $period !== 'all' || $leaderboardType !== 'overall')
                 <button wire:click="clearFilters" class="text-xs text-gray-400 hover:text-red-500 underline lg:ml-2">Reset</button>
                 @endif
             </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+                @if($scopeCaption)
+                    <span class="inline-flex items-center gap-1.5 font-semibold text-gray-700 dark:text-gray-200">{{ $scopeCaption }}</span>
+                    <span class="mx-1">·</span>
+                @endif
+                @if($usesScopedXp)
+                    Rankings use <strong>{{ $pointsLabel }} XP</strong> from the class they are in now.
+                    Finishing an old course or going back to a previous one does not count here.
+                    Career totals still appear as a smaller number on each row.
+                @else
+                    All Time is career XP across every course.
+                    @unless($isStaff)
+                        This Week and This Month stay inside your current camp and class.
+                    @endunless
+                @endif
+            </p>
         </div>
 
         {{-- Podium --}}
@@ -199,7 +247,7 @@ $podiumStyle = [
                         <p class="text-xs font-semibold" style="color: {{ $entry['levelColor'] }}">
                             Lv {{ $entry['level'] }} · {{ $entry['levelName'] }}
                         </p>
-                        <p class="text-sm font-black text-orange-600 dark:text-orange-400 mt-0.5">{{ number_format($entry['points']) }} XP</p>
+                        <p class="text-sm font-black text-orange-600 dark:text-orange-400 mt-0.5">{{ number_format($entry['points']) }} {{ $pointsLabel }} XP</p>
                         @if($entry['badgeCount'] > 0)
                         <span class="mt-1 inline-flex items-center gap-1 text-[10px] text-gray-400">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
@@ -228,7 +276,7 @@ $podiumStyle = [
                     </div>
                     <div class="text-right">
                         <p class="font-black text-orange-600 dark:text-orange-400">{{ number_format($entry['points']) }}</p>
-                        <p class="text-[10px] text-gray-400">XP</p>
+                        <p class="text-[10px] text-gray-400">{{ $pointsLabel }} XP</p>
                     </div>
                 </div>
                 @endforeach
@@ -301,7 +349,10 @@ $podiumStyle = [
 
                     <div class="text-right flex-shrink-0">
                         <p class="text-base font-black text-orange-600 dark:text-orange-400">{{ number_format($entry->points) }}</p>
-                        <p class="text-[10px] text-gray-400 uppercase tracking-wide">XP</p>
+                        <p class="text-[10px] text-gray-400 uppercase tracking-wide">{{ $pointsLabel }} XP</p>
+                        @if($usesScopedXp && ($entry->careerPoints ?? 0) !== $entry->points)
+                            <p class="text-[10px] text-gray-400">Career {{ number_format($entry->careerPoints) }}</p>
+                        @endif
                     </div>
 
                     @if($isStaff && $entry->profileId)

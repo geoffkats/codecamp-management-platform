@@ -69,7 +69,7 @@ class Show extends Component
         
         if ($user->hasRole('student')) {
             // Check if quiz is locked
-            if ($this->assessment->is_locked) {
+            if ($this->assessment->is_locked || $this->assessment->lesson?->is_locked) {
                 abort(403, 'This quiz is currently locked and cannot be accessed.');
             }
 

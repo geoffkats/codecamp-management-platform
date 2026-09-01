@@ -24,11 +24,46 @@
                 <p class="text-xs text-orange-700/80 mt-0.5">Open a club to download PDFs</p>
             </a>
         @endif
-        <a href="{{ route('leaderboards.index', $clubs->count() === 1 ? ['clubId' => $clubs->first()->id] : []) }}" wire:navigate class="rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 px-4 py-3 hover:border-purple-400 transition">
+        <a href="{{ route('leaderboards.index', $clubs->count() === 1 ? ['clubId' => $clubs->first()->id, 'period' => 'weekly'] : ['period' => 'weekly']) }}" wire:navigate class="rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 px-4 py-3 hover:border-purple-400 transition">
             <p class="font-semibold text-purple-900 dark:text-purple-200 text-sm">Leaderboard</p>
             <p class="text-xs text-purple-700/80 mt-0.5">Club XP rankings</p>
         </a>
     </div>
+
+    @if($pendingGradingCount > 0)
+        <div class="rounded-2xl border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 p-4">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p class="font-bold text-indigo-900 dark:text-indigo-200 text-sm">Submissions waiting to grade</p>
+                    <p class="text-sm text-indigo-800 dark:text-indigo-300 mt-0.5">
+                        {{ $pendingGradingCount }} {{ \Illuminate\Support\Str::plural('submission', $pendingGradingCount) }} from club members need marks.
+                    </p>
+                </div>
+                <a href="{{ route('submissions.index', ['filter' => 'pending']) }}" wire:navigate
+                   class="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold">
+                    Grade now
+                </a>
+            </div>
+            @if($recentSubmissions->isNotEmpty())
+                <ul class="mt-3 space-y-2">
+                    @foreach($recentSubmissions as $item)
+                        <li class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm">
+                            <span class="text-indigo-900 dark:text-indigo-100">
+                                <strong>{{ $item->studentName }}</strong> — {{ $item->title }}
+                                <span class="text-indigo-700/80 dark:text-indigo-300">· {{ $item->typeLabel }}</span>
+                            </span>
+                            <span class="flex items-center gap-2">
+                                <a href="{{ route('submissions.show', ['submissionId' => $item->id, 'type' => $item->type]) }}" wire:navigate class="font-semibold underline">View</a>
+                                @can('grade_submissions')
+                                    <a href="{{ route('grades.grade', $item->submission) }}" wire:navigate class="font-semibold underline">Grade</a>
+                                @endcan
+                            </span>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
+    @endif
 
     @if($pendingReportClubs->isNotEmpty())
         <div class="rounded-2xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
@@ -120,7 +155,7 @@
                         @if($summary['club']->activeMemberships->first())
                             <a href="{{ route('admin.code-clubs.reports.preview', ['club' => $club, 'student' => $summary['club']->activeMemberships->first()->student_id]) }}" target="_blank" class="text-xs font-semibold text-blue-600 hover:underline">Preview Report</a>
                         @endif
-                        <a href="{{ route('leaderboards.index', ['clubId' => $club->id]) }}" wire:navigate class="text-xs font-semibold text-blue-600 hover:underline">Leaderboard</a>
+                        <a href="{{ route('leaderboards.index', ['clubId' => $club->id, 'period' => 'weekly']) }}" wire:navigate class="text-xs font-semibold text-blue-600 hover:underline">This week</a>
                     </div>
                 </div>
             @empty

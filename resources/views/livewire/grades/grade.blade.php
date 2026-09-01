@@ -94,8 +94,16 @@
                     </div>
                 @endif
 
-                {{-- Assessment Questions with File Uploads --}}
-                @if($submissionType === 'assessment' && $assessmentQuestions->count() > 0)
+                {{-- Assessment Questions --}}
+                @if($submissionType === 'assessment' && count($reviewQuestions) > 0)
+                    <div class="mb-6">
+                        <h3 class="font-semibold text-gray-900 dark:text-white mb-3">Question answers</h3>
+                        @include('livewire.submissions.partials.question-review', [
+                            'reviewQuestions' => $reviewQuestions,
+                            'allowScoring' => true,
+                        ])
+                    </div>
+                @elseif($submissionType === 'assessment' && collect($assessmentQuestions)->count() > 0)
                     @php
                         $answers = $submission->answers ?? [];
                         $hasQuestionAnswers = false;
@@ -133,7 +141,7 @@
                 @endif
 
                 {{-- Empty State --}}
-                @if(empty($submissionContent) && count($submissionFiles) === 0)
+                @if(empty($submissionContent) && count($submissionFiles) === 0 && count($reviewQuestions) === 0)
                     <div class="text-center py-8 text-gray-500 dark:text-gray-400">
                         <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
