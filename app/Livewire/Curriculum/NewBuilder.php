@@ -46,7 +46,6 @@ class NewBuilder extends Component
     public $lessonId = null;  // For creating assessments
     public $sidebarCollapsed = false; // Toggle sidebar visibility
     public $pdfUpload = null;
-    public $slideUpload = null;
     public $restoreWindowDays = 30;
     public $structureTab = 'active'; // active | archived
     public $canManageCourse = false;
@@ -407,7 +406,6 @@ class NewBuilder extends Component
         $this->selectedAssessment = null;
         $this->lessonId = null;
         $this->pdfUpload = null;
-        $this->slideUpload = null;
         $this->initializeFormData();
         $this->computeViewState();
     }
@@ -431,7 +429,6 @@ class NewBuilder extends Component
             'formData.is_free_preview' => 'boolean',
             'formData.is_locked' => 'boolean',
             'pdfUpload' => 'nullable|file|mimes:pdf|max:51200',
-            'slideUpload' => 'nullable|file|mimes:pdf|max:51200',
         ];
         
         $this->validate($rules);
@@ -491,17 +488,6 @@ class NewBuilder extends Component
 
         if (!empty($attachments)) {
             $lessonData['attachments'] = $attachments;
-        }
-
-        // Handle slide file upload — replaces the previous slide file
-        if ($this->slideUpload) {
-            if ($this->selectedId) {
-                $existing = Lesson::find($this->selectedId);
-                if ($existing && $existing->slide_file_path) {
-                    Storage::disk('public')->delete($existing->slide_file_path);
-                }
-            }
-            $lessonData['slide_file_path'] = $this->slideUpload->store("lessons/slides/{$this->courseId}", 'public');
         }
 
         if ($this->selectedId) {
@@ -648,21 +634,6 @@ class NewBuilder extends Component
         session()->flash('message', 'Lesson submitted for approval successfully!');
         $this->loadCourse();
     }
-    public function removeSlideFile()
-    {
-        if (!$this->selectedId) {
-            return;
-        }
-
-        $lesson = Lesson::find($this->selectedId);
-        if ($lesson && $lesson->slide_file_path) {
-            Storage::disk('public')->delete($lesson->slide_file_path);
-            $lesson->update(['slide_file_path' => null]);
-            $this->formData['slide_file_path'] = null;
-            session()->flash('message', 'Slide file removed.');
-        }
-    }
-
     public function removeAttachment($index)
     {
         if (!isset($this->formData['attachments'][$index])) {

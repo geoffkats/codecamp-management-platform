@@ -25,7 +25,6 @@ class LessonForm extends Component
     public $lesson = null;
     public $formData = [];
     public $pdfUpload = null;
-    public $slideUpload = null;
     public $showRejectModal = false;
     public $rejectionReason = '';
     public $canManageCourse = false;
@@ -228,7 +227,6 @@ class LessonForm extends Component
             'formData.is_free_preview' => 'boolean',
             'formData.is_locked' => 'boolean',
             'pdfUpload' => 'nullable|file|mimes:pdf|max:51200',
-            'slideUpload' => 'nullable|file|mimes:pdf|max:51200',
         ];
 
         $this->validate($rules);
@@ -291,17 +289,6 @@ class LessonForm extends Component
 
         if (!empty($attachments)) {
             $lessonData['attachments'] = $attachments;
-        }
-
-        // Slide file upload — replaces any previous slide file
-        if ($this->slideUpload) {
-            if ($this->selectedId) {
-                $existing = Lesson::find($this->selectedId);
-                if ($existing && $existing->slide_file_path) {
-                    Storage::disk('public')->delete($existing->slide_file_path);
-                }
-            }
-            $lessonData['slide_file_path'] = $this->slideUpload->store("lessons/slides/{$this->courseId}", 'public');
         }
 
         if ($this->selectedId) {
@@ -587,21 +574,6 @@ class LessonForm extends Component
         $this->flashMessage('message', 'Attachment removed successfully!');
     }
 
-    public function removeSlideFile(): void
-    {
-        if (!$this->selectedId) {
-            return;
-        }
-
-        $lesson = Lesson::find($this->selectedId);
-        if ($lesson && $lesson->slide_file_path) {
-            Storage::disk('public')->delete($lesson->slide_file_path);
-            $lesson->update(['slide_file_path' => null]);
-            $this->formData['slide_file_path'] = null;
-            $this->flashMessage('message', 'Slide file removed.');
-        }
-    }
-
     private function flashMessage(string $type, string $message): void
     {
         if (!in_array($type, ['message', 'error'], true)) {
@@ -766,7 +738,6 @@ class LessonForm extends Component
 
     public function closeForm()
     {
-        $this->slideUpload = null;
         $this->pdfUpload = null;
         $this->dispatch('close-form');
     }
