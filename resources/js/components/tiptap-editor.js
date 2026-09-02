@@ -1,27 +1,37 @@
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
-import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import TextAlign from '@tiptap/extension-text-align'
 import { TextStyle } from '@tiptap/extension-text-style'
 import FontFamily from '@tiptap/extension-font-family'
+import Underline from '@tiptap/extension-underline'
+import Highlight from '@tiptap/extension-highlight'
+import { Color } from '@tiptap/extension-color'
+import Placeholder from '@tiptap/extension-placeholder'
+import Typography from '@tiptap/extension-typography'
+import Youtube from '@tiptap/extension-youtube'
+import { TableKit } from '@tiptap/extension-table'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
 import { common, createLowlight } from 'lowlight'
+import { ResizableImage } from './resizable-image'
 
 const lowlight = createLowlight(common)
 
-// Tags the configured extensions actually understand. Anything else found in
-// stored content (e.g. <nav>, <header>, <form> typed as teaching material and
-// saved raw by legacy editors) would be parsed as real DOM by ProseMirror and
-// silently dropped, corrupting the document. Instead we escape unknown tags so
-// they survive as visible literal text.
 const EDITOR_ALLOWED_TAGS = new Set([
     'p', 'br', 'hr', 'div', 'span',
-    'strong', 'b', 'em', 'i', 'u', 's', 'del', 'strike',
+    'strong', 'b', 'em', 'i', 'u', 's', 'del', 'strike', 'mark',
     'ul', 'ol', 'li',
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     'blockquote', 'pre', 'code', 'a', 'img',
+    'table', 'thead', 'tbody', 'tr', 'th', 'td', 'colgroup', 'col',
+    'iframe', 'figure', 'figcaption', 'video', 'source',
+    'input', 'label',
 ])
+
+const TEXT_COLORS = ['#111827', '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#2563eb', '#7c3aed', '#db2777']
+const HIGHLIGHT_COLORS = ['#fef08a', '#bbf7d0', '#bae6fd', '#e9d5ff', '#fecdd3', '#e5e7eb']
 
 export function escapeUnknownTags(html) {
     if (!html || typeof html !== 'string' || html.indexOf('<') === -1) {
@@ -37,26 +47,34 @@ export function escapeUnknownTags(html) {
 }
 
 export function initTipTapEditor(element, initialContent = '', onUpdate = null) {
-    // Validate element exists
     if (!element) {
-        console.error('TipTap: No element provided for editor initialization');
-        return null;
+        console.error('TipTap: No element provided for editor initialization')
+        return null
     }
 
     try {
-        const editor = new Editor({
-            element: element,
+        return new Editor({
+            element,
             editable: true,
             extensions: [
                 StarterKit.configure({
-                    codeBlock: false, // We'll use CodeBlockLowlight instead
+                    codeBlock: false,
+                    underline: false,
+                    link: false,
                 }),
                 TextStyle,
+                Color,
                 FontFamily,
+                Underline,
+                Highlight.configure({ multicolor: true }),
+                Typography,
+                Placeholder.configure({
+                    placeholder: 'Write the lesson here…',
+                }),
                 TextAlign.configure({
                     types: ['heading', 'paragraph'],
                 }),
-                Image.configure({
+                ResizableImage.configure({
                     inline: true,
                     allowBase64: true,
                 }),
@@ -69,6 +87,19 @@ export function initTipTapEditor(element, initialContent = '', onUpdate = null) 
                 CodeBlockLowlight.configure({
                     lowlight,
                 }),
+                TableKit.configure({
+                    table: { resizable: true },
+                }),
+                TaskList,
+                TaskItem.configure({ nested: true }),
+                Youtube.configure({
+                    width: 640,
+                    height: 360,
+                    nocookie: true,
+                    HTMLAttributes: {
+                        class: 'rounded-lg overflow-hidden my-4',
+                    },
+                }),
             ],
             content: escapeUnknownTags(initialContent) || '<p></p>',
             editorProps: {
@@ -77,22 +108,58 @@ export function initTipTapEditor(element, initialContent = '', onUpdate = null) 
                 },
             },
             onUpdate: ({ editor }) => {
-                if (onUpdate) {
-                    try {
-                        const html = editor.getHTML();
-                        onUpdate(html);
-                    } catch (error) {
-                        console.error('TipTap onUpdate error:', error);
-                    }
+                if (!onUpdate) {
+                    return
+                }
+
+                try {
+                    onUpdate(editor.getHTML())
+                } catch (error) {
+                    console.error('TipTap onUpdate error:', error)
                 }
             },
         })
-
-        return editor
     } catch (error) {
-        console.error('TipTap initialization error:', error);
-        return null;
+        console.error('TipTap initialization error:', error)
+        return null
     }
+}
+
+function runSafe(label, action) {
+    try {
+        action()
+    } catch (error) {
+        console.error(`${label} action error:`, error)
+    }
+}
+
+function button(icon, title, action, isActive = null) {
+    return { icon, title, action, isActive }
+}
+
+function separator() {
+    return { type: 'separator' }
+}
+
+function selectControl(className, html) {
+    const select = document.createElement('select')
+    select.className = className
+    select.innerHTML = html
+    return select
+}
+
+function colorSwatch(color, title, onPick) {
+    const buttonEl = document.createElement('button')
+    buttonEl.type = 'button'
+    buttonEl.title = title
+    buttonEl.className = 'h-5 w-5 rounded-full border border-gray-300 dark:border-gray-600 shadow-sm'
+    buttonEl.style.backgroundColor = color
+    buttonEl.addEventListener('pointerdown', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        onPick()
+    })
+    return buttonEl
 }
 
 export function createToolbar(editor, container) {
@@ -105,479 +172,249 @@ export function createToolbar(editor, container) {
     toolbar.setAttribute('data-tiptap-toolbar', 'true')
     toolbar.className = 'flex flex-wrap items-center gap-1 p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'
 
-    const fontSelect = document.createElement('select')
-    fontSelect.className = 'text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-1'
-    fontSelect.innerHTML = [
-        '<option value="default">Font: Default</option>',
-        '<option value="Arial, sans-serif">Font: Sans</option>',
-        '<option value="\"Helvetica Neue\", Arial, sans-serif">Font: Helvetica</option>',
-        '<option value="\"Times New Roman\", serif">Font: Times</option>',
-        '<option value="Georgia, serif">Font: Serif</option>',
-        '<option value="\"Courier New\", monospace">Font: Mono</option>',
-        '<option value="Verdana, sans-serif">Font: Verdana</option>',
-        '<option value="Tahoma, sans-serif">Font: Tahoma</option>',
-        '<option value="\"Trebuchet MS\", sans-serif">Font: Trebuchet</option>',
-    ].join('')
+    const controlClass = 'text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-1'
+
+    const fontSelect = selectControl(controlClass, [
+        '<option value="default">Font</option>',
+        '<option value="Arial, sans-serif">Sans</option>',
+        '<option value="&quot;Helvetica Neue&quot;, Arial, sans-serif">Helvetica</option>',
+        '<option value="&quot;Times New Roman&quot;, serif">Times</option>',
+        '<option value="Georgia, serif">Serif</option>',
+        '<option value="&quot;Courier New&quot;, monospace">Mono</option>',
+        '<option value="Verdana, sans-serif">Verdana</option>',
+    ].join(''))
     fontSelect.addEventListener('change', () => {
-        const value = fontSelect.value
-        try {
-            if (value === 'default') {
+        runSafe('Font family', () => {
+            if (fontSelect.value === 'default') {
                 editor.chain().focus().unsetFontFamily().run()
             } else {
-                editor.chain().focus().setFontFamily(value).run()
+                editor.chain().focus().setFontFamily(fontSelect.value).run()
             }
-        } catch (error) {
-            console.error('Font family action error:', error)
-        }
+        })
     })
     toolbar.appendChild(fontSelect)
 
-    const fontSep = document.createElement('div')
-    fontSep.className = 'w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1'
-    toolbar.appendChild(fontSep)
+    const headingSelect = selectControl(controlClass, [
+        '<option value="p">Paragraph</option>',
+        '<option value="1">Heading 1</option>',
+        '<option value="2">Heading 2</option>',
+        '<option value="3">Heading 3</option>',
+    ].join(''))
+    headingSelect.addEventListener('change', () => {
+        runSafe('Heading', () => {
+            if (headingSelect.value === 'p') {
+                editor.chain().focus().setParagraph().run()
+            } else {
+                editor.chain().focus().toggleHeading({ level: Number(headingSelect.value) }).run()
+            }
+        })
+    })
+    toolbar.appendChild(headingSelect)
 
     const buttons = [
-        {
-            icon: '<strong>B</strong>',
-            title: 'Bold',
-            action: () => {
-                try {
-                    editor.chain().focus().toggleBold().run()
-                } catch (error) {
-                    console.error('Bold action error:', error)
-                }
-            },
-            isActive: () => {
-                try {
-                    return editor.isActive('bold')
-                } catch {
-                    return false
-                }
-            },
-        },
-        {
-            icon: '<em>I</em>',
-            title: 'Italic',
-            action: () => {
-                try {
-                    editor.chain().focus().toggleItalic().run()
-                } catch (error) {
-                    console.error('Italic action error:', error)
-                }
-            },
-            isActive: () => {
-                try {
-                    return editor.isActive('italic')
-                } catch {
-                    return false
-                }
-            },
-        },
-        { type: 'separator' },
-        {
-            icon: 'H1',
-            title: 'Heading 1',
-            action: () => {
-                try {
-                    editor.chain().focus().toggleHeading({ level: 1 }).run()
-                } catch (error) {
-                    console.error('H1 action error:', error)
-                }
-            },
-            isActive: () => {
-                try {
-                    return editor.isActive('heading', { level: 1 })
-                } catch {
-                    return false
-                }
-            },
-        },
-        {
-            icon: 'H2',
-            title: 'Heading 2',
-            action: () => {
-                try {
-                    editor.chain().focus().toggleHeading({ level: 2 }).run()
-                } catch (error) {
-                    console.error('H2 action error:', error)
-                }
-            },
-            isActive: () => {
-                try {
-                    return editor.isActive('heading', { level: 2 })
-                } catch {
-                    return false
-                }
-            },
-        },
-        {
-            icon: 'H3',
-            title: 'Heading 3',
-            action: () => {
-                try {
-                    editor.chain().focus().toggleHeading({ level: 3 }).run()
-                } catch (error) {
-                    console.error('H3 action error:', error)
-                }
-            },
-            isActive: () => {
-                try {
-                    return editor.isActive('heading', { level: 3 })
-                } catch {
-                    return false
-                }
-            },
-        },
-        { type: 'separator' },
-        {
-            icon: 'Left',
-            title: 'Align Left',
-            action: () => {
-                try {
-                    editor.chain().focus().setTextAlign('left').run()
-                } catch (error) {
-                    console.error('Align left action error:', error)
-                }
-            },
-            isActive: () => {
-                try {
-                    return editor.isActive({ textAlign: 'left' })
-                } catch {
-                    return false
-                }
-            },
-        },
-        {
-            icon: 'Center',
-            title: 'Align Center',
-            action: () => {
-                try {
-                    editor.chain().focus().setTextAlign('center').run()
-                } catch (error) {
-                    console.error('Align center action error:', error)
-                }
-            },
-            isActive: () => {
-                try {
-                    return editor.isActive({ textAlign: 'center' })
-                } catch {
-                    return false
-                }
-            },
-        },
-        {
-            icon: 'Right',
-            title: 'Align Right',
-            action: () => {
-                try {
-                    editor.chain().focus().setTextAlign('right').run()
-                } catch (error) {
-                    console.error('Align right action error:', error)
-                }
-            },
-            isActive: () => {
-                try {
-                    return editor.isActive({ textAlign: 'right' })
-                } catch {
-                    return false
-                }
-            },
-        },
-        {
-            icon: 'Justify',
-            title: 'Justify',
-            action: () => {
-                try {
-                    editor.chain().focus().setTextAlign('justify').run()
-                } catch (error) {
-                    console.error('Justify action error:', error)
-                }
-            },
-            isActive: () => {
-                try {
-                    return editor.isActive({ textAlign: 'justify' })
-                } catch {
-                    return false
-                }
-            },
-        },
-        { type: 'separator' },
-        {
-            icon: '• List',
-            title: 'Bullet List',
-            action: () => {
-                try {
-                    editor.chain().focus().toggleBulletList().run()
-                } catch (error) {
-                    console.error('Bullet list action error:', error)
-                }
-            },
-            isActive: () => {
-                try {
-                    return editor.isActive('bulletList')
-                } catch {
-                    return false
-                }
-            },
-        },
-        {
-            icon: '1. List',
-            title: 'Numbered List',
-            action: () => {
-                try {
-                    editor.chain().focus().toggleOrderedList().run()
-                } catch (error) {
-                    console.error('Ordered list action error:', error)
-                }
-            },
-            isActive: () => {
-                try {
-                    return editor.isActive('orderedList')
-                } catch {
-                    return false
-                }
-            },
-        },
-        {
-            icon: 'Indent',
-            title: 'Indent (List)',
-            action: () => {
-                try {
-                    if (editor.can().sinkListItem('listItem')) {
-                        editor.chain().focus().sinkListItem('listItem').run()
-                    }
-                } catch (error) {
-                    console.error('Indent action error:', error)
-                }
-            },
-        },
-        {
-            icon: 'Outdent',
-            title: 'Outdent (List)',
-            action: () => {
-                try {
-                    if (editor.can().liftListItem('listItem')) {
-                        editor.chain().focus().liftListItem('listItem').run()
-                    }
-                } catch (error) {
-                    console.error('Outdent action error:', error)
-                }
-            },
-        },
-        { type: 'separator' },
-        {
-            icon: '&lt;/&gt;',
-            title: 'Code Block',
-            action: () => {
-                try {
-                    editor.chain().focus().toggleCodeBlock().run()
-                } catch (error) {
-                    console.error('Code block action error:', error)
-                }
-            },
-            isActive: () => {
-                try {
-                    return editor.isActive('codeBlock')
-                } catch {
-                    return false
-                }
-            },
-        },
-        {
-            icon: '❝ Quote',
-            title: 'Quote',
-            action: () => {
-                try {
-                    editor.chain().focus().toggleBlockquote().run()
-                } catch (error) {
-                    console.error('Blockquote action error:', error)
-                }
-            },
-            isActive: () => {
-                try {
-                    return editor.isActive('blockquote')
-                } catch {
-                    return false
-                }
-            },
-        },
-        { type: 'separator' },
-        {
-            icon: '🔗 Link',
-            title: 'Add Link',
-            action: () => {
-                try {
-                    // Check if text is selected
-                    const { from, to } = editor.state.selection
-                    const hasSelection = from !== to
-                    
-                    if (!hasSelection) {
-                        alert('Please select some text first to add a link.')
-                        return
-                    }
-                    
-                    const previousUrl = editor.getAttributes('link').href
-                    const url = window.prompt('Enter URL:', previousUrl)
-                    
-                    if (url === null) {
-                        return
-                    }
-                    
-                    if (url === '') {
-                        // Remove link
-                        editor.chain().focus().extendMarkRange('link').unsetLink().run()
-                        return
-                    }
-                    
-                    // Add link to selected text
-                    editor.chain().focus().setLink({ href: url }).run()
-                } catch (error) {
-                    console.error('Link action error:', error)
-                    alert('Failed to add link. Please try again.')
-                }
-            },
-            isActive: () => {
-                try {
-                    return editor.isActive('link')
-                } catch {
-                    return false
-                }
-            },
-        },
-        {
-            icon: '🖼️ Image',
-            title: 'Upload Image',
-            action: () => {
-                try {
-                    // Create file input
-                    const input = document.createElement('input')
-                    input.type = 'file'
-                    input.accept = 'image/*'
-                    input.onchange = async (e) => {
-                        const file = e.target.files[0]
-                        if (file) {
-                            // Show loading state
-                            const loadingMsg = document.createElement('div')
-                            loadingMsg.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
-                            loadingMsg.textContent = 'Uploading image...'
-                            document.body.appendChild(loadingMsg)
-                            
-                            try {
-                                // Upload to server
-                                const formData = new FormData()
-                                formData.append('image', file)
-                                
-                                const csrfToken = document.querySelector('meta[name="csrf-token"]')
-                                if (!csrfToken) {
-                                    throw new Error('CSRF token not found')
-                                }
-                                
-                                const response = await fetch('/api/upload-image', {
-                                    method: 'POST',
-                                    body: formData,
-                                    headers: {
-                                        'X-CSRF-TOKEN': csrfToken.content
-                                    }
-                                })
-                                
-                                if (response.ok) {
-                                    const data = await response.json()
-                                    // Focus editor and insert image using insertContent (safer than setImage)
-                                    editor.chain().focus().insertContent({
-                                        type: 'image',
-                                        attrs: {
-                                            src: data.url,
-                                            alt: file.name,
-                                        }
-                                    }).run()
-                                    loadingMsg.textContent = '✓ Image uploaded!'
-                                    loadingMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
-                                } else {
-                                    const errorData = await response.json()
-                                    throw new Error(errorData.message || 'Upload failed')
-                                }
-                            } catch (error) {
-                                console.error('Image upload error:', error)
-                                loadingMsg.textContent = '✗ ' + (error.message || 'Upload failed')
-                                loadingMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
-                            }
-                            
-                            setTimeout(() => loadingMsg.remove(), 3000)
-                        }
-                    }
-                    input.click()
-                } catch (error) {
-                    console.error('Image action error:', error)
-                    alert('Failed to open file picker. Please try again.')
-                }
-            },
-        },
+        button('<strong>B</strong>', 'Bold', () => editor.chain().focus().toggleBold().run(), () => editor.isActive('bold')),
+        button('<em>I</em>', 'Italic', () => editor.chain().focus().toggleItalic().run(), () => editor.isActive('italic')),
+        button('<u>U</u>', 'Underline', () => editor.chain().focus().toggleUnderline().run(), () => editor.isActive('underline')),
+        button('<s>S</s>', 'Strike', () => editor.chain().focus().toggleStrike().run(), () => editor.isActive('strike')),
+        separator(),
+        button('Left', 'Align left', () => editor.chain().focus().setTextAlign('left').run(), () => editor.isActive({ textAlign: 'left' })),
+        button('Center', 'Align center', () => editor.chain().focus().setTextAlign('center').run(), () => editor.isActive({ textAlign: 'center' })),
+        button('Right', 'Align right', () => editor.chain().focus().setTextAlign('right').run(), () => editor.isActive({ textAlign: 'right' })),
+        button('Justify', 'Justify', () => editor.chain().focus().setTextAlign('justify').run(), () => editor.isActive({ textAlign: 'justify' })),
+        separator(),
+        button('• List', 'Bullet list', () => editor.chain().focus().toggleBulletList().run(), () => editor.isActive('bulletList')),
+        button('1. List', 'Numbered list', () => editor.chain().focus().toggleOrderedList().run(), () => editor.isActive('orderedList')),
+        button('☑ Tasks', 'Task list', () => editor.chain().focus().toggleTaskList().run(), () => editor.isActive('taskList')),
+        button('Indent', 'Indent', () => {
+            if (editor.can().sinkListItem('listItem')) {
+                editor.chain().focus().sinkListItem('listItem').run()
+            } else if (editor.can().sinkListItem('taskItem')) {
+                editor.chain().focus().sinkListItem('taskItem').run()
+            }
+        }),
+        button('Outdent', 'Outdent', () => {
+            if (editor.can().liftListItem('listItem')) {
+                editor.chain().focus().liftListItem('listItem').run()
+            } else if (editor.can().liftListItem('taskItem')) {
+                editor.chain().focus().liftListItem('taskItem').run()
+            }
+        }),
+        separator(),
+        button('Table', 'Insert table', () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), () => editor.isActive('table')),
+        button('+ Col', 'Add column', () => editor.chain().focus().addColumnAfter().run()),
+        button('- Col', 'Delete column', () => editor.chain().focus().deleteColumn().run()),
+        button('+ Row', 'Add row', () => editor.chain().focus().addRowAfter().run()),
+        button('- Row', 'Delete row', () => editor.chain().focus().deleteRow().run()),
+        separator(),
+        button('</>', 'Code block', () => editor.chain().focus().toggleCodeBlock().run(), () => editor.isActive('codeBlock')),
+        button('❝', 'Quote', () => editor.chain().focus().toggleBlockquote().run(), () => editor.isActive('blockquote')),
+        button('—', 'Divider', () => editor.chain().focus().setHorizontalRule().run()),
+        separator(),
+        button('🔗', 'Add link', () => {
+            const { from, to } = editor.state.selection
+            if (from === to) {
+                alert('Select some text first to add a link.')
+                return
+            }
+            const previousUrl = editor.getAttributes('link').href
+            const url = window.prompt('Enter URL:', previousUrl || 'https://')
+            if (url === null) {
+                return
+            }
+            if (url === '') {
+                editor.chain().focus().extendMarkRange('link').unsetLink().run()
+                return
+            }
+            editor.chain().focus().setLink({ href: url }).run()
+        }, () => editor.isActive('link')),
+        button('🖼', 'Upload image', () => uploadImage(editor)),
+        button('S', 'Small image', () => editor.chain().focus().updateAttributes('image', { width: '40%' }).run()),
+        button('M', 'Medium image', () => editor.chain().focus().updateAttributes('image', { width: '70%' }).run()),
+        button('L', 'Large image', () => editor.chain().focus().updateAttributes('image', { width: '100%' }).run()),
+        button('▶ Video', 'YouTube video', () => {
+            const url = window.prompt('Paste a YouTube URL:')
+            if (!url) {
+                return
+            }
+            editor.chain().focus().setYoutubeVideo({ src: url, width: 640, height: 360 }).run()
+        }),
     ]
 
-    let buttonElements = []
+    const buttonElements = []
 
-    buttons.forEach((btn, index) => {
+    buttons.forEach((btn) => {
         if (btn.type === 'separator') {
             const sep = document.createElement('div')
             sep.className = 'w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1'
             toolbar.appendChild(sep)
-        } else {
-            const button = document.createElement('button')
-            button.type = 'button'
-            button.className = 'px-2 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-xs font-medium text-gray-700 dark:text-gray-300'
-            button.title = btn.title
-            button.innerHTML = btn.icon
-            
-            button.addEventListener('pointerdown', (e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                btn.action()
-                updateActiveStates()
-            })
-
-            buttonElements.push({ button, config: btn })
-            toolbar.appendChild(button)
+            return
         }
+
+        const buttonEl = document.createElement('button')
+        buttonEl.type = 'button'
+        buttonEl.className = 'px-2 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-xs font-medium text-gray-700 dark:text-gray-300'
+        buttonEl.title = btn.title
+        buttonEl.innerHTML = btn.icon
+        buttonEl.addEventListener('pointerdown', (event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            runSafe(btn.title, btn.action)
+            updateActiveStates()
+        })
+        buttonElements.push({ button: buttonEl, config: btn })
+        toolbar.appendChild(buttonEl)
     })
+
+    const colorWrap = document.createElement('div')
+    colorWrap.className = 'flex items-center gap-1 ml-1'
+    colorWrap.title = 'Text color'
+    TEXT_COLORS.forEach((color) => {
+        colorWrap.appendChild(colorSwatch(color, `Text ${color}`, () => {
+            editor.chain().focus().setColor(color).run()
+        }))
+    })
+    toolbar.appendChild(colorWrap)
+
+    const highlightWrap = document.createElement('div')
+    highlightWrap.className = 'flex items-center gap-1 ml-1'
+    highlightWrap.title = 'Highlight'
+    HIGHLIGHT_COLORS.forEach((color) => {
+        highlightWrap.appendChild(colorSwatch(color, `Highlight ${color}`, () => {
+            editor.chain().focus().toggleHighlight({ color }).run()
+        }))
+    })
+    toolbar.appendChild(highlightWrap)
 
     function updateActiveStates() {
         try {
-            try {
-                const fontFamily = editor.getAttributes('textStyle').fontFamily || 'default'
-                fontSelect.value = fontFamily
-            } catch (error) {
-                console.debug('Font family update error:', error)
+            const fontFamily = editor.getAttributes('textStyle').fontFamily || 'default'
+            fontSelect.value = fontFamily
+
+            if (editor.isActive('heading', { level: 1 })) {
+                headingSelect.value = '1'
+            } else if (editor.isActive('heading', { level: 2 })) {
+                headingSelect.value = '2'
+            } else if (editor.isActive('heading', { level: 3 })) {
+                headingSelect.value = '3'
+            } else {
+                headingSelect.value = 'p'
             }
 
-            buttonElements.forEach(({ button, config }) => {
-                try {
-                    if (config.isActive && config.isActive()) {
-                        button.classList.add('bg-blue-100', 'dark:bg-blue-900', 'text-blue-600', 'dark:text-blue-400')
-                        button.classList.remove('text-gray-700', 'dark:text-gray-300')
-                    } else {
-                        button.classList.remove('bg-blue-100', 'dark:bg-blue-900', 'text-blue-600', 'dark:text-blue-400')
-                        button.classList.add('text-gray-700', 'dark:text-gray-300')
-                    }
-                } catch (error) {
-                    // Silently fail for individual button state updates
-                    console.debug('Button state update error:', error)
+            buttonElements.forEach(({ button: buttonEl, config }) => {
+                if (config.isActive && config.isActive()) {
+                    buttonEl.classList.add('bg-blue-100', 'dark:bg-blue-900', 'text-blue-600', 'dark:text-blue-400')
+                    buttonEl.classList.remove('text-gray-700', 'dark:text-gray-300')
+                } else {
+                    buttonEl.classList.remove('bg-blue-100', 'dark:bg-blue-900', 'text-blue-600', 'dark:text-blue-400')
+                    buttonEl.classList.add('text-gray-700', 'dark:text-gray-300')
                 }
             })
         } catch (error) {
-            console.error('updateActiveStates error:', error)
+            console.debug('TipTap toolbar state error:', error)
         }
     }
 
-    // Safely attach event listeners
-    try {
-        editor.on('selectionUpdate', updateActiveStates)
-        editor.on('update', updateActiveStates)
-        
-        // Initial state
-        setTimeout(updateActiveStates, 100)
-    } catch (error) {
-        console.error('Error attaching editor listeners:', error)
-    }
+    editor.on('selectionUpdate', updateActiveStates)
+    editor.on('update', updateActiveStates)
+    setTimeout(updateActiveStates, 100)
 
     container.insertBefore(toolbar, container.firstChild)
+}
+
+async function uploadImage(editor) {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = async (event) => {
+        const file = event.target.files?.[0]
+        if (!file) {
+            return
+        }
+
+        const loadingMsg = document.createElement('div')
+        loadingMsg.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
+        loadingMsg.textContent = 'Uploading image...'
+        document.body.appendChild(loadingMsg)
+
+        try {
+            const formData = new FormData()
+            formData.append('image', file)
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')
+            if (!csrfToken) {
+                throw new Error('CSRF token not found')
+            }
+
+            const response = await fetch('/api/upload-image', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken.content,
+                },
+            })
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}))
+                throw new Error(errorData.message || 'Upload failed')
+            }
+
+            const data = await response.json()
+            editor.chain().focus().insertContent({
+                type: 'image',
+                attrs: {
+                    src: data.url,
+                    alt: file.name,
+                    width: '70%',
+                },
+            }).run()
+            loadingMsg.textContent = '✓ Image uploaded!'
+            loadingMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
+        } catch (error) {
+            console.error('Image upload error:', error)
+            loadingMsg.textContent = '✗ ' + (error.message || 'Upload failed')
+            loadingMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50'
+        }
+
+        setTimeout(() => loadingMsg.remove(), 3000)
+    }
+    input.click()
 }

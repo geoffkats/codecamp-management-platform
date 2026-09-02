@@ -34,8 +34,6 @@ class StudentDashboard extends Component
 
     public function mount()
     {
-        Cache::forget('student_dashboard_' . Auth::id());
-
         $user = Auth::user();
         if ($user?->isCodeClubStudent()) {
             redirect()->route('codeclub.dashboard');
@@ -59,24 +57,35 @@ class StudentDashboard extends Component
     public function render()
     {
         $user = Auth::user()->load([
-            'enrollments.course.modules.lessons',
-            'badges' => fn($q) => $q->latest('user_badges.earned_at')->take(6),
+            'badges' => fn ($q) => $q->latest('user_badges.earned_at')->take(6),
             'points',
-            'studentProfile',
+            'studentProfile.school:id,name',
         ]);
 
         if ($user->isIctStudent()) {
             $enrollments = CourseEnrollment::where('user_id', $user->id)
-                ->with('course')->orderBy('enrolled_at', 'desc')->get();
+                ->with(['course:id,title'])
+                ->orderBy('enrolled_at', 'desc')
+                ->get();
             $examResults = $user->studentProfile
                 ? IcdlExamResult::where('student_profile_id', $user->studentProfile->id)
-                    ->with('module')->orderByDesc('exam_date')->get()
+                    ->with(['module:id,title'])
+                    ->orderByDesc('exam_date')
+                    ->get()
                 : collect();
             $assessmentAttempts = AssessmentAttempt::where('user_id', $user->id)
-                ->where('student_type', 'ict')->where('status', 'completed')
+                ->where('student_type', 'ict')
+                ->where('status', 'completed')
                 ->whereHas('assessment')
-                ->with(['assessment.questions', 'assessment.lesson', 'assessment.course'])
-                ->orderByDesc('completed_at')->take(8)->get();
+                ->with([
+                    'assessment:id,title,lesson_id,course_id',
+                    'assessment.questions:id,assessment_id,points',
+                    'assessment.lesson:id,title',
+                    'assessment.course:id,title',
+                ])
+                ->orderByDesc('completed_at')
+                ->take(8)
+                ->get();
 
             return view('livewire.dashboard.icdl-student-dashboard', compact(
                 'user', 'enrollments', 'examResults', 'assessmentAttempts'
@@ -102,14 +111,17 @@ class StudentDashboard extends Component
         );
 
         $activeEnrollments = CourseEnrollment::where('user_id', $user->id)
-            ->with(['course' => fn($q) => $q->with(['instructor', 'modules'])])
+            ->with(['course:id,title,instructor_id', 'course.instructor:id,name'])
             ->orderBy('enrolled_at', 'desc')
             ->paginate(6);
 
         $notifications   = Notification::where('user_id', $user->id)->latest()->take(10)->get();
         $upcomingDeadlines = $this->getUpcomingDeadlines($user);
         $recentCertificates = \App\Models\Certificate::where('user_id', $user->id)
-            ->with('course')->latest('issued_at')->take(3)->get();
+            ->with(['course:id,title'])
+            ->latest('issued_at')
+            ->take(3)
+            ->get();
         $recentSubmissions = $this->getRecentSubmissions($user);
 
         return view('livewire.dashboard.student-dashboard', array_merge($dashboardData, [
@@ -410,7 +422,11 @@ class StudentDashboard extends Component
             ->where(function ($q) {
                 $q->where('status', 'completed')->orWhereNotNull('completed_at');
             })
-            ->with(['assessment.course'])
+            ->with([
+                'assessment:id,course_id,title,assessment_type',
+                'assessment.course:id,title',
+                'assessment.questions:id,assessment_id,points',
+            ])
             ->latest('completed_at')
             ->take(5)
             ->get()
@@ -426,7 +442,7 @@ class StudentDashboard extends Component
 
         $legacy = \App\Models\AssignmentSubmission::where('user_id', $user->id)
             ->whereIn('status', ['submitted', 'graded', 'returned'])
-            ->with(['assignment.course', 'grader'])
+            ->with(['assignment:id,course_id,title,max_points', 'assignment.course:id,title', 'grader:id,name'])
             ->latest('submitted_at')
             ->take(5)
             ->get()
@@ -455,20 +471,23 @@ class StudentDashboard extends Component
             ->pluck('assessment_id');
 
         $assessmentDeadlines = \App\Models\Assessment::query()
+            ->select('id', 'course_id', 'lesson_id', 'title', 'assessment_type', 'assignment_data')
             ->where('assessment_type', 'assignment')
             ->whereHas('course.enrollments', fn ($q) => $q->where('user_id', $user->id))
             ->whereNotIn('id', $completedAssessmentIds)
-            ->with(['course', 'lesson'])
+            ->with(['course:id,title', 'lesson:id,title,course_id'])
             ->get()
             ->filter(fn ($assessment) => $assessment->due_date && $assessment->due_date->gte(now()))
             ->sortBy('due_date')
             ->take(5)
             ->values();
 
-        $legacyAssignments = \App\Models\Assignment::whereHas('course.enrollments', fn ($q) => $q->where('user_id', $user->id))
+        $legacyAssignments = \App\Models\Assignment::query()
+            ->select('id', 'course_id', 'lesson_id', 'title', 'due_date', 'status')
+            ->whereHas('course.enrollments', fn ($q) => $q->where('user_id', $user->id))
             ->where('due_date', '>=', now())
             ->where('status', 'active')
-            ->with(['course', 'lesson'])
+            ->with(['course:id,title', 'lesson:id,title,course_id'])
             ->orderBy('due_date')
             ->take(5)
             ->get();
@@ -479,8 +498,13 @@ class StudentDashboard extends Component
             ->take(5)
             ->values();
 
-        $quizzes = \App\Models\Quiz::whereHas('lesson.course.enrollments', fn ($q) => $q->where('user_id', $user->id))
-            ->where('is_published', true)->with(['lesson.course'])->take(5)->get();
+        $quizzes = \App\Models\Quiz::query()
+            ->select('id', 'lesson_id', 'title', 'is_published')
+            ->whereHas('lesson.course.enrollments', fn ($q) => $q->where('user_id', $user->id))
+            ->where('is_published', true)
+            ->with(['lesson:id,title,course_id', 'lesson.course:id,title'])
+            ->take(5)
+            ->get();
 
         return ['assignments' => $assignments, 'quizzes' => $quizzes];
     }

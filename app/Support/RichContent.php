@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use DOMElement;
+use DOMNode;
 use Illuminate\Support\Facades\Storage;
 
 class RichContent
@@ -13,10 +15,13 @@ class RichContent
      * being stripped or parsed as real markup.
      */
     private const ALLOWED_TAGS = [
-        'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'del',
+        'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'del', 'strike', 'mark',
         'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
         'blockquote', 'pre', 'code', 'a', 'img', 'table', 'thead',
-        'tbody', 'tr', 'th', 'td', 'span', 'div', 'hr', 'sub', 'sup',
+        'tbody', 'tr', 'th', 'td', 'colgroup', 'col',
+        'span', 'div', 'hr', 'sub', 'sup',
+        'iframe', 'figure', 'figcaption', 'video', 'source',
+        'input', 'label',
     ];
 
     /**
@@ -115,12 +120,147 @@ class RichContent
             return $html;
         }
 
+        self::sanitizeNode($wrapper);
+
         $balanced = '';
         foreach ($wrapper->childNodes as $child) {
             $balanced .= $document->saveHTML($child);
         }
 
         return $balanced;
+    }
+
+    private static function sanitizeNode(DOMNode $node): void
+    {
+        $children = [];
+        foreach ($node->childNodes as $child) {
+            $children[] = $child;
+        }
+
+        foreach ($children as $child) {
+            if ($child instanceof DOMElement) {
+                if (! self::sanitizeElement($child)) {
+                    $child->parentNode?->removeChild($child);
+                    continue;
+                }
+            }
+
+            self::sanitizeNode($child);
+        }
+    }
+
+    /**
+     * @return bool false when the element should be removed
+     */
+    private static function sanitizeElement(DOMElement $element): bool
+    {
+        $tag = strtolower($element->tagName);
+        $remove = [];
+
+        foreach (iterator_to_array($element->attributes ?? []) as $attribute) {
+            $name = strtolower($attribute->name);
+
+            if (str_starts_with($name, 'on') || $name === 'srcdoc' || $name === 'formaction' || $name === 'xlink:href') {
+                $remove[] = $attribute->name;
+            }
+        }
+
+        foreach ($remove as $name) {
+            $element->removeAttribute($name);
+        }
+
+        if ($tag === 'a') {
+            $href = $element->getAttribute('href');
+            if ($href !== '' && ! self::isSafeUrl($href, ['http', 'https', 'mailto', 'tel'])) {
+                $element->removeAttribute('href');
+            }
+        }
+
+        if (in_array($tag, ['img', 'video', 'source'], true)) {
+            $src = $element->getAttribute('src');
+            if ($src !== '' && ! self::isSafeMediaSrc($src)) {
+                $element->removeAttribute('src');
+            }
+        }
+
+        if ($tag === 'iframe') {
+            $src = $element->getAttribute('src');
+            if (! self::isAllowedEmbedSrc($src)) {
+                return false;
+            }
+
+            foreach (iterator_to_array($element->attributes ?? []) as $attribute) {
+                $name = strtolower($attribute->name);
+                if (! in_array($name, ['src', 'width', 'height', 'allow', 'allowfullscreen', 'frameborder', 'title', 'class', 'style'], true)) {
+                    $element->removeAttribute($attribute->name);
+                }
+            }
+
+            $element->setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
+            $element->setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+        }
+
+        if ($tag === 'input') {
+            if (strtolower($element->getAttribute('type')) !== 'checkbox') {
+                return false;
+            }
+
+            $element->setAttribute('disabled', 'disabled');
+            $element->removeAttribute('name');
+            $element->removeAttribute('form');
+            $element->removeAttribute('value');
+        }
+
+        return true;
+    }
+
+    private static function isSafeUrl(string $url, array $schemes): bool
+    {
+        $url = trim($url);
+
+        if ($url === '' || str_starts_with($url, '#') || str_starts_with($url, '/')) {
+            return true;
+        }
+
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+
+        return in_array($scheme, $schemes, true);
+    }
+
+    private static function isSafeMediaSrc(string $src): bool
+    {
+        $src = trim($src);
+
+        if ($src === '' || str_starts_with($src, '/') || str_starts_with($src, 'data:image/')) {
+            return true;
+        }
+
+        return (bool) preg_match('#^https?://#i', $src);
+    }
+
+    private static function isAllowedEmbedSrc(string $src): bool
+    {
+        $src = trim($src);
+
+        if ($src === '' || ! preg_match('#^https://#i', $src)) {
+            return false;
+        }
+
+        $parts = parse_url($src);
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $path = $parts['path'] ?? '';
+
+        $youtube = in_array($host, [
+            'www.youtube.com',
+            'youtube.com',
+            'www.youtube-nocookie.com',
+            'youtube-nocookie.com',
+        ], true) && str_starts_with($path, '/embed/');
+
+        $vimeo = $host === 'player.vimeo.com' && str_starts_with($path, '/video/');
+        $scratch = $host === 'scratch.mit.edu' && (bool) preg_match('#^/projects/\d+/embed/?$#', $path);
+
+        return $youtube || $vimeo || $scratch;
     }
 
     private static function normalizeEmbeddedMediaUrls(string $html): string

@@ -23,7 +23,7 @@
         <div class="flex items-center gap-2">
             {{-- Layout Toggle --}}
             <button 
-                @click="layout = layout === 'horizontal' ? 'vertical' : 'horizontal'"
+                @click="layout = layout === 'horizontal' ? 'vertical' : 'horizontal'; $nextTick(() => layoutWebEditors{{ $jsKey }}())"
                 class="px-3 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-1">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
@@ -50,21 +50,21 @@
             {{-- Tabs --}}
             <div class="flex border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                 <button 
-                    @click="activeTab = 'html'"
+                    @click="activeTab = 'html'; $nextTick(() => layoutWebEditors{{ $jsKey }}())"
                     :class="activeTab === 'html' ? 'bg-white dark:bg-gray-800 border-b-2 border-orange-500' : 'hover:bg-gray-100 dark:hover:bg-gray-800'"
                     class="px-4 py-2 text-sm font-semibold transition-colors flex items-center gap-2">
                     <span class="text-orange-500">📄</span>
                     HTML
                 </button>
                 <button 
-                    @click="activeTab = 'css'"
+                    @click="activeTab = 'css'; $nextTick(() => layoutWebEditors{{ $jsKey }}())"
                     :class="activeTab === 'css' ? 'bg-white dark:bg-gray-800 border-b-2 border-blue-500' : 'hover:bg-gray-100 dark:hover:bg-gray-800'"
                     class="px-4 py-2 text-sm font-semibold transition-colors flex items-center gap-2">
                     <span class="text-blue-500">🎨</span>
                     CSS
                 </button>
                 <button 
-                    @click="activeTab = 'javascript'"
+                    @click="activeTab = 'javascript'; $nextTick(() => layoutWebEditors{{ $jsKey }}())"
                     :class="activeTab === 'javascript' ? 'bg-white dark:bg-gray-800 border-b-2 border-yellow-500' : 'hover:bg-gray-100 dark:hover:bg-gray-800'"
                     class="px-4 py-2 text-sm font-semibold transition-colors flex items-center gap-2">
                     <span class="text-yellow-500">⚡</span>
@@ -73,7 +73,7 @@
             </div>
 
             {{-- HTML Editor --}}
-            <div x-show="activeTab === 'html'" class="relative">
+            <div x-show="activeTab === 'html'" class="relative min-h-[400px]">
                 <textarea 
                     id="{{ $editorId }}-html"
                     class="w-full p-4 font-mono text-sm bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border-0 focus:ring-0 resize-none"
@@ -84,7 +84,7 @@
             </div>
 
             {{-- CSS Editor --}}
-            <div x-show="activeTab === 'css'" class="relative">
+            <div x-show="activeTab === 'css'" class="relative min-h-[400px]">
                 <textarea 
                     id="{{ $editorId }}-css"
                     class="w-full p-4 font-mono text-sm bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border-0 focus:ring-0 resize-none"
@@ -95,7 +95,7 @@
             </div>
 
             {{-- JavaScript Editor --}}
-            <div x-show="activeTab === 'javascript'" class="relative">
+            <div x-show="activeTab === 'javascript'" class="relative min-h-[400px]">
                 <textarea 
                     id="{{ $editorId }}-javascript"
                     class="w-full p-4 font-mono text-sm bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border-0 focus:ring-0 resize-none"
@@ -133,9 +133,49 @@
 </div>
 
 <script>
+    function layoutWebEditors{{ $jsKey }}() {
+        ['{{ $editorId }}-html', '{{ $editorId }}-css', '{{ $editorId }}-javascript'].forEach((id) => {
+            const field = document.getElementById(id);
+            if (field && typeof field._monacoLayout === 'function') {
+                field._monacoLayout();
+            }
+        });
+    }
+
+    function mountWebEditors{{ $jsKey }}() {
+        if (typeof window.mountMonacoField !== 'function') {
+            return false;
+        }
+
+        const readOnly = {{ $editable ? 'false' : 'true' }};
+        window.mountMonacoField(document.getElementById('{{ $editorId }}-html'), { language: 'html', height: '400px', readOnly });
+        window.mountMonacoField(document.getElementById('{{ $editorId }}-css'), { language: 'css', height: '400px', readOnly });
+        window.mountMonacoField(document.getElementById('{{ $editorId }}-javascript'), { language: 'javascript', height: '400px', readOnly });
+        return true;
+    }
+
+    function waitForMonaco{{ $jsKey }}(done) {
+        if (mountWebEditors{{ $jsKey }}()) {
+            done();
+            return;
+        }
+
+        let attempts = 0;
+        const timer = setInterval(() => {
+            attempts += 1;
+            if (mountWebEditors{{ $jsKey }}() || attempts > 100) {
+                clearInterval(timer);
+                done();
+            }
+        }, 50);
+    }
+
     // Auto-run on load
     document.addEventListener('DOMContentLoaded', function() {
-        runWebCode{{ $jsKey }}();
+        waitForMonaco{{ $jsKey }}(() => {
+            layoutWebEditors{{ $jsKey }}();
+            runWebCode{{ $jsKey }}();
+        });
     });
     
     // Run web code

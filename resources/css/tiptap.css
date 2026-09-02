@@ -60,6 +60,52 @@
     @apply max-w-full h-auto rounded-lg shadow-md my-4;
 }
 
+.ProseMirror table {
+    @apply w-full border-collapse my-4 text-sm;
+}
+
+.ProseMirror .tableWrapper {
+    @apply overflow-x-auto my-4;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+    @apply border border-gray-300 dark:border-gray-600 px-3 py-2 align-top;
+}
+
+.ProseMirror th {
+    @apply bg-gray-100 dark:bg-gray-800 font-semibold;
+}
+
+.ProseMirror .selectedCell {
+    @apply bg-blue-50 dark:bg-blue-950/40;
+}
+
+.ProseMirror .column-resize-handle {
+    @apply absolute top-0 right-[-2px] bottom-0 w-1 bg-blue-400 pointer-events-none;
+}
+
+.ProseMirror mark {
+    @apply rounded px-0.5;
+}
+
+.ProseMirror iframe,
+.ProseMirror div[data-youtube-video] {
+    @apply w-full max-w-3xl rounded-lg overflow-hidden my-4 aspect-video;
+}
+
+.ProseMirror ul[data-type="taskList"] {
+    @apply list-none pl-0;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+    @apply flex items-start gap-2;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label {
+    @apply mt-1;
+}
+
 .ProseMirror a {
     @apply text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300;
 }
@@ -138,4 +184,42 @@
 
 .lesson-content hr {
     @apply border-gray-300 dark:border-gray-600 my-6;
+}
+
+.lesson-content table {
+    @apply w-full border-collapse my-4 text-sm text-gray-700 dark:text-gray-300;
+}
+
+.lesson-content th,
+.lesson-content td {
+    @apply border border-gray-300 dark:border-gray-600 px-3 py-2 align-top;
+}
+
+.lesson-content th {
+    @apply bg-gray-100 dark:bg-gray-800 font-semibold text-gray-900 dark:text-white;
+}
+
+.lesson-content mark {
+    @apply rounded px-0.5;
+}
+
+.lesson-content ul[data-type="taskList"] {
+    @apply list-none ml-0;
+}
+
+.lesson-content ul[data-type="taskList"] li {
+    @apply flex items-start gap-2;
+}
+
+.lesson-content ul[data-type="taskList"] input[type="checkbox"] {
+    @apply mt-1;
+}
+
+.monaco-field {
+    width: 100%;
+}
+
+.monaco-field .monaco-editor,
+.monaco-field .monaco-editor .overflow-guard {
+    border-radius: 0;
 }

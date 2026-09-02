@@ -13,6 +13,44 @@ window.loadChart = async () => {
     return window.Chart;
 };
 
+window.mountMonacoField = async (textarea, options = {}) => {
+    if (!textarea) {
+        return null;
+    }
+
+    if (textarea.dataset.monacoMounted === 'true' && textarea._monacoEditor) {
+        return textarea._monacoEditor;
+    }
+
+    const { createMonacoEditor } = await import('./components/monaco.js');
+    const height = options.height || textarea.style.height || '400px';
+    const container = document.createElement('div');
+    container.className = 'monaco-field';
+    container.style.height = height;
+
+    textarea.classList.add('hidden');
+    textarea.parentElement.insertBefore(container, textarea);
+    textarea.dataset.monacoMounted = 'true';
+
+    const { editor } = await createMonacoEditor(container, {
+        value: textarea.value,
+        language: options.language || 'plaintext',
+        readOnly: Boolean(options.readOnly || textarea.readOnly),
+        tabSize: options.tabSize ?? 2,
+        theme: document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs',
+    });
+
+    editor.onDidChangeModelContent(() => {
+        textarea.value = editor.getValue();
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    textarea._monacoEditor = editor;
+    textarea._monacoLayout = () => editor.layout();
+
+    return editor;
+};
+
 // Alpine component for TipTap editor with Livewire integration.
 // Assigned on window because Livewire's Alpine boots from a classic
 // script and this file is a deferred Vite module — blade waits for this.

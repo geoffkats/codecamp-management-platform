@@ -52,7 +52,7 @@
     </div>
 
     {{-- Editor Area --}}
-    <div class="relative">
+    <div class="relative" style="min-height: {{ $height }}">
         <textarea 
             id="{{ $editorId }}"
             class="w-full p-4 font-mono text-sm bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border-0 focus:ring-0 resize-none"
@@ -60,11 +60,6 @@
             @if(!$editable) readonly @endif
             spellcheck="false"
         >{{ $code }}</textarea>
-        
-        {{-- Line numbers (optional enhancement) --}}
-        <div class="absolute top-0 left-0 p-4 pr-2 text-gray-400 dark:text-gray-600 font-mono text-sm select-none pointer-events-none">
-            <div id="{{ $editorId }}-lines"></div>
-        </div>
     </div>
 
     {{-- Output Area --}}
@@ -117,27 +112,52 @@
         return window.__pyodideReady;
     }
     
-    // Update line numbers
-    function updateLineNumbers{{ $jsKey }}() {
-        const editor = document.getElementById('{{ $editorId }}');
-        const linesDiv = document.getElementById('{{ $editorId }}-lines');
-        if (!editor || !linesDiv) return;
-        const lineCount = editor.value.split('\n').length;
-        linesDiv.innerHTML = Array.from({length: lineCount}, (_, i) => i + 1).join('\n');
-    }
-    
-    // Initialize line numbers
-    document.addEventListener('DOMContentLoaded', function() {
-        updateLineNumbers{{ $jsKey }}();
-        const editor = document.getElementById('{{ $editorId }}');
-        const linesDiv = document.getElementById('{{ $editorId }}-lines');
-        if (editor) {
-            editor.addEventListener('input', updateLineNumbers{{ $jsKey }});
-            editor.addEventListener('scroll', function() {
-                if (linesDiv) {
-                    linesDiv.scrollTop = editor.scrollTop;
+    function mountCodeEditor{{ $jsKey }}() {
+        if (typeof window.mountMonacoField !== 'function') {
+            return false;
+        }
+
+        const field = document.getElementById('{{ $editorId }}');
+        if (!field) {
+            return true;
+        }
+
+        window.mountMonacoField(field, {
+            language: '{{ $config['mode'] }}',
+            height: '{{ $height }}',
+            readOnly: {{ $editable ? 'false' : 'true' }},
+            tabSize: 4,
+        }).then((monacoEditor) => {
+            if (!monacoEditor || typeof monacoEditor.onKeyDown !== 'function') {
+                return;
+            }
+            monacoEditor.onKeyDown((event) => {
+                const isEnter = event.keyCode === 3 || event.browserEvent?.code === 'Enter';
+                if ((event.ctrlKey || event.metaKey) && isEnter) {
+                    event.preventDefault();
+                    runCode{{ $jsKey }}();
                 }
             });
+        });
+
+        return true;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        if (mountCodeEditor{{ $jsKey }}()) {
+            return;
+        }
+
+        let attempts = 0;
+        const timer = setInterval(() => {
+            attempts += 1;
+            if (mountCodeEditor{{ $jsKey }}() || attempts > 100) {
+                clearInterval(timer);
+            }
+        }, 50);
+
+        const editor = document.getElementById('{{ $editorId }}');
+        if (editor) {
             editor.addEventListener('keydown', function(event) {
                 if (event.ctrlKey && event.key === 'Enter') {
                     event.preventDefault();
@@ -150,10 +170,11 @@
     // Reset code
     function resetCode{{ $jsKey }}() {
         const editor = document.getElementById('{{ $editorId }}');
-        if (editor) {
+        if (editor && editor._monacoEditor) {
+            editor._monacoEditor.setValue(originalCode{{ $jsKey }});
+        } else if (editor) {
             editor.value = originalCode{{ $jsKey }};
         }
-        updateLineNumbers{{ $jsKey }}();
         clearOutput{{ $jsKey }}();
     }
     
@@ -271,14 +292,3 @@
     @endpush
 @endonce
 
-<style>
-    #{{ $editorId }} {
-        padding-left: 3.5rem;
-    }
-    
-    #{{ $editorId }}-lines {
-        width: 2.5rem;
-        text-align: right;
-        line-height: 1.5;
-    }
-</style>
