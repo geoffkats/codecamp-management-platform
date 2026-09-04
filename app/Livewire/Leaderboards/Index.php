@@ -218,24 +218,30 @@ class Index extends Component
             $currentUserRank = $this->formatEntry($currentUser->points, $rank, $usesScopedXp ? $myPoints : null);
         }
 
-        $topThree = (clone $baseQuery)
+        $topFive = (clone $baseQuery)
             ->orderByDesc($pointsColumn)
-            ->take(3)
+            ->take(5)
             ->get()
             ->map(function ($userPoint, $index) use ($usesScopedXp) {
                 $rankedPoints = $usesScopedXp ? (int) ($userPoint->period_points ?? 0) : null;
 
                 return $this->formatEntry($userPoint, $index + 1, $rankedPoints);
-            });
+            })
+            ->filter(fn (array $entry) => ($entry['points'] ?? 0) > 0)
+            ->values();
 
         $totalActiveUsers = (clone $baseQuery)->count();
 
         $stats = [
             'totalXp' => (int) (clone $baseQuery)->sum($pointsColumn),
             'avgXp' => $totalActiveUsers > 0 ? (int) round((clone $baseQuery)->avg($pointsColumn)) : 0,
-            'topXp' => $topThree->first()['points'] ?? 0,
+            'topXp' => $topFive->first()['points'] ?? 0,
             'participants' => $totalActiveUsers,
         ];
+
+        $logoPath = cache()->remember('logo_path', 86400, fn () => \App\Models\SystemSetting::get('logo'));
+        $logoDarkPath = cache()->remember('logo_dark_path', 86400, fn () => \App\Models\SystemSetting::get('logo_dark'));
+        $brandLogo = $logoPath ?: $logoDarkPath;
 
         $camps = $isStaff && ProgramScope::context($currentUser) !== 'codeclub'
             ? CodeCamp::orderBy('name')->get(['id', 'name', 'status'])
@@ -250,7 +256,7 @@ class Index extends Component
         return view('livewire.leaderboards.index', [
             'leaderboard' => $leaderboard,
             'currentUserRank' => $currentUserRank,
-            'topThree' => $topThree,
+            'topFive' => $topFive,
             'totalActiveUsers' => $totalActiveUsers,
             'stats' => $stats,
             'camps' => $camps,
@@ -263,6 +269,8 @@ class Index extends Component
             'selectedCourseTitle' => $courseId
                 ? ($courses->firstWhere('id', $courseId)?->title ?? Course::query()->find($courseId)?->title)
                 : null,
+            'brandLogoUrl' => $brandLogo ? asset('storage/' . $brandLogo) : null,
+            'appName' => cache()->remember('app_name', 86400, fn () => \App\Models\SystemSetting::get('app_name', config('app.name'))),
         ]);
     }
 

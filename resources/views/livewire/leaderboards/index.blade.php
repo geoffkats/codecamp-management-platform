@@ -8,11 +8,59 @@ $authLevelGoal = $authPoints->points_to_next_level ?? 1000;
 $authLevelPoints = $authPoints ? ($authPoints->total_points ?? 0) % $authLevelGoal : 0;
 $authLevelProgress = $authLevelGoal > 0 ? min(($authLevelPoints / $authLevelGoal) * 100, 100) : 0;
 
-$podiumOrder = [2, 1, 3];
+// Kahoot-style stage order: 4 · 2 · 1 · 3 · 5
+$podiumOrder = [4, 2, 1, 3, 5];
 $podiumStyle = [
-    1 => ['h' => 'h-44', 'avatar' => 'w-20 h-20 text-2xl', 'ring' => 'ring-orange-600', 'bar' => 'bg-orange-600', 'badge' => 'bg-orange-600', 'lift' => '-translate-y-4'],
-    2 => ['h' => 'h-32', 'avatar' => 'w-16 h-16 text-lg', 'ring' => 'ring-slate-400', 'bar' => 'bg-slate-400', 'badge' => 'bg-slate-500', 'lift' => ''],
-    3 => ['h' => 'h-24', 'avatar' => 'w-16 h-16 text-lg', 'ring' => 'ring-blue-600', 'bar' => 'bg-blue-600', 'badge' => 'bg-blue-600', 'lift' => ''],
+    1 => [
+        'h' => 'h-52 sm:h-60',
+        'size' => 'xl',
+        'ring' => 'ring-[#FFD700]',
+        'bar' => 'from-[#FFC107] via-[#FF9800] to-[#F57C00]',
+        'badge' => 'bg-gradient-to-br from-yellow-300 to-amber-500',
+        'glow' => 'shadow-[0_0_40px_rgba(255,193,7,0.45)]',
+        'lift' => '-translate-y-6',
+        'label' => '1st',
+    ],
+    2 => [
+        'h' => 'h-40 sm:h-48',
+        'size' => 'lg',
+        'ring' => 'ring-slate-200',
+        'bar' => 'from-slate-300 via-slate-400 to-slate-500',
+        'badge' => 'bg-gradient-to-br from-slate-200 to-slate-500',
+        'glow' => 'shadow-[0_0_28px_rgba(148,163,184,0.35)]',
+        'lift' => '-translate-y-2',
+        'label' => '2nd',
+    ],
+    3 => [
+        'h' => 'h-32 sm:h-40',
+        'size' => 'lg',
+        'ring' => 'ring-amber-600',
+        'bar' => 'from-amber-500 via-orange-600 to-amber-800',
+        'badge' => 'bg-gradient-to-br from-amber-500 to-orange-800',
+        'glow' => 'shadow-[0_0_28px_rgba(217,119,6,0.35)]',
+        'lift' => '',
+        'label' => '3rd',
+    ],
+    4 => [
+        'h' => 'h-24 sm:h-28',
+        'size' => 'md',
+        'ring' => 'ring-sky-400',
+        'bar' => 'from-sky-400 via-blue-500 to-blue-700',
+        'badge' => 'bg-gradient-to-br from-sky-400 to-blue-700',
+        'glow' => 'shadow-[0_0_20px_rgba(56,189,248,0.25)]',
+        'lift' => '',
+        'label' => '4th',
+    ],
+    5 => [
+        'h' => 'h-20 sm:h-24',
+        'size' => 'md',
+        'ring' => 'ring-violet-400',
+        'bar' => 'from-violet-400 via-purple-500 to-purple-800',
+        'badge' => 'bg-gradient-to-br from-violet-400 to-purple-800',
+        'glow' => 'shadow-[0_0_20px_rgba(167,139,250,0.25)]',
+        'lift' => '',
+        'label' => '5th',
+    ],
 ];
 @endphp
 
@@ -220,66 +268,95 @@ $podiumStyle = [
             </p>
         </div>
 
-        {{-- Podium --}}
-        @if($topThree->count() >= 1 && ($topThree->first()['points'] ?? 0) > 0)
-        <div class="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 sm:p-8 shadow-sm">
-            <div class="flex items-center gap-2 mb-6">
-                <span class="w-1 h-6 bg-orange-600 rounded-full"></span>
-                <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
-                <h2 class="text-lg font-black text-gray-900 dark:text-white">Top Performers</h2>
+        {{-- Kahoot-style Top 5 podium --}}
+        @if($topFive->isNotEmpty())
+        <div class="relative overflow-hidden rounded-2xl border border-violet-400/30 shadow-2xl">
+            <div class="absolute inset-0 bg-gradient-to-b from-[#2b0b5e] via-[#46178f] to-[#1a0538]"></div>
+
+            {{-- Brand logo watermark --}}
+            <div class="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.14]">
+                @if($brandLogoUrl)
+                    <img src="{{ $brandLogoUrl }}" alt="{{ $appName }}" class="w-[55%] max-w-md object-contain drop-shadow-2xl">
+                @else
+                    <svg class="w-56 h-56 text-white" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <rect x="4" y="4" width="18" height="18" rx="3" fill="#f97316"/>
+                        <rect x="26" y="4" width="18" height="18" rx="3" fill="#60a5fa"/>
+                        <rect x="4" y="26" width="18" height="18" rx="3" fill="#60a5fa"/>
+                        <rect x="26" y="26" width="18" height="18" rx="3" fill="#f97316"/>
+                    </svg>
+                @endif
             </div>
 
-            <div class="hidden md:flex items-end justify-center gap-4 lg:gap-8 min-h-[20rem] pb-2">
-                @foreach($podiumOrder as $place)
-                    @php
-                        $entry = $topThree->firstWhere('rank', $place);
-                        $style = $podiumStyle[$place];
-                    @endphp
-                    @if($entry)
-                    <div class="flex flex-col items-center w-40 lg:w-48 {{ $style['lift'] }}">
-                        <div class="mb-2 w-8 h-8 rounded-full {{ $style['badge'] }} text-white text-sm font-black flex items-center justify-center">
-                            {{ $place }}
-                        </div>
-                        <x-user-avatar :user="$entry['user']" size="xl" class="ring-4 {{ $style['ring'] }}" />
-                        <p class="mt-3 text-sm font-bold text-gray-900 dark:text-white text-center truncate w-full px-1">
-                            {{ $entry['user']->name ?? 'Student' }}
-                        </p>
-                        <p class="text-xs font-semibold" style="color: {{ $entry['levelColor'] }}">
-                            Lv {{ $entry['level'] }} · {{ $entry['levelName'] }}
-                        </p>
-                        <p class="text-sm font-black text-orange-600 dark:text-orange-400 mt-0.5">{{ number_format($entry['points']) }} {{ $pointsLabel }} XP</p>
-                        @if($entry['badgeCount'] > 0)
-                        <span class="mt-1 inline-flex items-center gap-1 text-[10px] text-gray-400">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
-                            {{ $entry['badgeCount'] }} badges
-                        </span>
-                        @endif
-                        <div class="mt-4 w-full {{ $style['h'] }} rounded-t-xl {{ $style['bar'] }} flex items-end justify-center pb-3">
-                            <span class="text-3xl font-black text-white/90">{{ $place }}</span>
-                        </div>
-                    </div>
-                    @endif
-                @endforeach
-            </div>
+            <div class="pointer-events-none absolute -top-24 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-yellow-300/20 blur-3xl"></div>
+            <div class="pointer-events-none absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black/40 to-transparent"></div>
 
-            <div class="md:hidden space-y-3">
-                @foreach($topThree as $entry)
-                @php $style = $podiumStyle[$entry['rank']] ?? $podiumStyle[3]; @endphp
-                <div class="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-                    <div class="w-8 h-8 rounded-full {{ $style['badge'] }} text-white text-sm font-black flex items-center justify-center flex-shrink-0">
-                        {{ $entry['rank'] }}
+            <div class="relative z-10 p-5 sm:p-8">
+                <div class="mb-6 flex flex-col items-center text-center sm:mb-8">
+                    <div class="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-yellow-200 ring-1 ring-white/20 backdrop-blur">
+                        <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                        Top 5 Champions
                     </div>
-                    <x-user-avatar :user="$entry['user']" size="md" class="ring-2 {{ $style['ring'] }}" />
-                    <div class="flex-1 min-w-0">
-                        <p class="font-bold text-gray-900 dark:text-white truncate">{{ $entry['user']->name }}</p>
-                        <p class="text-xs text-gray-500">Lv {{ $entry['level'] }} · {{ $entry['levelName'] }}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="font-black text-orange-600 dark:text-orange-400">{{ number_format($entry['points']) }}</p>
-                        <p class="text-[10px] text-gray-400">{{ $pointsLabel }} XP</p>
-                    </div>
+                    <h2 class="text-2xl font-black tracking-tight text-white sm:text-3xl">Podium</h2>
+                    <p class="mt-1 text-sm text-violet-100/80">{{ $pointsLabel }} XP leaders</p>
                 </div>
-                @endforeach
+
+                <div class="hidden sm:flex items-end justify-center gap-2 md:gap-4 lg:gap-5 min-h-[22rem] pb-2">
+                    @foreach($podiumOrder as $place)
+                        @php
+                            $entry = $topFive->firstWhere('rank', $place);
+                            $style = $podiumStyle[$place];
+                        @endphp
+                        @if($entry)
+                        <div class="flex w-[5.5rem] md:w-28 lg:w-36 flex-col items-center {{ $style['lift'] }}">
+                            @if($place === 1)
+                            <div class="mb-1 text-3xl drop-shadow-lg" aria-hidden="true">👑</div>
+                            @endif
+
+                            <div class="mb-2 flex h-8 w-8 items-center justify-center rounded-full text-xs font-black text-white {{ $style['badge'] }} ring-2 ring-white/40">
+                                {{ $place }}
+                            </div>
+
+                            <div class="relative {{ $style['glow'] }} rounded-full">
+                                <x-user-avatar :user="$entry['user']" :size="$style['size']" rounded="full" class="ring-4 {{ $style['ring'] }}" />
+                            </div>
+
+                            <p class="mt-3 w-full truncate px-1 text-center text-sm font-bold text-white">
+                                {{ $entry['user']->name ?? 'Student' }}
+                            </p>
+                            <p class="text-[11px] font-semibold text-violet-100/80">
+                                Lv {{ $entry['level'] }} · {{ $entry['levelName'] }}
+                            </p>
+                            <p class="mt-0.5 text-sm font-black text-yellow-300">
+                                {{ number_format($entry['points']) }} XP
+                            </p>
+
+                            <div class="mt-4 w-full {{ $style['h'] }} rounded-t-2xl bg-gradient-to-b {{ $style['bar'] }} flex flex-col items-center justify-end pb-4 ring-1 ring-white/20 {{ $style['glow'] }}">
+                                <span class="text-4xl font-black text-white/95 drop-shadow">{{ $style['label'] }}</span>
+                            </div>
+                        </div>
+                        @endif
+                    @endforeach
+                </div>
+
+                <div class="sm:hidden space-y-3">
+                    @foreach($topFive as $entry)
+                    @php $style = $podiumStyle[$entry['rank']] ?? $podiumStyle[5]; @endphp
+                    <div class="flex items-center gap-3 rounded-xl bg-white/10 p-3 ring-1 ring-white/15 backdrop-blur">
+                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-black text-white {{ $style['badge'] }}">
+                            {{ $entry['rank'] }}
+                        </div>
+                        <x-user-avatar :user="$entry['user']" size="sm" rounded="full" class="ring-2 {{ $style['ring'] }}" />
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate font-bold text-white">{{ $entry['user']->name }}</p>
+                            <p class="text-xs text-violet-100/70">Lv {{ $entry['level'] }} · {{ $entry['levelName'] }}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-black text-yellow-300">{{ number_format($entry['points']) }}</p>
+                            <p class="text-[10px] uppercase tracking-wide text-violet-100/60">XP</p>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
             </div>
         </div>
         @endif
@@ -306,12 +383,18 @@ $podiumStyle = [
                 @php
                     $userPoint = $entry->userPoint;
                     $isMe = Auth::id() === $userPoint->user_id;
-                    $isTop3 = $entry->rank <= 3;
-                    $rankColors = [1 => 'bg-orange-600', 2 => 'bg-slate-400', 3 => 'bg-blue-600'];
+                    $isTop5 = $entry->rank <= 5;
+                    $rankColors = [
+                        1 => 'bg-gradient-to-br from-yellow-300 to-amber-500',
+                        2 => 'bg-gradient-to-br from-slate-200 to-slate-500',
+                        3 => 'bg-gradient-to-br from-amber-500 to-orange-800',
+                        4 => 'bg-gradient-to-br from-sky-400 to-blue-700',
+                        5 => 'bg-gradient-to-br from-violet-400 to-purple-800',
+                    ];
                 @endphp
                 <div class="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 transition {{ $isMe ? 'bg-orange-50 dark:bg-orange-950/30 border-l-4 border-orange-600' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50' }}">
                     <div class="w-10 flex-shrink-0 flex justify-center">
-                        @if($isTop3)
+                        @if($isTop5)
                         <div class="w-7 h-7 rounded-full {{ $rankColors[$entry->rank] }} text-white text-xs font-black flex items-center justify-center">
                             {{ $entry->rank }}
                         </div>
