@@ -99,6 +99,8 @@
                 <p class="text-sm font-bold text-gray-900 dark:text-white leading-snug line-clamp-2 mb-2.5">{{ $course->title }}</p>
                 @if($canManageCourse)
                     <button wire:click="selectItem('module')"
+                            x-data
+                            x-on:click="$dispatch('select-item', { type: 'module', id: null, parentId: null })"
                             wire:loading.attr="disabled"
                             type="button"
                             class="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-gray-700 dark:hover:bg-gray-100 active:scale-95 transition-all duration-150 shadow-sm">
@@ -267,8 +269,9 @@
                                     </svg>
                                 </button>
 
-                                {{-- Module name (click to edit) --}}
+                                {{-- Module name (click to edit, and reveal its lessons) --}}
                                 <button wire:click="selectItem('module', {{ $module->id }})"
+                                        x-on:click="open = true; $dispatch('select-item', { type: 'module', id: {{ (int) $module->id }}, parentId: null })"
                                         type="button"
                                         class="flex-1 flex items-center gap-2 py-2 pr-1 text-left min-w-0">
                                     <span class="flex-1 text-xs font-bold leading-snug truncate {{ $isModuleActive ? 'text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-gray-200' }}">
@@ -372,9 +375,23 @@
                                     {{-- Edit lesson button (main click area) --}}
                                     <button type="button"
                                             wire:click="selectItem('lesson', {{ $lesson->id }}, {{ $module->id }})"
+                                            x-data
+                                            x-on:click="$dispatch('select-item', { type: 'lesson', id: {{ (int) $lesson->id }}, parentId: {{ (int) $module->id }} })"
+                                            wire:loading.class="bg-orange-50 dark:bg-orange-900/20"
+                                            wire:target="selectItem('lesson', {{ $lesson->id }}, {{ $module->id }})"
                                             class="flex-1 flex items-center gap-2 px-2 py-1.5 rounded-lg text-left min-w-0">
 
-                                        <span class="flex-shrink-0 w-4 text-[10px] font-bold text-gray-400 dark:text-gray-500 text-right tabular-nums">{{ $lessonIndex + 1 }}</span>
+                                        {{-- Swaps to a spinner so a slow open still looks like the click landed --}}
+                                        <span wire:loading.remove
+                                              wire:target="selectItem('lesson', {{ $lesson->id }}, {{ $module->id }})"
+                                              class="flex-shrink-0 w-4 text-[10px] font-bold text-gray-400 dark:text-gray-500 text-right tabular-nums">{{ $lessonIndex + 1 }}</span>
+                                        <svg wire:loading
+                                             wire:target="selectItem('lesson', {{ $lesson->id }}, {{ $module->id }})"
+                                             class="flex-shrink-0 w-3 h-3 ml-0.5 animate-spin text-orange-500"
+                                             fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                            <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                        </svg>
 
                                         {{-- Lesson type icon --}}
                                         @switch($lesson->lesson_type ?? 'text')
@@ -447,6 +464,8 @@
                                 {{-- Add Lesson button --}}
                                 @if($canManageCourse)
                                     <button wire:click="selectItem('lesson', null, {{ $module->id }})"
+                                            x-data
+                                            x-on:click="$dispatch('select-item', { type: 'lesson', id: null, parentId: {{ (int) $module->id }} })"
                                             type="button"
                                             class="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-all duration-150 group/add">
                                         <svg class="w-3 h-3 group-hover/add:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">

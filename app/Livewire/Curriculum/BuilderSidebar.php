@@ -23,6 +23,9 @@ class BuilderSidebar extends Component
     public $selectedModuleId = null;
     public $structureTab = 'active';
 
+    /** Guards against querying the same structure more than once per request. */
+    protected bool $structureLoaded = false;
+
     protected $listeners = [
         'course-structure-updated' => 'refreshCourse',
         'lesson-saved' => 'refreshCourse',
@@ -41,7 +44,7 @@ class BuilderSidebar extends Component
 
     public function hydrate(): void
     {
-        $this->reloadStructure();
+        $this->reloadStructure(true);
     }
 
     public function dehydrate(): void
@@ -55,8 +58,14 @@ class BuilderSidebar extends Component
         $this->reloadStructure();
     }
 
-    protected function reloadStructure(): void
+    protected function reloadStructure(bool $onlyIfMissing = false): void
     {
+        if ($onlyIfMissing && $this->structureLoaded) {
+            return;
+        }
+
+        $this->structureLoaded = true;
+
         if ($this->courseId) {
             $this->course = Course::withTrashed()->with([
                 'modules' => function ($q) {
@@ -109,6 +118,12 @@ class BuilderSidebar extends Component
         $this->structureTab = $tab;
     }
 
+    /**
+     * Highlights the clicked item in the outline. The builder itself is told
+     * about the selection by a browser-side `select-item` dispatch on the same
+     * click, so both components update in one network round trip instead of
+     * this component dispatching to the builder and forcing a second one.
+     */
     public function selectItem($type, $id = null, $parentId = null): void
     {
         $this->selectedType = $type;
@@ -118,7 +133,6 @@ class BuilderSidebar extends Component
         } elseif ($type === 'lesson') {
             $this->selectedModuleId = $parentId ? (int) $parentId : $this->selectedModuleId;
         }
-        $this->dispatch('select-item', type: $type, id: $id, parentId: $parentId)->to(NewBuilder::class);
     }
 
     public function reorderLessons(int $moduleId, array $orderedIds): void
@@ -209,7 +223,7 @@ class BuilderSidebar extends Component
 
     public function render()
     {
-        $this->reloadStructure();
+        $this->reloadStructure(true);
 
         return view('livewire.curriculum.builder-sidebar', [
             'course' => $this->course,

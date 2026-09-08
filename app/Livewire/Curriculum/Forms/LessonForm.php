@@ -67,10 +67,19 @@ class LessonForm extends Component
 
     protected function loadCourse(): void
     {
-        $this->course = Course::with('modules')->find($this->courseId);
+        // The form only needs the module picker and the quiz list, so avoid
+        // pulling module descriptions and assessment question payloads.
+        $this->course = Course::select('id', 'title', 'instructor_id')
+            ->with(['modules' => function ($q) {
+                $q->orderBy('order_index')
+                    ->select('id', 'course_id', 'title', 'order_index', 'deleted_at');
+            }])
+            ->find($this->courseId);
 
         if ($this->selectedId) {
-            $this->lesson = Lesson::with('assessments')->find($this->selectedId);
+            $this->lesson = Lesson::with(['assessments' => function ($q) {
+                $q->select('id', 'lesson_id', 'title');
+            }])->find($this->selectedId);
         }
 
         $this->canManageCourse = $this->course ? $this->userCanManageCourse() : false;
@@ -730,7 +739,9 @@ class LessonForm extends Component
 
         // Reload lesson assessments
         if ($this->lesson) {
-            $this->lesson = Lesson::with('assessments')->find($this->selectedId);
+            $this->lesson = Lesson::with(['assessments' => function ($q) {
+                $q->select('id', 'lesson_id', 'title');
+            }])->find($this->selectedId);
         }
 
         $this->flashMessage('message', 'Quiz removed.');

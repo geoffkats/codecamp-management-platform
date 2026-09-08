@@ -57,6 +57,8 @@ class NewBuilder extends Component
     // Cache user permissions to avoid N+1 queries
     protected $isAdmin;
     protected $isSupervisor;
+    /** Guards against re-querying the course structure more than once per request. */
+    protected bool $courseLoaded = false;
     protected $listeners = [
         'lesson-saved' => 'handleLessonSaved',
         'close-form' => 'closeForm',
@@ -114,7 +116,7 @@ class NewBuilder extends Component
         }
 
         if ($this->courseId) {
-            $this->loadCourse(false);
+            $this->loadCourse(false, true);
         }
     }
 
@@ -210,11 +212,26 @@ class NewBuilder extends Component
         }
     }
     
-    public function loadCourse(bool $recomputeView = true)
+    /**
+     * Pass $onlyIfMissing when the structure just needs to be present (hydrate,
+     * render) rather than re-read after a write, so a single click costs one
+     * structure query instead of two.
+     */
+    public function loadCourse(bool $recomputeView = true, bool $onlyIfMissing = false)
     {
         if (!$this->courseId) {
             return;
         }
+
+        if ($onlyIfMissing && $this->courseLoaded) {
+            if ($recomputeView) {
+                $this->computeViewState();
+            }
+
+            return;
+        }
+
+        $this->courseLoaded = true;
         
         // Reload user roles to ensure they're fresh
         $user = Auth::user();
@@ -920,7 +937,7 @@ class NewBuilder extends Component
     public function render()
     {
         if ($this->courseId) {
-            $this->loadCourse();
+            $this->loadCourse(true, true);
         }
 
         if ($this->selectedType === 'assessment' && $this->selectedId && ! $this->selectedAssessment) {
