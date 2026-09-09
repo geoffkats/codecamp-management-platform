@@ -294,7 +294,7 @@ class Index extends Component
 
         if ($courseId) {
             $q->whereHas('enrollments', function ($e) use ($campId, $courseId, $isStaff) {
-                $e->where('course_id', $courseId)->whereNull('completed_at');
+                $e->where('course_id', $courseId)->stillRanking();
 
                 // Staff camp filter is already applied via campEnrollments.
                 // For students, keep camp soft-match so legacy null camp_id rows still count.
@@ -317,13 +317,13 @@ class Index extends Component
 
             $courseIds = $this->studentCourseIds($currentUser, $campId);
             if ($courseIds === []) {
-                $q->whereRaw('1 = 0');
-
+                // Their camp has ended (or they have no class yet), so fall back to
+                // the wider board rather than showing them an empty leaderboard.
                 return;
             }
 
             $q->whereHas('enrollments', fn ($e) => $e
-                ->whereNull('completed_at')
+                ->stillRanking()
                 ->whereIn('course_id', $courseIds));
 
             return;
@@ -336,7 +336,7 @@ class Index extends Component
                 $courseIds = Course::query()->accessibleBy($currentUser)->pluck('id');
                 if ($courseIds->isNotEmpty()) {
                     $q->whereHas('enrollments', fn ($e) => $e
-                        ->whereNull('completed_at')
+                        ->stillRanking()
                         ->whereIn('course_id', $courseIds));
                 }
             }
@@ -369,7 +369,7 @@ class Index extends Component
 
         if ($campId) {
             $query->whereHas('enrollments', function ($e) use ($campId) {
-                $e->whereNull('completed_at')
+                $e->stillRanking()
                     ->where(function ($inner) use ($campId) {
                         $inner->where('camp_id', $campId)->orWhereNull('camp_id');
                     });
@@ -386,7 +386,7 @@ class Index extends Component
     {
         $base = CourseEnrollment::query()
             ->where('user_id', $user->id)
-            ->whereNull('completed_at')
+            ->stillRanking()
             ->whereNotNull('course_id')
             ->orderByDesc('enrolled_at');
 
@@ -431,12 +431,22 @@ class Index extends Component
 
         $allowed = $this->studentCourseIds($user, $this->nullableInt($this->campId));
 
+        if ($allowed === []) {
+            // Camp is over (or they have no class yet): put them on the
+            // all-time career board instead of an empty class board.
+            $this->campId = null;
+            $this->courseId = null;
+            $this->period = 'all';
+
+            return;
+        }
+
         if ($this->courseId && ! in_array((int) $this->courseId, $allowed, true)) {
             $this->courseId = null;
         }
 
         // Always pin students onto a real enrolled class board.
-        if (! $this->courseId && $allowed !== []) {
+        if (! $this->courseId) {
             $this->courseId = (int) $allowed[0];
         }
     }

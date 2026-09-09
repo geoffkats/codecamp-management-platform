@@ -72,8 +72,47 @@ class CourseEnrollment extends Model
     }
 
     /**
-     * Count only XP from a student's current (unfinished) class.
-     * Old / finished courses still award career XP, but they do not rank here.
+     * Limit a course_enrollments query to classes the student should still be
+     * ranked on.
+     *
+     * `completed_at` is written both when a student finishes a course and when
+     * closeOpenClassesInCamp() retires their classes on transfer or drop, so it
+     * cannot tell those two apart on its own. Finishing the work must not push
+     * a student off their camp's board, so a finished class keeps ranking while
+     * the student is still an active member of a camp that is still running.
+     * Once they move to another camp, drop out, or the camp itself ends, only
+     * career XP (the all-time board) still counts them.
+     */
+    public static function applyRankingWindow($query, string $table = 'course_enrollments'): void
+    {
+        $query->where(function ($q) use ($table) {
+            $q->whereNull($table . '.completed_at')
+                ->orWhereExists(function ($sub) use ($table) {
+                    $sub->selectRaw('1')
+                        ->from('camp_enrollments')
+                        ->join('code_camps', 'code_camps.id', '=', 'camp_enrollments.camp_id')
+                        ->whereColumn('camp_enrollments.student_id', $table . '.user_id')
+                        ->where('camp_enrollments.status', 'active')
+                        ->where('code_camps.status', 'active')
+                        ->where(function ($campMatch) use ($table) {
+                            // Legacy rows often have no camp_id; treat them as the student's current camp.
+                            $campMatch->whereNull($table . '.camp_id')
+                                ->orWhereColumn($table . '.camp_id', 'camp_enrollments.camp_id');
+                        });
+                });
+        });
+    }
+
+    public function scopeStillRanking($query)
+    {
+        static::applyRankingWindow($query);
+
+        return $query;
+    }
+
+    /**
+     * Count only XP from a class the student is still ranked on. Classes they
+     * transferred or dropped out of still award career XP, but do not rank.
      */
     public static function constrainProgressToCurrentClass($query, ?int $campId = null, ?int $courseId = null): void
     {
@@ -81,8 +120,9 @@ class CourseEnrollment extends Model
             $sub->selectRaw('1')
                 ->from('course_enrollments')
                 ->whereColumn('course_enrollments.user_id', 'user_progress.user_id')
-                ->whereColumn('course_enrollments.course_id', 'user_progress.course_id')
-                ->whereNull('course_enrollments.completed_at');
+                ->whereColumn('course_enrollments.course_id', 'user_progress.course_id');
+
+            static::applyRankingWindow($sub);
 
             if ($campId) {
                 $sub->where(function ($q) use ($campId) {
