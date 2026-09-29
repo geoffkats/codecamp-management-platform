@@ -17,6 +17,7 @@
 @if(file_exists(public_path('apple-touch-icon.png')))
     <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
 @endif
+@include('partials.pwa')
 
 {{-- Critical CSS inline for faster FCP --}}
 <style>
