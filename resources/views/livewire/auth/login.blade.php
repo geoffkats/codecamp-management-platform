@@ -76,22 +76,12 @@
             </div>
         </form>
 
-        <!-- Sign Up Link -->
-        @if (Route::has('register'))
-            <div class="relative">
-                <div class="absolute inset-0 flex items-center">
-                    <div class="w-full border-t border-gray-200 dark:border-gray-800"></div>
-                </div>
-                <div class="relative flex justify-center text-sm">
-                    <span class="px-2 bg-white dark:bg-neutral-950 text-gray-500 dark:text-gray-400">New to Code Academy?</span>
-                </div>
-            </div>
-
-            <div class="text-center">
-                <flux:link :href="route('register')" wire:navigate class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
-                    {{ __('Create a free account →') }}
-                </flux:link>
-            </div>
-        @endif
+        @php($contactEmail = \App\Models\SystemSetting::get('contact_email'))
+        <p class="border-t border-gray-200 pt-5 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
+            {{ __("Don't have an account? Accounts are set up by the Code Academy team.") }}
+            @if ($contactEmail)
+                <a href="mailto:{{ $contactEmail }}" class="font-medium text-blue-600 hover:underline dark:text-blue-400">{{ __('Contact us') }}</a>
+            @endif
+        </p>
     </div>
 </x-layouts.auth>

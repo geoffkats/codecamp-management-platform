@@ -27,6 +27,14 @@
     --color-accent: var(--color-neutral-800);
     --color-accent-content: var(--color-neutral-800);
     --color-accent-foreground: var(--color-white);
+
+    --color-cau-navy: #1e3a8a;
+    --color-cau-deep: #172554;
+    --color-cau-orange: #f97316;
+    --color-cau-orange-dark: #ea580c;
+    --color-cau-orange-darker: #c2410c;
+    --color-cau-blue: #2563eb;
+    --color-cau-blue-dark: #1d4ed8;
 }
 
 @layer theme {

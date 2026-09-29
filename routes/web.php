@@ -8,9 +8,7 @@ Route::get('/manifest.webmanifest', [\App\Http\Controllers\PwaController::class,
 Route::get('/pwa/icon-{size}.png', [\App\Http\Controllers\PwaController::class, 'icon'])->whereNumber('size')->name('pwa.icon');
 Route::get('/offline', [\App\Http\Controllers\PwaController::class, 'offline'])->name('pwa.offline');
 
-Route::get('/', function () {
-    return view('welcome');
-})->name('home');
+Route::get('/', \App\Http\Controllers\HomeController::class)->name('home');
 
 // Visual Components Test Page
 Route::get('/test-visual-components', function () {
