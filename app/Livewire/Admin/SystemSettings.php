@@ -269,7 +269,7 @@ class SystemSettings extends Component
         }
 
         SystemSetting::clearCache();
-        $this->updateEnvFile('APP_NAME', $this->settings['app_name']);
+        cache()->forget('app_name');
 
         session()->flash('message', 'Settings saved successfully!');
 
@@ -302,20 +302,6 @@ class SystemSettings extends Component
 
         $this->connectionTestStatus = $result['success'] ? 'success' : 'error';
         $this->connectionTestMessage = $result['message'];
-    }
-
-    private function updateEnvFile($key, $value)
-    {
-        $path = base_path('.env');
-
-        if (file_exists($path)) {
-            $value = '"' . str_replace('"', '\"', $value) . '"';
-            file_put_contents($path, preg_replace(
-                "/^{$key}=.*/m",
-                "{$key}={$value}",
-                file_get_contents($path)
-            ));
-        }
     }
 
     private function buildCertificatePreviewUrl(CertificateDataService $dataService): string
