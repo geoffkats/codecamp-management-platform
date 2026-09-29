@@ -1,925 +1,800 @@
-<div class="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
-    <div class="flex flex-col gap-6 p-6 max-w-7xl mx-auto">
-        {{-- Header --}}
-        <div class="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-2xl shadow-2xl p-8 text-white relative overflow-hidden">
-            <div class="absolute inset-0 bg-black/10"></div>
-            <div class="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32"></div>
-            <div class="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full -ml-24 -mb-24"></div>
-            
-            <div class="relative z-10">
-                <div class="flex items-start justify-between mb-4">
-                    <div>
-                        <h1 class="text-4xl font-bold mb-2">Global Enrollment Management</h1>
-                        <p class="text-purple-100 text-lg">Manage all course enrollments, invitations, and requests across the platform</p>
-                    </div>
-                    <div class="flex gap-2">
-                        <flux:button wire:click="$set('showInviteModal', true)" variant="primary">
-                            Enroll or Invite Students
-                        </flux:button>
-                    </div>
-                </div>
+@php
+    $programLabels = ['codecamp' => 'Code Camp', 'ict' => 'ICT', 'codeclub' => 'Code Club'];
+    if (! config('features.code_club', false)) {
+        unset($programLabels['codeclub']);
+    }
+    $tabs = [
+        'enrollments' => ['label' => 'Enrollments', 'count' => $stats['active_enrollments']],
+        'students' => ['label' => 'Students', 'count' => $stats['total_students']],
+        'instructors' => ['label' => 'Instructors', 'count' => $stats['unassigned_courses'] ? $stats['unassigned_courses'] . ' unassigned' : null],
+        'requests' => ['label' => 'Requests', 'count' => $stats['pending_requests'] ?: null, 'alert' => $stats['pending_requests'] > 0],
+        'invitations' => ['label' => 'Invitations', 'count' => $stats['active_invitations'] ?: null],
+    ];
+    $flash = session('enrollment_flash');
+    $flashStyles = [
+        'success' => 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200',
+        'warning' => 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200',
+        'error' => 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200',
+        'info' => 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-200',
+    ];
+    $input = 'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100';
+    $btnPrimary = 'inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/40 disabled:cursor-not-allowed disabled:opacity-60';
+    $btnSecondary = 'inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800';
+    $btnDangerSoft = 'inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40';
+    $btnLinkSoft = 'inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-800 transition hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/40';
+    $filterSelect = 'w-auto rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100';
+    $th = 'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400';
+    $td = 'px-4 py-3 align-middle text-sm text-zinc-700 dark:text-zinc-300';
+@endphp
 
-                {{-- Stats Cards --}}
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-                    <div class="bg-white/20 backdrop-blur-sm rounded-xl p-4 border border-white/30">
-                        <p class="text-purple-100 text-sm mb-1">Total Enrollments</p>
-                        <p class="text-3xl font-bold">{{ number_format($stats['total_enrollments']) }}</p>
-                    </div>
-                    <div class="bg-white/20 backdrop-blur-sm rounded-xl p-4 border border-white/30">
-                        <p class="text-purple-100 text-sm mb-1">Pending Requests</p>
-                        <p class="text-3xl font-bold">{{ $stats['pending_requests'] }}</p>
-                    </div>
-                    <div class="bg-white/20 backdrop-blur-sm rounded-xl p-4 border border-white/30">
-                        <p class="text-purple-100 text-sm mb-1">Active Invitations</p>
-                        <p class="text-3xl font-bold">{{ $stats['pending_invitations'] }}</p>
-                    </div>
-                    <div class="bg-white/20 backdrop-blur-sm rounded-xl p-4 border border-white/30">
-                        <p class="text-purple-100 text-sm mb-1">Active Students</p>
-                        <p class="text-3xl font-bold">{{ number_format($stats['active_students']) }}</p>
-                    </div>
+<div class="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
+    {{-- Branded header --}}
+    <header class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1f4d] via-[#1e3a8a] to-[#1d4ed8] p-6 text-white shadow-lg sm:p-8">
+        <div class="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-orange-500/20 blur-3xl"></div>
+        <div class="pointer-events-none absolute -bottom-20 left-1/3 h-48 w-48 rounded-full bg-sky-400/10 blur-3xl"></div>
+
+        <div class="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div class="flex items-center gap-4">
+                <div class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1.5 shadow-md">
+                    @if ($brandLogo)
+                        <img src="{{ asset('storage/' . $brandLogo) }}" alt="{{ $brandName }}" class="h-full w-full object-contain">
+                    @else
+                        <span class="text-lg font-black text-orange-600">CA</span>
+                    @endif
                 </div>
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-orange-300">{{ $brandName }}</p>
+                    <h1 class="mt-1 text-2xl font-bold sm:text-3xl">Enrollment Management</h1>
+                    <p class="mt-1 text-sm text-blue-100/80">Admit students, assign courses and manage the instructors who teach them.</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                @if ($tab === 'enrollments')
+                    <button type="button" wire:click="exportEnrollments" class="inline-flex items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20">
+                        <flux:icon.arrow-down-tray class="size-4" />
+                        Export CSV
+                    </button>
+                @endif
+                <button type="button" wire:click="openEnrollPanel" class="{{ $btnPrimary }} shadow-orange-900/30">
+                    <flux:icon.user-plus class="size-4" />
+                    Enroll students
+                </button>
             </div>
         </div>
 
-        {{-- Flash Messages --}}
-        @if(session()->has('message'))
-            <div class="bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500 rounded-lg p-4 flex items-center gap-3 shadow-lg animate-slide-in">
-                <div class="flex-shrink-0">
-                    <svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+        {{-- Stats --}}
+        <div class="relative mt-8 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            @foreach ([
+                ['label' => 'Active enrollments', 'value' => $stats['active_enrollments'], 'icon' => 'academic-cap'],
+                ['label' => 'Students learning', 'value' => $stats['enrolled_students'], 'icon' => 'users'],
+                ['label' => 'Registered students', 'value' => $stats['total_students'], 'icon' => 'identification'],
+                ['label' => 'Courses without lead', 'value' => $stats['unassigned_courses'], 'icon' => 'exclamation-triangle', 'warn' => $stats['unassigned_courses'] > 0],
+                ['label' => 'Pending requests', 'value' => $stats['pending_requests'], 'icon' => 'inbox-arrow-down', 'warn' => $stats['pending_requests'] > 0],
+                ['label' => 'Open invitations', 'value' => $stats['active_invitations'], 'icon' => 'envelope'],
+            ] as $stat)
+                <div class="rounded-xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
+                    <div class="flex items-center justify-between">
+                        <p class="text-xs font-medium text-blue-100/80">{{ $stat['label'] }}</p>
+                        <flux:icon :name="$stat['icon']" class="size-4 {{ ! empty($stat['warn']) ? 'text-orange-300' : 'text-blue-200/70' }}" />
+                    </div>
+                    <p class="mt-2 text-2xl font-bold {{ ! empty($stat['warn']) ? 'text-orange-300' : 'text-white' }}">{{ number_format($stat['value']) }}</p>
                 </div>
-                <p class="text-sm font-medium text-green-800 dark:text-green-200">{{ session('message') }}</p>
+            @endforeach
+        </div>
+    </header>
+
+    @if ($flash)
+        <div wire:key="flash-{{ md5($flash['message'] . microtime()) }}" x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 6000)"
+             class="flex items-start justify-between gap-4 rounded-xl border px-4 py-3 text-sm {{ $flashStyles[$flash['type']] ?? $flashStyles['info'] }}" role="status">
+            <span>{{ $flash['message'] }}</span>
+            <button type="button" x-on:click="show = false" class="opacity-70 hover:opacity-100" aria-label="Dismiss">
+                <flux:icon.x-mark class="size-4" />
+            </button>
+        </div>
+    @endif
+
+    {{-- Main panel --}}
+    <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        {{-- Tabs --}}
+        <nav class="flex gap-1 overflow-x-auto border-b border-zinc-200 px-2 dark:border-zinc-800" aria-label="Enrollment sections">
+            @foreach ($tabs as $key => $meta)
+                <button type="button" wire:click="setTab('{{ $key }}')"
+                        class="relative flex shrink-0 items-center gap-2 px-4 py-3.5 text-sm font-semibold transition {{ $tab === $key ? 'text-blue-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200' }}">
+                    {{ $meta['label'] }}
+                    @if ($meta['count'] !== null)
+                        <span class="rounded-full px-2 py-0.5 text-[11px] font-bold {{ ! empty($meta['alert']) ? 'bg-orange-600 text-white' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300' }}">{{ is_numeric($meta['count']) ? number_format($meta['count']) : $meta['count'] }}</span>
+                    @endif
+                    @if ($tab === $key)
+                        <span class="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-orange-600"></span>
+                    @endif
+                </button>
+            @endforeach
+        </nav>
+
+        {{-- Filters --}}
+        <div class="flex flex-col gap-3 border-b border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-900/60 lg:flex-row lg:items-center">
+            <div class="relative flex-1 lg:min-w-64">
+                <flux:icon.magnifying-glass class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
+                <input type="search" wire:model.live.debounce.350ms="search" class="{{ $input }} pl-9"
+                       placeholder="{{ $tab === 'instructors' ? 'Search courses or instructors…' : 'Search by name, email or student ID…' }}">
             </div>
-        @endif
 
-        {{-- Filters Bar --}}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 space-y-4">
-            @if(config('features.code_club', false))
-                <div class="flex flex-wrap gap-2">
-                    @foreach(['all' => 'All Programs', 'codecamp' => 'CodeCamp', 'codeclub' => 'Code Club', 'ict' => 'ICT'] as $value => $label)
-                        <button type="button" wire:click="$set('filterProgram', '{{ $value }}')"
-                            class="px-3 py-1.5 rounded-lg text-xs font-semibold transition {{ $filterProgram === $value ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' }}">
-                            {{ $label }}
-                        </button>
-                    @endforeach
-                </div>
-            @endif
-
-            <div class="flex flex-wrap items-center gap-4">
-                <div class="flex-1 min-w-64">
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Filter by Course</label>
-                    <flux:select wire:model.live="selectedCourseId">
-                        <option value="">All Courses</option>
-                        @foreach($courses as $course)
-                            <option value="{{ $course->id }}">{{ $course->title }}</option>
+            <div class="flex flex-wrap gap-2">
+                @if ($tab !== 'instructors')
+                    <select wire:model.live="courseFilter" class="{{ $filterSelect }} min-w-44 max-w-64">
+                        <option value="">All courses</option>
+                        @foreach ($allCourses as $c)
+                            <option value="{{ $c->id }}">{{ $c->title }}{{ $c->is_published ? '' : ' (draft)' }}</option>
                         @endforeach
-                    </flux:select>
-                </div>
-
-                @if($activeTab === 'requests')
-                    <div class="min-w-48">
-                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Status Filter</label>
-                        <flux:select wire:model.live="filterStatus">
-                            <option value="all">All Status</option>
-                            <option value="pending">Pending</option>
-                            <option value="approved">Approved</option>
-                            <option value="rejected">Rejected</option>
-                        </flux:select>
-                    </div>
+                    </select>
                 @endif
 
-                @if($activeTab === 'invitations')
-                    <div class="min-w-48">
-                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Invitation Status</label>
-                        <flux:select wire:model.live="invitationFilter">
-                            <option value="active">Active (awaiting response)</option>
-                            <option value="expired">Expired / cancelled</option>
-                            <option value="accepted">Accepted</option>
-                            <option value="declined">Declined</option>
-                            <option value="all">All history</option>
-                        </flux:select>
-                    </div>
+                @if (in_array($tab, ['enrollments', 'students'], true))
+                    <select wire:model.live="programFilter" class="{{ $filterSelect }}">
+                        <option value="all">All programs</option>
+                        @foreach ($programLabels as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
                 @endif
 
-                @if($activeTab === 'enrollments')
-                    <div class="min-w-48">
-                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Enrollment Status</label>
-                        <flux:select wire:model.live="enrollmentFilter">
-                            <option value="active">In progress</option>
-                            <option value="completed">Completed</option>
-                            <option value="all">All</option>
-                        </flux:select>
-                    </div>
-                    <div class="min-w-48">
-                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Filter by Camp</label>
-                        <flux:select wire:model.live="selectedCampId">
-                            <option value="">All Camps</option>
-                            @foreach($camps as $camp)
+                @if ($tab === 'enrollments')
+                    @if ($camps->isNotEmpty() && in_array($programFilter, ['all', 'codecamp'], true))
+                        <select wire:model.live="campFilter" class="{{ $filterSelect }}">
+                            <option value="">All camps</option>
+                            @foreach ($camps as $camp)
                                 <option value="{{ $camp->id }}">{{ $camp->name }}</option>
                             @endforeach
-                        </flux:select>
-                    </div>
-                    @if(config('features.code_club', false) && ($filterProgram === 'all' || $filterProgram === 'codeclub'))
-                        <div class="min-w-48">
-                            <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Filter by Club</label>
-                            <flux:select wire:model.live="selectedClubId">
-                                <option value="">All Clubs</option>
-                                @foreach($clubs as $club)
-                                    <option value="{{ $club->id }}">{{ $club->name }}</option>
-                                @endforeach
-                            </flux:select>
-                        </div>
+                        </select>
                     @endif
-                    <div class="flex-1 min-w-64">
-                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Search Students</label>
-                        <flux:input wire:model.live.debounce.300ms="searchStudent" placeholder="Search by name or email..." />
-                    </div>
+                    @if ($clubs->isNotEmpty() && in_array($programFilter, ['all', 'codeclub'], true))
+                        <select wire:model.live="clubFilter" class="{{ $filterSelect }}">
+                            <option value="">All clubs</option>
+                            @foreach ($clubs as $club)
+                                <option value="{{ $club->id }}">{{ $club->name }}</option>
+                            @endforeach
+                        </select>
+                    @endif
+                    <select wire:model.live="enrollmentStatus" class="{{ $filterSelect }}">
+                        <option value="active">In progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="all">All statuses</option>
+                    </select>
+                @elseif ($tab === 'instructors')
+                    <select wire:model.live="instructorFilter" class="{{ $filterSelect }}">
+                        <option value="all">All courses</option>
+                        <option value="unassigned">Without lead instructor</option>
+                        <option value="published">Published only</option>
+                    </select>
+                @elseif ($tab === 'requests')
+                    <select wire:model.live="requestStatus" class="{{ $filterSelect }}">
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="all">All</option>
+                    </select>
+                @elseif ($tab === 'invitations')
+                    <select wire:model.live="invitationStatus" class="{{ $filterSelect }}">
+                        <option value="active">Open</option>
+                        <option value="accepted">Accepted</option>
+                        <option value="declined">Declined</option>
+                        <option value="expired">Expired / cancelled</option>
+                        <option value="all">All</option>
+                    </select>
+                @endif
+
+                @if ($search !== '' || $courseFilter || $programFilter !== 'all' || $campFilter || $clubFilter || $instructorFilter !== 'all')
+                    <button type="button" wire:click="clearFilters" class="{{ $btnSecondary }}">
+                        <flux:icon.x-mark class="size-4" /> Clear
+                    </button>
                 @endif
             </div>
         </div>
 
-        {{-- Tabs Navigation --}}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div class="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-                <nav class="flex -mb-px overflow-x-auto">
-                    <button wire:click="$set('activeTab', 'overview')" 
-                            class="flex-shrink-0 py-4 px-6 text-sm font-semibold border-b-3 transition-all {{ $activeTab === 'overview' ? 'border-purple-500 text-purple-600 dark:text-purple-400 bg-white dark:bg-gray-800' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}">
-                        <div class="flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                            </svg>
-                            Overview
-                        </div>
-                    </button>
-
-                    <button wire:click="$set('activeTab', 'requests')" 
-                            class="flex-shrink-0 py-4 px-6 text-sm font-semibold border-b-3 transition-all {{ $activeTab === 'requests' ? 'border-purple-500 text-purple-600 dark:text-purple-400 bg-white dark:bg-gray-800' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}">
-                        <div class="flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                            </svg>
-                            Enrollment Requests
-                            @if($stats['pending_requests'] > 0)
-                                <span class="bg-red-500 text-white text-xs rounded-full px-2.5 py-0.5 font-bold animate-pulse">
-                                    {{ $stats['pending_requests'] }}
-                                </span>
-                            @endif
-                        </div>
-                    </button>
-
-                    <button wire:click="$set('activeTab', 'invitations')" 
-                            class="flex-shrink-0 py-4 px-6 text-sm font-semibold border-b-3 transition-all {{ $activeTab === 'invitations' ? 'border-purple-500 text-purple-600 dark:text-purple-400 bg-white dark:bg-gray-800' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}">
-                        <div class="flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                            Invitations
-                            @if($stats['pending_invitations'] > 0)
-                                <span class="bg-yellow-500 text-white text-xs rounded-full px-2.5 py-0.5 font-bold">
-                                    {{ $stats['pending_invitations'] }}
-                                </span>
-                            @endif
-                        </div>
-                    </button>
-
-                    <button wire:click="$set('activeTab', 'enrollments')" 
-                            class="flex-shrink-0 py-4 px-6 text-sm font-semibold border-b-3 transition-all {{ $activeTab === 'enrollments' ? 'border-purple-500 text-purple-600 dark:text-purple-400 bg-white dark:bg-gray-800' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}">
-                        <div class="flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                            </svg>
-                            All Enrollments
-                            <span class="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded-full px-2.5 py-0.5 font-bold">
-                                {{ number_format($stats['total_enrollments']) }}
-                            </span>
-                        </div>
-                    </button>
-                </nav>
+        <div class="relative">
+            <div wire:loading.delay.flex wire:target="setTab,search,courseFilter,programFilter,campFilter,clubFilter,enrollmentStatus,requestStatus,invitationStatus,instructorFilter,clearFilters,gotoPage,nextPage,previousPage"
+                 class="absolute inset-0 z-10 hidden items-start justify-center bg-white/60 pt-16 dark:bg-zinc-900/60">
+                <div class="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 shadow dark:bg-zinc-800 dark:text-zinc-300">
+                    <flux:icon.arrow-path class="size-4 animate-spin text-orange-600" /> Loading…
+                </div>
             </div>
 
-            {{-- Tab Content --}}
-            <div class="p-6">
-                {{-- Overview Tab --}}
-                @if($activeTab === 'overview')
-                    <div class="space-y-6">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {{-- Recent Requests Card --}}
-                            <div class="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-6 border-2 border-blue-200 dark:border-blue-800 hover:shadow-xl transition cursor-pointer"
-                                 wire:click="$set('activeTab', 'requests')">
-                                <div class="flex items-center justify-between mb-4">
-                                    <div class="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
-                                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                        </svg>
-                                    </div>
-                                    @if($stats['pending_requests'] > 0)
-                                        <span class="animate-bounce bg-red-500 text-white text-xs rounded-full px-3 py-1 font-bold">
-                                            {{ $stats['pending_requests'] }} New
-                                        </span>
-                                    @endif
-                                </div>
-                                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Enrollment Requests</h3>
-                                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Review and approve pending requests</p>
-                                <div class="mt-4 flex items-center text-blue-600 dark:text-blue-400 text-sm font-semibold">
-                                    View All
-                                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                    </svg>
-                                </div>
-                            </div>
+            {{-- ============ ENROLLMENTS ============ --}}
+            @if ($tab === 'enrollments')
+                @php $pageIds = $enrollments->pluck('id')->map(fn ($id) => (string) $id)->values()->all(); @endphp
 
-                            {{-- Invitations Card --}}
-                            <div class="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-6 border-2 border-purple-200 dark:border-purple-800 hover:shadow-xl transition cursor-pointer"
-                                 wire:click="$set('activeTab', 'invitations')">
-                                <div class="flex items-center justify-between mb-4">
-                                    <div class="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
-                                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                        </svg>
-                                    </div>
-                                </div>
-                                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Course Invitations</h3>
-                                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Manage sent invitations</p>
-                                <div class="mt-4 flex items-center text-purple-600 dark:text-purple-400 text-sm font-semibold">
-                                    View All
-                                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                    </svg>
-                                </div>
-                            </div>
-
-                            {{-- Enrollments Card --}}
-                            <div class="bg-gradient-to-br from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 rounded-xl p-6 border-2 border-green-200 dark:border-green-800 hover:shadow-xl transition cursor-pointer"
-                                 wire:click="$set('activeTab', 'enrollments')">
-                                <div class="flex items-center justify-between mb-4">
-                                    <div class="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
-                                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                                        </svg>
-                                    </div>
-                                </div>
-                                <h3 class="text-lg font-bold text-gray-900 dark:text-white">All Enrollments</h3>
-                                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">View all student enrollments</p>
-                                <div class="mt-4 flex items-center text-green-600 dark:text-green-400 text-sm font-semibold">
-                                    View All
-                                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                    </svg>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                @endif
-
-                {{-- Enrollment Requests Tab --}}
-                @if($activeTab === 'requests')
-                    <div class="space-y-4">
-                        @if($requests->count() > 0)
-                            <div class="grid gap-4">
-                                @foreach($requests as $request)
-                                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md border-2 border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 transition-all hover:shadow-xl">
-                                        <div class="p-6">
-                                            <div class="flex items-start justify-between gap-4">
-                                                {{-- Student Info --}}
-                                                <div class="flex items-start gap-4 flex-1">
-                                                    <div class="relative">
-                                                        <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-2xl shadow-lg">
-                                                            {{ substr($request->user->name, 0, 1) }}
-                                                        </div>
-                                                        <div class="absolute -bottom-2 -right-2 w-6 h-6 bg-blue-500 border-2 border-white dark:border-gray-800 rounded-full flex items-center justify-center">
-                                                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                                            </svg>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    <div class="flex-1">
-                                                        <div class="flex items-start justify-between">
-                                                            <div>
-                                                                <h4 class="text-lg font-bold text-gray-900 dark:text-white">{{ $request->user->name }}</h4>
-                                                                <p class="text-sm text-gray-600 dark:text-gray-400">{{ $request->user->email }}</p>
-                                                            </div>
-                                                        </div>
-                                                        
-                                                        {{-- Course Info --}}
-                                                        <div class="mt-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                                                            <div class="flex items-center gap-2">
-                                                                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                                                </svg>
-                                                                <a href="{{ route('courses.show', $request->course) }}" 
-                                                                   wire:navigate
-                                                                   class="text-sm font-semibold text-purple-600 dark:text-purple-400 hover:underline">
-                                                                    {{ $request->course->title }}
-                                                                </a>
-                                                            </div>
-                                                        </div>
-
-                                                        {{-- Request Details --}}
-                                                        <div class="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-                                                            <div class="flex items-center gap-1">
-                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                                </svg>
-                                                                {{ $request->requested_at->diffForHumans() }}
-                                                            </div>
-                                                            <span>•</span>
-                                                            <span>Request ID: #{{ $request->id }}</span>
-                                                        </div>
-
-                                                        @if($request->message)
-                                                            <div class="mt-3 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 p-3 rounded">
-                                                                <p class="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">Student's Message:</p>
-                                                                <p class="text-sm text-gray-700 dark:text-gray-300">{{ $request->message }}</p>
-                                                            </div>
-                                                        @endif
-                                                    </div>
-                                                </div>
-
-                                                {{-- Actions --}}
-                                                <div class="flex flex-col gap-2">
-                                                    <span class="px-3 py-1 rounded-full text-xs font-bold text-center
-                                                        {{ $request->status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
-                                                           ($request->status === 'rejected' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : 
-                                                           'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400') }}">
-                                                        {{ ucfirst($request->status) }}
-                                                    </span>
-
-                                                    @if($request->status === 'pending')
-                                                        <flux:button wire:click="approveRequest({{ $request->id }})" 
-                                                                    variant="success" 
-                                                                    size="sm"
-                                                                    class="w-full">
-                                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                            </svg>
-                                                            Approve
-                                                        </flux:button>
-                                                        <flux:button 
-                                                            x-data 
-                                                            @click="$wire.rejectionReason = prompt('Reason for rejection (minimum 10 characters):'); if($wire.rejectionReason && $wire.rejectionReason.length >= 10) $wire.rejectRequest({{ $request->id }}); else if($wire.rejectionReason) alert('Reason must be at least 10 characters')" 
-                                                            variant="danger" 
-                                                            size="sm"
-                                                            class="w-full">
-                                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                                            </svg>
-                                                            Reject
-                                                        </flux:button>
-                                                    @endif
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-
-                            {{ $requests->links() }}
-                        @else
-                            <div class="text-center py-16">
-                                <div class="inline-flex items-center justify-center w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full mb-4">
-                                    <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                </div>
-                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">No enrollment requests</h3>
-                                <p class="text-gray-500 dark:text-gray-400 mt-1">No students have requested enrollment yet</p>
-                            </div>
-                        @endif
-                    </div>
-                @endif
-
-                {{-- Invitations Tab --}}
-                @if($activeTab === 'invitations')
-                    <div class="space-y-4">
-                        @if($invitationFilter === 'active')
-                            <p class="text-sm text-gray-600 dark:text-gray-400">
-                                Showing invitations that are still valid and awaiting a student response.
-                                Expired invitations are moved to the archive automatically.
-                            </p>
-                        @endif
-
-                        @if($invitations->count() > 0)
-                            <div class="grid gap-4">
-                                @foreach($invitations as $invitation)
-                                    @php($displayStatus = $invitation->effectiveStatus())
-                                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md border-2 border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 transition-all">
-                                        <div class="p-6">
-                                            <div class="flex items-start gap-4">
-                                                <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-white font-bold text-xl shadow-lg">
-                                                    {{ substr($invitation->user->name, 0, 1) }}
-                                                </div>
-                                                <div class="flex-1">
-                                                    <div class="flex items-start justify-between">
-                                                        <div>
-                                                            <h4 class="font-bold text-gray-900 dark:text-white">{{ $invitation->user->name }}</h4>
-                                                            <p class="text-sm text-gray-600 dark:text-gray-400">{{ $invitation->user->email }}</p>
-                                                        </div>
-                                                        <span class="px-3 py-1 rounded-full text-xs font-bold
-                                                            {{ $displayStatus === 'accepted' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                                                               ($displayStatus === 'declined' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
-                                                               ($displayStatus === 'expired' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' :
-                                                               'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400')) }}">
-                                                            {{ ucfirst($displayStatus) }}
-                                                        </span>
-                                                    </div>
-
-                                                    <div class="mt-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3">
-                                                        <a href="{{ route('courses.show', $invitation->course) }}" 
-                                                           wire:navigate
-                                                           class="text-sm font-semibold text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1">
-                                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                                            </svg>
-                                                            {{ $invitation->course->title }}
-                                                        </a>
-                                                    </div>
-
-                                                    <div class="mt-3 flex items-center gap-4 text-xs text-gray-500">
-                                                        <span>Invited {{ $invitation->invited_at->diffForHumans() }}</span>
-                                                        @if($invitation->expires_at)
-                                                            <span>•</span>
-                                                            <span class="{{ $invitation->isExpired() ? 'text-red-600 font-semibold' : '' }}">
-                                                                {{ $invitation->isExpired() ? 'Expired' : 'Expires ' . $invitation->expires_at->diffForHumans() }}
-                                                            </span>
-                                                        @endif
-                                                        <span>•</span>
-                                                        <span>By: {{ $invitation->inviter->name }}</span>
-                                                    </div>
-
-                                                    @if($invitation->isActionable())
-                                                        <div class="mt-3 flex flex-wrap gap-2">
-                                                            <flux:button wire:click="cancelInvitation({{ $invitation->id }})"
-                                                                        wire:confirm="Cancel this invitation?"
-                                                                        variant="ghost"
-                                                                        size="sm">
-                                                                Cancel Invitation
-                                                            </flux:button>
-                                                        </div>
-                                                    @elseif($displayStatus === 'expired')
-                                                        <div class="mt-3 flex flex-wrap gap-2">
-                                                            <flux:button wire:click="resendInvitation({{ $invitation->id }})"
-                                                                        variant="primary"
-                                                                        size="sm">
-                                                                Resend Invitation
-                                                            </flux:button>
-                                                        </div>
-                                                    @endif
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-
-                            {{ $invitations->links() }}
-                        @else
-                            <div class="text-center py-16">
-                                <div class="inline-flex items-center justify-center w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full mb-4">
-                                    <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                    </svg>
-                                </div>
-                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                                    @if($invitationFilter === 'active')
-                                        No active invitations
-                                    @elseif($invitationFilter === 'expired')
-                                        No expired invitations
-                                    @else
-                                        No invitations found
-                                    @endif
-                                </h3>
-                                <p class="text-gray-500 dark:text-gray-400 mt-1 mb-4">
-                                    @if($invitationFilter === 'active')
-                                        Send a new invitation or enroll students directly from the button above.
-                                    @else
-                                        Try a different filter or send new invitations.
-                                    @endif
-                                </p>
-                                <flux:button wire:click="$set('showInviteModal', true)" variant="primary">
-                                    Send Your First Invitation
-                                </flux:button>
-                            </div>
-                        @endif
-                    </div>
-                @endif
-
-                {{-- All Enrollments Tab --}}
-                @if($activeTab === 'enrollments')
-                    <div class="space-y-4">
-                        @if($enrollments->count() > 0)
-                            <div class="grid gap-4">
-                                @foreach($enrollments as $enrollment)
-                                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md border-2 border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-700 transition-all">
-                                        <div class="p-6">
-                                            <div class="flex items-start gap-4">
-                                                <div class="relative">
-                                                    <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-500 to-teal-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg">
-                                                        {{ substr($enrollment->user->name, 0, 1) }}
-                                                    </div>
-                                                    @if($enrollment->completed_at)
-                                                        <div class="absolute -top-2 -right-2 w-6 h-6 bg-yellow-400 border-2 border-white dark:border-gray-800 rounded-full flex items-center justify-center">
-                                                            <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                                            </svg>
-                                                        </div>
-                                                    @endif
-                                                </div>
-                                                
-                                                <div class="flex-1">
-                                                    <div class="flex items-start justify-between mb-2">
-                                                        <div>
-                                                            <h4 class="text-lg font-bold text-gray-900 dark:text-white">{{ $enrollment->user->name }}</h4>
-                                                            <p class="text-sm text-gray-600 dark:text-gray-400">{{ $enrollment->user->email }}</p>
-                                                        </div>
-                                                    </div>
-
-                                                    {{-- Course --}}
-                                                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 mb-3">
-                                                        <a href="{{ route('courses.show', $enrollment->course) }}"
-                                                           wire:navigate
-                                                           class="text-sm font-semibold text-green-600 dark:text-green-400 hover:underline flex items-center gap-1">
-                                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                                            </svg>
-                                                            {{ $enrollment->course->title }}
-                                                        </a>
-                                                        @if($enrollment->camp)
-                                                            <p class="text-xs text-orange-600 dark:text-orange-400 mt-1.5 font-semibold">
-                                                                Camp: {{ $enrollment->camp->name }}
-                                                            </p>
-                                                        @endif
-                                                        @if($enrollment->club)
-                                                            <p class="text-xs text-blue-600 dark:text-blue-400 mt-1.5 font-semibold">
-                                                                Club: {{ $enrollment->club->name }}
-                                                            </p>
-                                                        @endif
-                                                    </div>
-
-                                                    {{-- Progress Bar --}}
-                                                    <div class="mb-3">
-                                                        <div class="flex items-center justify-between mb-1">
-                                                            <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">Progress</span>
-                                                            <span class="text-xs font-bold text-purple-600 dark:text-purple-400">{{ number_format($enrollment->progress_percentage, 1) }}%</span>
-                                                        </div>
-                                                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                                                            <div class="bg-gradient-to-r from-purple-500 to-pink-500 h-2.5 rounded-full transition-all" 
-                                                                 style="width: {{ $enrollment->progress_percentage }}%"></div>
-                                                        </div>
-                                                    </div>
-
-                                                    {{-- Stats --}}
-                                                    <div class="flex flex-wrap items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                                                        <div class="flex items-center gap-1">
-                                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                            </svg>
-                                                            Enrolled {{ $enrollment->enrolled_at->diffForHumans() }}
-                                                        </div>
-                                                        <span>•</span>
-                                                        <span>{{ $enrollment->lessons_completed ?? 0 }} lessons completed</span>
-                                                        @if($enrollment->completed_at)
-                                                            <span>•</span>
-                                                            <span class="text-green-600 dark:text-green-400 font-semibold">Completed {{ $enrollment->completed_at->format('M d, Y') }}</span>
-                                                        @endif
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-
-                            {{ $enrollments->links() }}
-                        @else
-                            <div class="text-center py-16">
-                                <div class="inline-flex items-center justify-center w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full mb-4">
-                                    <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                    </svg>
-                                </div>
-                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">No enrollments found</h3>
-                                <p class="text-gray-500 dark:text-gray-400 mt-1">No students enrolled in courses yet</p>
-                            </div>
-                        @endif
-                    </div>
-                @endif
-            </div>
-        </div>
-    </div>
-
-    {{-- Professional Invite Modal with Course Selection --}}
-    @if($showInviteModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" x-data="{ selectedCount: @entangle('selectedStudents').live }">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20">
-                <div class="fixed inset-0 transition-opacity bg-gray-900/80 backdrop-blur-md" wire:click="$set('showInviteModal', false)"></div>
-
-                <div class="inline-block w-full max-w-4xl overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border-2 border-gray-200 dark:border-gray-700 relative z-10">
-                    {{-- Modal Header --}}
-                    <div class="px-8 pt-8 pb-6 bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 relative overflow-hidden">
-                        <div class="absolute inset-0 bg-black/10"></div>
-                        <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32"></div>
-                        
-                        <div class="relative z-10 flex items-start justify-between">
-                            <div class="text-white">
-                                <h3 class="text-3xl font-bold mb-2">Enroll or Invite Students</h3>
-                                <p class="text-purple-100">Enroll directly or send time-limited invitations</p>
-                            </div>
-                            <button wire:click="$set('showInviteModal', false)" 
-                                    class="text-white/80 hover:text-white transition rounded-xl p-2 hover:bg-white/20">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
+                @if (count($selectedEnrollments) > 0)
+                    <div class="flex items-center justify-between gap-3 border-b border-orange-200 bg-orange-50 px-4 py-2.5 text-sm dark:border-orange-900 dark:bg-orange-950/40">
+                        <span class="font-medium text-orange-900 dark:text-orange-200">{{ count($selectedEnrollments) }} selected</span>
+                        <div class="flex gap-2">
+                            <button type="button" wire:click="$set('selectedEnrollments', [])" class="{{ $btnSecondary }} py-1.5">Clear</button>
+                            <button type="button" wire:click="removeSelectedEnrollments"
+                                    wire:confirm="Remove {{ count($selectedEnrollments) }} enrollment(s)? Students lose access to these courses."
+                                    class="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700">
+                                <flux:icon.trash class="size-4" /> Remove selected
                             </button>
                         </div>
                     </div>
+                @endif
 
-                    {{-- Modal Body --}}
-                    <div class="px-8 py-6 space-y-6 max-h-[70vh] overflow-y-auto">
-                        {{-- Course Selection --}}
-                        <div class="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-5 border-2 border-purple-200 dark:border-purple-800">
-                            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                                <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                </svg>
-                                Select Course *
-                            </label>
-                            <flux:select wire:model.live="selectedCourseId">
-                                <option value="">Choose a course...</option>
-                                @foreach($courses as $course)
-                                    <option value="{{ $course->id }}">
-                                        {{ $course->title }} ({{ $course->enrollment_type ? ucfirst($course->enrollment_type) : 'Open' }})
-                                    </option>
-                                @endforeach
-                            </flux:select>
-                            @error('selectedCourseId')
-                                <p class="mt-2 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
-                            @enderror
-                        </div>
-
-                        @if($selectedCourseId)
-                            {{-- Enroll mode --}}
-                            <div class="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/40">
-                                <p class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">How should students get access?</p>
-                                <div class="flex flex-wrap gap-3">
-                                    <label class="inline-flex items-center gap-2 cursor-pointer rounded-lg border px-4 py-2 text-sm {{ $enrollMode === 'direct' ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300' : 'border-gray-300 dark:border-gray-600' }}">
-                                        <input type="radio" wire:model.live="enrollMode" value="direct" class="text-green-600">
-                                        Enroll directly
-                                    </label>
-                                    <label class="inline-flex items-center gap-2 cursor-pointer rounded-lg border px-4 py-2 text-sm {{ $enrollMode === 'invite' ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300' : 'border-gray-300 dark:border-gray-600' }}">
-                                        <input type="radio" wire:model.live="enrollMode" value="invite" class="text-purple-600">
-                                        Send invitation (expires)
-                                    </label>
-                                </div>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                    @if($enrollMode === 'direct')
-                                        Students are enrolled immediately — no invitation step required.
-                                    @else
-                                        Students must accept the invitation before they are enrolled. Expired invitations are archived automatically.
-                                    @endif
-                                </p>
-                            </div>
-
-                            {{-- Search Students --}}
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                                    <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
-                                    Search Available Students
-                                </label>
-                                <div class="relative">
-                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                        </svg>
-                                    </div>
-                                    <flux:input wire:model.live.debounce.300ms="searchStudent" 
-                                               placeholder="Type student name or email to search..." 
-                                               class="pl-12 text-base" />
-                                </div>
-                            </div>
-
-                            {{-- Selection Counter --}}
-                            <div class="bg-gradient-to-r from-purple-100 to-pink-100 dark:from-purple-900/40 dark:to-pink-900/40 rounded-xl p-4 border-2 border-purple-300 dark:border-purple-700 shadow-inner">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
-                                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <p class="text-sm font-bold text-purple-900 dark:text-purple-100">
-                                                <span x-text="selectedCount.length"></span> Student<span x-show="selectedCount.length !== 1">s</span> Selected
-                                            </p>
-                                            <p class="text-xs text-purple-700 dark:text-purple-300">
-                                                @if($enrollMode === 'direct')
-                                                    Ready to enroll directly
-                                                @else
-                                                    Ready to send invitations
+                @if ($enrollments->isEmpty())
+                    @include('livewire.admin.partials.enrollment-empty', ['title' => 'No enrollments found', 'text' => 'Try changing the filters, or enroll students into a course.', 'action' => true])
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+                            <thead class="bg-zinc-50 dark:bg-zinc-900/80">
+                                <tr>
+                                    <th class="w-10 px-4 py-3">
+                                        <input type="checkbox" class="rounded border-zinc-300 text-orange-600 focus:ring-orange-500 dark:border-zinc-600 dark:bg-zinc-800"
+                                               @checked(count($pageIds) > 0 && count(array_diff($pageIds, $selectedEnrollments)) === 0)
+                                               x-on:change="$wire.set('selectedEnrollments', $event.target.checked ? @js($pageIds) : [])"
+                                               aria-label="Select all on this page">
+                                    </th>
+                                    <th class="{{ $th }}">Student</th>
+                                    <th class="{{ $th }}">Course</th>
+                                    <th class="{{ $th }}">Program</th>
+                                    <th class="{{ $th }}">Progress</th>
+                                    <th class="{{ $th }}">Enrolled</th>
+                                    <th class="{{ $th }} text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                                @foreach ($enrollments as $enrollment)
+                                    @php
+                                        $student = $enrollment->user;
+                                        $profile = $student?->studentProfile;
+                                        $progress = (int) round($enrollment->progress_percentage ?? 0);
+                                        $enrolledAt = $enrollment->enrolled_at ?? $enrollment->created_at;
+                                    @endphp
+                                    <tr wire:key="enrollment-{{ $enrollment->id }}" class="transition hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40">
+                                        <td class="px-4 py-3">
+                                            <input type="checkbox" value="{{ $enrollment->id }}" wire:model.live="selectedEnrollments"
+                                                   class="rounded border-zinc-300 text-orange-600 focus:ring-orange-500 dark:border-zinc-600 dark:bg-zinc-800">
+                                        </td>
+                                        <td class="{{ $td }}">
+                                            @include('livewire.admin.partials.enrollment-person', ['person' => $student, 'sub' => $profile?->student_id ?: $student?->email])
+                                        </td>
+                                        <td class="{{ $td }} font-medium text-zinc-900 dark:text-zinc-100">{{ $enrollment->course?->title ?? '—' }}</td>
+                                        <td class="{{ $td }}">
+                                            <div class="flex flex-col gap-1">
+                                                @if ($profile?->program_type)
+                                                    <span class="inline-flex w-fit rounded-md bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">{{ $programLabels[$profile->program_type] ?? ucfirst($profile->program_type) }}</span>
                                                 @endif
-                                            </p>
-                                        </div>
-                                    </div>
-                                    @if(count($selectedStudents) > 0)
-                                        <flux:button wire:click="$set('selectedStudents', [])" variant="ghost" size="sm">
-                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                            Clear
-                                        </flux:button>
-                                    @endif
-                                </div>
-                            </div>
-
-                            {{-- Student Selection Grid --}}
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                                    <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                    </svg>
-                                    Select Students to Invite
-                                </label>
-                                <div class="border-3 border-dashed border-purple-300 dark:border-purple-700 rounded-2xl p-2 max-h-80 overflow-y-auto bg-gradient-to-br from-gray-50 to-purple-50/30 dark:from-gray-900/50 dark:to-purple-900/20">
-                                    @forelse($availableStudents as $student)
-                                        <label class="flex items-center gap-4 p-4 mb-2 hover:bg-white dark:hover:bg-gray-800 rounded-xl cursor-pointer transition-all group border-2 border-transparent hover:border-purple-300 dark:hover:border-purple-700 hover:shadow-lg">
-                                            <input type="checkbox" 
-                                                   wire:model.live="selectedStudents" 
-                                                   value="{{ $student->id }}" 
-                                                   class="w-6 h-6 rounded-lg border-2 border-gray-300 text-purple-600 focus:ring-2 focus:ring-purple-500 dark:border-gray-600 transition">
-                                            
-                                            <div class="flex items-center gap-4 flex-1">
-                                                <div class="relative">
-                                                    <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xl shadow-lg group-hover:scale-110 transition-transform">
-                                                        {{ substr($student->name, 0, 1) }}
+                                                @if ($enrollment->camp || $enrollment->club)
+                                                    <span class="text-xs text-zinc-500">{{ $enrollment->camp?->name ?? $enrollment->club?->name }}</span>
+                                                @endif
+                                                @if (! $profile?->program_type && ! $enrollment->camp && ! $enrollment->club)
+                                                    <span class="text-xs text-zinc-400">—</span>
+                                                @endif
+                                            </div>
+                                        </td>
+                                        <td class="{{ $td }} min-w-36">
+                                            @if ($enrollment->completed_at)
+                                                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                                                    <flux:icon.check-circle class="size-3.5" /> Completed
+                                                </span>
+                                            @else
+                                                <div class="flex items-center gap-2">
+                                                    <div class="h-1.5 w-24 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                                                        <div class="h-full rounded-full bg-orange-500" style="width: {{ max(0, min(100, $progress)) }}%"></div>
                                                     </div>
-                                                    @if($student->is_active)
-                                                        <div class="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-3 border-white dark:border-gray-800 rounded-full flex items-center justify-center">
-                                                            <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                                                            </svg>
-                                                        </div>
-                                                    @endif
+                                                    <span class="text-xs font-medium tabular-nums text-zinc-500">{{ $progress }}%</span>
                                                 </div>
-                                                
-                                                <div class="flex-1">
-                                                    <p class="text-base font-bold text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition">
-                                                        {{ $student->name }}
-                                                    </p>
-                                                    <p class="text-sm text-gray-600 dark:text-gray-400">{{ $student->email }}</p>
-                                                    @if($student->points)
-                                                        <div class="flex items-center gap-3 mt-2">
-                                                            <span class="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 rounded-lg text-xs font-semibold text-purple-700 dark:text-purple-300">
-                                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                                                </svg>
-                                                                Level {{ $student->points->level }}
-                                                            </span>
-                                                            <span class="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg text-xs font-semibold text-yellow-700 dark:text-yellow-300">
-                                                                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                                                </svg>
-                                                                {{ number_format($student->points->total_points) }} XP
-                                                            </span>
-                                                        </div>
-                                                    @endif
-                                                </div>
-                                                
-                                                <svg class="w-6 h-6 text-gray-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                                </svg>
-                                            </div>
-                                        </label>
-                                    @empty
-                                        <div class="text-center py-12">
-                                            <div class="inline-flex items-center justify-center w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-2xl mb-3">
-                                                <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                                                </svg>
-                                            </div>
-                                            <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                                @if($searchStudent)
-                                                    No students found matching "{{ $searchStudent }}"
-                                                @else
-                                                    All students are already invited or enrolled in this course
+                                            @endif
+                                        </td>
+                                        <td class="{{ $td }} whitespace-nowrap text-xs text-zinc-500">
+                                            @if ($enrolledAt)
+                                                <span title="{{ $enrolledAt->format('d M Y, H:i') }}">{{ $enrolledAt->format('d M Y') }}</span>
+                                            @else
+                                                —
+                                            @endif
+                                        </td>
+                                        <td class="{{ $td }} text-right">
+                                            <div class="flex justify-end gap-1">
+                                                @if ($student)
+                                                    <button type="button" wire:click="manageStudent({{ $student->id }})" class="{{ $btnLinkSoft }}">Courses</button>
                                                 @endif
-                                            </p>
-                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Try selecting a different course or searching for other students</p>
-                                        </div>
-                                    @endforelse
-                                </div>
-                                @error('selectedStudents') 
-                                    <p class="mt-3 text-sm text-red-600 dark:text-red-400 flex items-center gap-2 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        {{ $message }}
-                                    </p>
-                                @enderror
-                            </div>
+                                                <button type="button" wire:click="removeEnrollment({{ $enrollment->id }})"
+                                                        wire:confirm="Remove {{ $student?->name ?? 'this student' }} from {{ $enrollment->course?->title ?? 'this course' }}?"
+                                                        class="{{ $btnDangerSoft }}">
+                                                    <flux:icon.user-minus class="size-3.5" /> Remove
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">{{ $enrollments->links() }}</div>
+                @endif
+            @endif
 
-                            @if($enrollMode === 'invite')
-                            {{-- Invitation Settings --}}
-                            <div class="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-xl p-5 border-2 border-indigo-200 dark:border-indigo-800">
-                                <h4 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
-                                    <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                                    </svg>
-                                    Invitation Settings
-                                </h4>
-                                
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                            📅 Expires In
-                                        </label>
-                                        <div class="relative">
-                                            <flux:input type="number" wire:model.live="expiresInDays" min="1" max="90" class="pr-16" />
-                                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-600 dark:text-gray-400">days</span>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                            📊 Expiration Date
-                                        </label>
-                                        <div class="bg-white dark:bg-gray-800 rounded-xl px-4 py-3 border-2 border-gray-300 dark:border-gray-600">
-                                            <p class="text-sm font-bold text-gray-900 dark:text-white">
-                                                {{ now()->addDays($expiresInDays ?? 7)->format('M d, Y h:i A') }}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            @endif
+            {{-- ============ STUDENTS ============ --}}
+            @if ($tab === 'students')
+                @if ($students->isEmpty())
+                    @include('livewire.admin.partials.enrollment-empty', ['title' => 'No students found', 'text' => 'Student accounts are created from User Management. Adjust the filters to see more.', 'action' => false])
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+                            <thead class="bg-zinc-50 dark:bg-zinc-900/80">
+                                <tr>
+                                    <th class="{{ $th }}">Student</th>
+                                    <th class="{{ $th }}">Program</th>
+                                    <th class="{{ $th }}">Courses</th>
+                                    <th class="{{ $th }} text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                                @foreach ($students as $student)
+                                    @php $profile = $student->studentProfile; @endphp
+                                    <tr wire:key="student-{{ $student->id }}" class="transition hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40">
+                                        <td class="{{ $td }}">
+                                            @include('livewire.admin.partials.enrollment-person', ['person' => $student, 'sub' => trim(($profile?->student_id ? $profile->student_id . ' · ' : '') . $student->email)])
+                                        </td>
+                                        <td class="{{ $td }}">
+                                            @if ($profile?->program_type)
+                                                <span class="inline-flex rounded-md bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">{{ $programLabels[$profile->program_type] ?? ucfirst($profile->program_type) }}</span>
+                                                @if ($profile->class_grade)
+                                                    <span class="ml-1 text-xs text-zinc-500">{{ $profile->class_grade }}</span>
+                                                @endif
+                                            @else
+                                                <span class="text-xs text-zinc-400">No profile</span>
+                                            @endif
+                                        </td>
+                                        <td class="{{ $td }}">
+                                            @if ($student->enrollments->isEmpty())
+                                                <span class="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">Not enrolled</span>
+                                            @else
+                                                <div class="flex max-w-md flex-wrap gap-1">
+                                                    @foreach ($student->enrollments->take(3) as $e)
+                                                        <span class="inline-flex max-w-48 truncate rounded-md px-2 py-0.5 text-xs font-medium {{ $e->completed_at ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300' : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' }}" title="{{ $e->course?->title }}">{{ $e->course?->title }}</span>
+                                                    @endforeach
+                                                    @if ($student->enrollments->count() > 3)
+                                                        <span class="text-xs font-medium text-zinc-500">+{{ $student->enrollments->count() - 3 }} more</span>
+                                                    @endif
+                                                </div>
+                                            @endif
+                                        </td>
+                                        <td class="{{ $td }} text-right">
+                                            <button type="button" wire:click="manageStudent({{ $student->id }})" class="{{ $btnSecondary }} py-1.5 text-xs">
+                                                <flux:icon.book-open class="size-4" /> Manage courses
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">{{ $students->links() }}</div>
+                @endif
+            @endif
 
-                            @if($enrollMode === 'invite')
-                            {{-- Personal Message --}}
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                                    <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                    </svg>
-                                    Personal Message (Optional)
-                                </label>
-                                <flux:textarea wire:model="invitationMessage" 
-                                              rows="4" 
-                                              placeholder="Example: We're thrilled to invite you to join our exclusive advanced programming course. This is a fantastic opportunity to level up your skills with hands-on projects and expert guidance..."
-                                              class="text-sm"></flux:textarea>
-                                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    This message will appear in the invitation notification sent to students
-                                </p>
-                            </div>
-                            @endif
-                        @else
-                            <div class="text-center py-12 bg-gray-50 dark:bg-gray-900/50 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700">
-                                <svg class="mx-auto h-16 w-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                </svg>
-                                <p class="text-base font-semibold text-gray-600 dark:text-gray-400">Please select a course first</p>
-                                <p class="text-sm text-gray-500 dark:text-gray-500 mt-1">Choose which course you want to invite students to</p>
-                            </div>
-                        @endif
+            {{-- ============ INSTRUCTORS ============ --}}
+            @if ($tab === 'instructors')
+                @if ($courses->isEmpty())
+                    @include('livewire.admin.partials.enrollment-empty', ['title' => 'No courses found', 'text' => 'Adjust the search or filter to see courses.', 'action' => false])
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+                            <thead class="bg-zinc-50 dark:bg-zinc-900/80">
+                                <tr>
+                                    <th class="{{ $th }}">Course</th>
+                                    <th class="{{ $th }}">Lead instructor</th>
+                                    <th class="{{ $th }}">Co-instructors</th>
+                                    <th class="{{ $th }}">Students</th>
+                                    <th class="{{ $th }} text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                                @foreach ($courses as $course)
+                                    <tr wire:key="course-{{ $course->id }}" class="transition hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40">
+                                        <td class="{{ $td }}">
+                                            <p class="font-semibold text-zinc-900 dark:text-zinc-100">{{ $course->title }}</p>
+                                            <span class="mt-0.5 inline-flex rounded px-1.5 py-0.5 text-[11px] font-semibold {{ $course->is_published ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400' }}">{{ $course->is_published ? 'Published' : 'Draft' }}</span>
+                                        </td>
+                                        <td class="{{ $td }}">
+                                            @if ($course->instructor)
+                                                @include('livewire.admin.partials.enrollment-person', ['person' => $course->instructor, 'sub' => $course->instructor->email])
+                                            @else
+                                                <span class="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-950/50 dark:text-orange-300">
+                                                    <flux:icon.exclamation-triangle class="size-3.5" /> Unassigned
+                                                </span>
+                                            @endif
+                                        </td>
+                                        <td class="{{ $td }}">
+                                            @if ($course->collaboratorUsers->isEmpty())
+                                                <span class="text-xs text-zinc-400">None</span>
+                                            @else
+                                                <div class="flex -space-x-2">
+                                                    @foreach ($course->collaboratorUsers->take(4) as $co)
+                                                        <span class="flex size-8 items-center justify-center rounded-full border-2 border-white bg-blue-900 text-[11px] font-bold text-white dark:border-zinc-900" title="{{ $co->name }} ({{ $co->pivot->role }})">{{ $co->initials() }}</span>
+                                                    @endforeach
+                                                    @if ($course->collaboratorUsers->count() > 4)
+                                                        <span class="flex size-8 items-center justify-center rounded-full border-2 border-white bg-zinc-200 text-[11px] font-bold text-zinc-700 dark:border-zinc-900 dark:bg-zinc-700 dark:text-zinc-200">+{{ $course->collaboratorUsers->count() - 4 }}</span>
+                                                    @endif
+                                                </div>
+                                            @endif
+                                        </td>
+                                        <td class="{{ $td }} tabular-nums">{{ number_format($course->students_count) }}</td>
+                                        <td class="{{ $td }} text-right">
+                                            <div class="flex justify-end gap-1">
+                                                <button type="button" wire:click="openEnrollPanel({{ $course->id }})" class="{{ $btnLinkSoft }}">
+                                                    <flux:icon.user-plus class="size-3.5" /> Enroll
+                                                </button>
+                                                <button type="button" wire:click="manageCourse({{ $course->id }})" class="{{ $btnSecondary }} py-1.5 text-xs">
+                                                    <flux:icon.user-group class="size-4" /> Manage team
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">{{ $courses->links() }}</div>
+                @endif
+            @endif
+
+            {{-- ============ REQUESTS ============ --}}
+            @if ($tab === 'requests')
+                @if ($requests->isEmpty())
+                    @include('livewire.admin.partials.enrollment-empty', ['title' => $requestStatus === 'pending' ? 'No pending requests' : 'No requests found', 'text' => 'Requests appear here when students ask to join a course.', 'action' => false])
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+                            <thead class="bg-zinc-50 dark:bg-zinc-900/80">
+                                <tr>
+                                    <th class="{{ $th }}">Student</th>
+                                    <th class="{{ $th }}">Course</th>
+                                    <th class="{{ $th }}">Message</th>
+                                    <th class="{{ $th }}">Requested</th>
+                                    <th class="{{ $th }}">Status</th>
+                                    <th class="{{ $th }} text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                                @foreach ($requests as $req)
+                                    @php
+                                        $requestedAt = $req->requested_at ?? $req->created_at;
+                                        $statusStyle = match ($req->status) {
+                                            'approved' => 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300',
+                                            'rejected' => 'bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300',
+                                            default => 'bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300',
+                                        };
+                                    @endphp
+                                    <tr wire:key="request-{{ $req->id }}" class="transition hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40">
+                                        <td class="{{ $td }}">
+                                            @include('livewire.admin.partials.enrollment-person', ['person' => $req->user, 'sub' => $req->user?->studentProfile?->student_id ?: $req->user?->email])
+                                        </td>
+                                        <td class="{{ $td }} font-medium text-zinc-900 dark:text-zinc-100">{{ $req->course?->title ?? 'Deleted course' }}</td>
+                                        <td class="{{ $td }} max-w-xs">
+                                            @if ($req->message)
+                                                <p class="line-clamp-2 text-xs italic text-zinc-500" title="{{ $req->message }}">“{{ $req->message }}”</p>
+                                            @else
+                                                <span class="text-xs text-zinc-400">—</span>
+                                            @endif
+                                            @if ($req->status === 'rejected' && $req->rejection_reason)
+                                                <p class="mt-1 line-clamp-2 text-xs text-red-600 dark:text-red-400" title="{{ $req->rejection_reason }}">Reason: {{ $req->rejection_reason }}</p>
+                                            @endif
+                                        </td>
+                                        <td class="{{ $td }} whitespace-nowrap text-xs text-zinc-500">{{ $requestedAt?->format('d M Y') ?? '—' }}</td>
+                                        <td class="{{ $td }}">
+                                            <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold capitalize {{ $statusStyle }}">{{ $req->status }}</span>
+                                            @if ($req->reviewer && $req->status !== 'pending')
+                                                <p class="mt-0.5 text-[11px] text-zinc-400">by {{ $req->reviewer->name }}</p>
+                                            @endif
+                                        </td>
+                                        <td class="{{ $td }} text-right">
+                                            @if ($req->status === 'pending')
+                                                <div class="flex justify-end gap-1">
+                                                    <button type="button" wire:click="approveRequest({{ $req->id }})" wire:loading.attr="disabled" wire:target="approveRequest({{ $req->id }})"
+                                                            class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">
+                                                        <flux:icon.check class="size-3.5" /> Approve
+                                                    </button>
+                                                    <button type="button" wire:click="openReject({{ $req->id }})" class="{{ $btnDangerSoft }}">Reject</button>
+                                                </div>
+                                            @else
+                                                <span class="text-xs text-zinc-400">{{ $req->reviewed_at?->format('d M Y') }}</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">{{ $requests->links() }}</div>
+                @endif
+            @endif
+
+            {{-- ============ INVITATIONS ============ --}}
+            @if ($tab === 'invitations')
+                @if ($invitations->isEmpty())
+                    @include('livewire.admin.partials.enrollment-empty', ['title' => 'No invitations found', 'text' => 'Use “Enroll students” and choose “Send invitation” to invite students.', 'action' => true])
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
+                            <thead class="bg-zinc-50 dark:bg-zinc-900/80">
+                                <tr>
+                                    <th class="{{ $th }}">Student</th>
+                                    <th class="{{ $th }}">Course</th>
+                                    <th class="{{ $th }}">Invited by</th>
+                                    <th class="{{ $th }}">Expires</th>
+                                    <th class="{{ $th }}">Status</th>
+                                    <th class="{{ $th }} text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                                @foreach ($invitations as $inv)
+                                    @php
+                                        $status = $inv->effectiveStatus();
+                                        $statusStyle = match ($status) {
+                                            'accepted' => 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300',
+                                            'declined' => 'bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300',
+                                            'expired' => 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
+                                            default => 'bg-blue-50 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300',
+                                        };
+                                    @endphp
+                                    <tr wire:key="invitation-{{ $inv->id }}" class="transition hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40">
+                                        <td class="{{ $td }}">
+                                            @include('livewire.admin.partials.enrollment-person', ['person' => $inv->user, 'sub' => $inv->user?->email])
+                                        </td>
+                                        <td class="{{ $td }} font-medium text-zinc-900 dark:text-zinc-100">{{ $inv->course?->title ?? 'Deleted course' }}</td>
+                                        <td class="{{ $td }} text-xs">
+                                            {{ $inv->inviter?->name ?? '—' }}
+                                            <p class="text-zinc-400">{{ ($inv->invited_at ?? $inv->created_at)?->format('d M Y') }}</p>
+                                        </td>
+                                        <td class="{{ $td }} whitespace-nowrap text-xs text-zinc-500">
+                                            @if ($inv->expires_at)
+                                                <span title="{{ $inv->expires_at->format('d M Y, H:i') }}">{{ $inv->expires_at->isPast() ? 'Expired ' : 'In ' }}{{ $inv->expires_at->diffForHumans(null, true) }}{{ $inv->expires_at->isPast() ? ' ago' : '' }}</span>
+                                            @else
+                                                Never
+                                            @endif
+                                        </td>
+                                        <td class="{{ $td }}">
+                                            <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold capitalize {{ $statusStyle }}">{{ $status === 'pending' ? 'Open' : $status }}</span>
+                                        </td>
+                                        <td class="{{ $td }} text-right">
+                                            <div class="flex justify-end gap-1">
+                                                @if (in_array($status, ['pending', 'expired', 'declined'], true) && $inv->course && $inv->user)
+                                                    <button type="button" wire:click="resendInvitation({{ $inv->id }})" class="{{ $btnLinkSoft }}">
+                                                        <flux:icon.arrow-path class="size-3.5" /> {{ $status === 'pending' ? 'Resend' : 'Re-invite' }}
+                                                    </button>
+                                                @endif
+                                                @if ($status === 'pending')
+                                                    <button type="button" wire:click="cancelInvitation({{ $inv->id }})" wire:confirm="Cancel this invitation?" class="{{ $btnDangerSoft }}">Cancel</button>
+                                                @endif
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">{{ $invitations->links() }}</div>
+                @endif
+            @endif
+        </div>
+    </section>
+
+    {{-- ============ ENROLL PANEL ============ --}}
+    @if ($showEnrollPanel)
+        @php
+            $selectedCourseCount = count($enrollCourseIds);
+            $selectedStudentCount = count($enrollStudentIds);
+        @endphp
+        <div class="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-labelledby="enroll-title" wire:keydown.escape.window="closeEnrollPanel">
+            <div class="absolute inset-0 bg-zinc-950/50 backdrop-blur-sm" wire:click="closeEnrollPanel"></div>
+            <div class="relative flex h-full w-full max-w-2xl flex-col bg-white shadow-2xl dark:bg-zinc-900">
+                <div class="flex items-start justify-between gap-4 bg-gradient-to-r from-[#0f1f4d] to-[#1e3a8a] px-6 py-5 text-white">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-orange-300">{{ $brandName }}</p>
+                        <h2 id="enroll-title" class="mt-1 text-xl font-bold">Enroll students</h2>
+                        <p class="text-sm text-blue-100/80">Pick courses and students, then enroll directly or send invitations.</p>
+                    </div>
+                    <button type="button" wire:click="closeEnrollPanel" class="rounded-lg p-1.5 text-white/80 hover:bg-white/10 hover:text-white" aria-label="Close">
+                        <flux:icon.x-mark class="size-5" />
+                    </button>
+                </div>
+
+                <div class="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+                    {{-- Mode --}}
+                    <div class="grid grid-cols-2 gap-2 rounded-xl bg-zinc-100 p-1 dark:bg-zinc-800">
+                        @foreach (['direct' => ['Enroll now', 'Students get access immediately'], 'invite' => ['Send invitation', 'Students accept before joining']] as $mode => [$label, $hint])
+                            <button type="button" wire:click="$set('enrollMode', '{{ $mode }}')"
+                                    class="rounded-lg px-3 py-2 text-left transition {{ $enrollMode === $mode ? 'bg-white shadow-sm dark:bg-zinc-900' : 'hover:bg-white/50 dark:hover:bg-zinc-900/50' }}">
+                                <span class="block text-sm font-semibold {{ $enrollMode === $mode ? 'text-blue-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300' }}">{{ $label }}</span>
+                                <span class="block text-xs text-zinc-500">{{ $hint }}</span>
+                            </button>
+                        @endforeach
                     </div>
 
-                    {{-- Modal Footer --}}
-                    <div class="px-8 py-5 bg-gradient-to-r from-gray-50 to-purple-50 dark:from-gray-900/50 dark:to-purple-900/20 border-t-2 border-gray-200 dark:border-gray-700 flex items-center justify-between sticky bottom-0">
-                        <div class="text-sm">
-                            <p class="text-gray-600 dark:text-gray-400" x-show="selectedCount.length === 0">
-                                Select students and click send
-                            </p>
-                            <p class="font-bold text-purple-600 dark:text-purple-400" x-show="selectedCount.length > 0">
-                                @if($enrollMode === 'direct')
-                                    <span x-text="selectedCount.length"></span> student<span x-show="selectedCount.length !== 1">s</span> ready to enroll
-                                @else
-                                    <span x-text="selectedCount.length"></span> invitation<span x-show="selectedCount.length !== 1">s</span> ready to send
-                                @endif
-                            </p>
+                    {{-- Courses --}}
+                    <div>
+                        <div class="mb-2 flex items-center justify-between">
+                            <label class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">1. Courses</label>
+                            <span class="text-xs text-zinc-500">{{ $selectedCourseCount }} selected</span>
                         </div>
-                        <div class="flex gap-3">
-                            <flux:button wire:click="$set('showInviteModal', false)" variant="ghost">
-                                Cancel
-                            </flux:button>
-                            <flux:button wire:click="sendInvitations" 
-                                        variant="primary"
-                                        :disabled="count($selectedStudents) === 0 || !$selectedCourseId"
-                                        class="relative group">
-                                @if($enrollMode === 'direct')
-                                    Enroll Selected
-                                @else
-                                    <svg class="w-5 h-5 mr-2 group-hover:animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                    </svg>
-                                    <span>Send Invitations</span>
-                                @endif
-                                <span x-show="selectedCount.length > 0" class="ml-1 px-2 py-0.5 bg-white/20 rounded-full text-xs">
-                                    <span x-text="selectedCount.length"></span>
-                                </span>
-                            </flux:button>
+                        <div class="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-zinc-200 p-2 dark:border-zinc-700">
+                            @forelse ($allCourses as $c)
+                                <label wire:key="enroll-course-{{ $c->id }}" class="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                                    <input type="checkbox" value="{{ $c->id }}" wire:model.live="enrollCourseIds" class="rounded border-zinc-300 text-orange-600 focus:ring-orange-500 dark:border-zinc-600 dark:bg-zinc-800">
+                                    <span class="flex-1 text-sm text-zinc-800 dark:text-zinc-200">{{ $c->title }}</span>
+                                    @unless ($c->is_published)
+                                        <span class="rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] font-semibold text-zinc-500 dark:bg-zinc-800">Draft</span>
+                                    @endunless
+                                </label>
+                            @empty
+                                <p class="px-2 py-3 text-sm text-zinc-500">No courses exist yet.</p>
+                            @endforelse
+                        </div>
+                        @error('enrollCourseIds') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+
+                    {{-- Students --}}
+                    <div>
+                        <div class="mb-2 flex items-center justify-between">
+                            <label class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">2. Students</label>
+                            <span class="text-xs text-zinc-500">{{ $selectedStudentCount }} selected</span>
+                        </div>
+
+                        @if ($selectedEnrollStudents->isNotEmpty())
+                            <div class="mb-2 flex flex-wrap gap-1.5">
+                                @foreach ($selectedEnrollStudents as $s)
+                                    <span wire:key="chip-{{ $s->id }}" class="inline-flex items-center gap-1 rounded-full bg-orange-50 py-0.5 pl-2.5 pr-1 text-xs font-medium text-orange-800 dark:bg-orange-950/50 dark:text-orange-200">
+                                        {{ $s->name }}
+                                        <button type="button" wire:click="toggleEnrollStudent({{ $s->id }})" class="rounded-full p-0.5 hover:bg-orange-100 dark:hover:bg-orange-900" aria-label="Remove {{ $s->name }}">
+                                            <flux:icon.x-mark class="size-3" />
+                                        </button>
+                                    </span>
+                                @endforeach
+                            </div>
+                        @endif
+
+                        <div class="relative mb-2">
+                            <flux:icon.magnifying-glass class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
+                            <input type="search" wire:model.live.debounce.300ms="enrollStudentSearch" class="{{ $input }} pl-9" placeholder="Search students by name, email or student ID…">
+                        </div>
+
+                        <div class="max-h-72 divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-700">
+                            @forelse ($enrollCandidates as $candidate)
+                                @php $isPicked = in_array((string) $candidate->id, $enrollStudentIds, true); @endphp
+                                <label wire:key="candidate-{{ $candidate->id }}" class="flex cursor-pointer items-center gap-3 px-3 py-2 {{ $isPicked ? 'bg-orange-50/60 dark:bg-orange-950/20' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800' }}">
+                                    <input type="checkbox" value="{{ $candidate->id }}" wire:model.live="enrollStudentIds" class="rounded border-zinc-300 text-orange-600 focus:ring-orange-500 dark:border-zinc-600 dark:bg-zinc-800">
+                                    <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-900 text-xs font-bold text-white">{{ $candidate->initials() }}</span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="block truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{{ $candidate->name }}</span>
+                                        <span class="block truncate text-xs text-zinc-500">{{ $candidate->studentProfile?->student_id ? $candidate->studentProfile->student_id . ' · ' : '' }}{{ $candidate->email }}</span>
+                                    </span>
+                                    <span class="shrink-0 text-xs text-zinc-400">{{ $candidate->active_courses_count }} {{ \Illuminate\Support\Str::plural('course', $candidate->active_courses_count) }}</span>
+                                </label>
+                            @empty
+                                <p class="px-3 py-6 text-center text-sm text-zinc-500">No students match your search.</p>
+                            @endforelse
+                        </div>
+                        @if ($enrollCandidates->count() >= 40)
+                            <p class="mt-1 text-xs text-zinc-500">Showing the first 40 matches. Search to narrow the list.</p>
+                        @endif
+                        @error('enrollStudentIds') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+
+                    @if ($enrollMode === 'invite')
+                        <div class="grid gap-4 sm:grid-cols-3">
+                            <div class="sm:col-span-2">
+                                <label class="mb-1 block text-sm font-semibold text-zinc-900 dark:text-zinc-100">Message <span class="font-normal text-zinc-400">(optional)</span></label>
+                                <textarea wire:model="invitationMessage" rows="3" maxlength="500" class="{{ $input }}" placeholder="Welcome to the course! We start next Monday."></textarea>
+                                @error('invitationMessage') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-sm font-semibold text-zinc-900 dark:text-zinc-100">Expires after</label>
+                                <select wire:model="expiresInDays" class="{{ $input }}">
+                                    @foreach ([3, 7, 14, 30, 60, 90] as $days)
+                                        <option value="{{ $days }}">{{ $days }} days</option>
+                                    @endforeach
+                                </select>
+                                @error('expiresInDays') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                        </div>
+                    @endif
+                </div>
+
+                <div class="flex items-center justify-between gap-3 border-t border-zinc-200 bg-zinc-50 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+                    <p class="text-xs text-zinc-500">
+                        @if ($selectedCourseCount && $selectedStudentCount)
+                            {{ $selectedStudentCount }} {{ \Illuminate\Support\Str::plural('student', $selectedStudentCount) }} × {{ $selectedCourseCount }} {{ \Illuminate\Support\Str::plural('course', $selectedCourseCount) }}
+                        @else
+                            Select at least one course and one student.
+                        @endif
+                    </p>
+                    <div class="flex gap-2">
+                        <button type="button" wire:click="closeEnrollPanel" class="{{ $btnSecondary }}">Cancel</button>
+                        <button type="button" wire:click="enroll" wire:loading.attr="disabled" wire:target="enroll" class="{{ $btnPrimary }}" @disabled(! $selectedCourseCount || ! $selectedStudentCount)>
+                            <flux:icon.arrow-path wire:loading wire:target="enroll" class="size-4 animate-spin" />
+                            {{ $enrollMode === 'direct' ? 'Enroll students' : 'Send invitations' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- ============ STUDENT COURSE MANAGER ============ --}}
+    @if ($managedStudent)
+        @php
+            $enrolledCourseIds = $managedStudent->enrollments->pluck('course_id')->all();
+            $assignable = $allCourses->reject(fn ($c) => in_array($c->id, $enrolledCourseIds, true));
+            $mProfile = $managedStudent->studentProfile;
+        @endphp
+        <div class="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" wire:keydown.escape.window="closeStudentManager">
+            <div class="absolute inset-0 bg-zinc-950/50 backdrop-blur-sm" wire:click="closeStudentManager"></div>
+            <div class="relative flex h-full w-full max-w-lg flex-col bg-white shadow-2xl dark:bg-zinc-900">
+                <div class="flex items-start justify-between gap-4 bg-gradient-to-r from-[#0f1f4d] to-[#1e3a8a] px-6 py-5 text-white">
+                    <div class="flex items-center gap-3">
+                        <span class="flex size-12 items-center justify-center rounded-full bg-orange-500 text-base font-bold">{{ $managedStudent->initials() }}</span>
+                        <div>
+                            <h2 class="text-lg font-bold">{{ $managedStudent->name }}</h2>
+                            <p class="text-xs text-blue-100/80">{{ $mProfile?->student_id ? $mProfile->student_id . ' · ' : '' }}{{ $managedStudent->email }}</p>
+                            @if ($mProfile?->program_type)
+                                <span class="mt-1 inline-flex rounded bg-white/15 px-1.5 py-0.5 text-[11px] font-semibold">{{ $programLabels[$mProfile->program_type] ?? ucfirst($mProfile->program_type) }}</span>
+                            @endif
+                        </div>
+                    </div>
+                    <button type="button" wire:click="closeStudentManager" class="rounded-lg p-1.5 text-white/80 hover:bg-white/10 hover:text-white" aria-label="Close">
+                        <flux:icon.x-mark class="size-5" />
+                    </button>
+                </div>
+
+                <div class="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+                    <div>
+                        <label class="mb-2 block text-sm font-semibold text-zinc-900 dark:text-zinc-100">Assign a course</label>
+                        <div class="flex gap-2">
+                            <select wire:model="addCourseId" class="{{ $input }}">
+                                <option value="">Choose a course…</option>
+                                @foreach ($assignable as $c)
+                                    <option value="{{ $c->id }}">{{ $c->title }}{{ $c->is_published ? '' : ' (draft)' }}</option>
+                                @endforeach
+                            </select>
+                            <button type="button" wire:click="addCourseToStudent" wire:loading.attr="disabled" wire:target="addCourseToStudent" class="{{ $btnPrimary }} shrink-0">
+                                <flux:icon.plus class="size-4" /> Assign
+                            </button>
+                        </div>
+                        @error('addCourseId') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+
+                    <div>
+                        <h3 class="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">Current courses ({{ $managedStudent->enrollments->count() }})</h3>
+                        <div class="space-y-2">
+                            @forelse ($managedStudent->enrollments as $e)
+                                @php $p = (int) round($e->progress_percentage ?? 0); @endphp
+                                <div wire:key="managed-enrollment-{{ $e->id }}" class="flex items-center gap-3 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
+                                    <div class="min-w-0 flex-1">
+                                        <p class="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ $e->course?->title }}</p>
+                                        <div class="mt-1.5 flex items-center gap-2">
+                                            @if ($e->completed_at)
+                                                <span class="text-xs font-semibold text-emerald-600">Completed {{ $e->completed_at->format('d M Y') }}</span>
+                                            @else
+                                                <div class="h-1.5 w-24 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                                                    <div class="h-full rounded-full bg-orange-500" style="width: {{ max(0, min(100, $p)) }}%"></div>
+                                                </div>
+                                                <span class="text-xs tabular-nums text-zinc-500">{{ $p }}%</span>
+                                            @endif
+                                            @if ($e->camp || $e->club)
+                                                <span class="text-xs text-zinc-400">· {{ $e->camp?->name ?? $e->club?->name }}</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                    <button type="button" wire:click="removeCourseFromStudent({{ $e->id }})"
+                                            wire:confirm="Remove {{ $managedStudent->name }} from {{ $e->course?->title ?? 'this course' }}? Their progress record for this course will be removed."
+                                            class="{{ $btnDangerSoft }}">
+                                        <flux:icon.trash class="size-3.5" /> Remove
+                                    </button>
+                                </div>
+                            @empty
+                                <div class="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
+                                    This student is not enrolled in any course yet.
+                                </div>
+                            @endforelse
                         </div>
                     </div>
                 </div>
@@ -927,20 +802,117 @@
         </div>
     @endif
 
-    {{-- Styles --}}
-    <style>
-        @keyframes slide-in {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-        .animate-slide-in {
-            animation: slide-in 0.3s ease-out;
-        }
-    </style>
+    {{-- ============ COURSE TEAM MANAGER ============ --}}
+    @if ($managedCourse)
+        @php
+            $teamIds = $managedCourse->collaboratorUsers->pluck('id')->push($managedCourse->instructor_id)->filter()->all();
+            $coOptions = $instructorOptions->reject(fn ($u) => in_array($u->id, $teamIds, true));
+            $roleLabel = fn ($u) => $u->roles->pluck('name')->map(fn ($r) => ucwords(str_replace('_', ' ', $r)))->implode(', ');
+        @endphp
+        <div class="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" wire:keydown.escape.window="closeCourseManager">
+            <div class="absolute inset-0 bg-zinc-950/50 backdrop-blur-sm" wire:click="closeCourseManager"></div>
+            <div class="relative flex h-full w-full max-w-lg flex-col bg-white shadow-2xl dark:bg-zinc-900">
+                <div class="flex items-start justify-between gap-4 bg-gradient-to-r from-[#0f1f4d] to-[#1e3a8a] px-6 py-5 text-white">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-orange-300">Course team</p>
+                        <h2 class="mt-1 text-lg font-bold">{{ $managedCourse->title }}</h2>
+                        <p class="text-xs text-blue-100/80">Choose who leads this course and who helps teach it.</p>
+                    </div>
+                    <button type="button" wire:click="closeCourseManager" class="rounded-lg p-1.5 text-white/80 hover:bg-white/10 hover:text-white" aria-label="Close">
+                        <flux:icon.x-mark class="size-5" />
+                    </button>
+                </div>
+
+                <div class="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+                    {{-- Lead --}}
+                    <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                        <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Lead instructor</h3>
+                        <p class="mb-3 text-xs text-zinc-500">The lead owns the course and appears as its instructor to students.</p>
+                        <select wire:model="leadInstructorId" class="{{ $input }}">
+                            <option value="">No lead instructor</option>
+                            @foreach ($instructorOptions as $u)
+                                <option value="{{ $u->id }}">{{ $u->name }} — {{ $roleLabel($u) }}</option>
+                            @endforeach
+                        </select>
+                        @error('leadInstructorId') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        @if ($managedCourse->instructor)
+                            <label class="mt-3 flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                                <input type="checkbox" wire:model="keepPreviousLead" class="rounded border-zinc-300 text-orange-600 focus:ring-orange-500 dark:border-zinc-600 dark:bg-zinc-800">
+                                Keep {{ $managedCourse->instructor->name }} as a co-instructor if replaced
+                            </label>
+                        @endif
+                        <div class="mt-3 flex justify-end">
+                            <button type="button" wire:click="saveLeadInstructor" wire:loading.attr="disabled" wire:target="saveLeadInstructor" class="{{ $btnPrimary }}">Save lead</button>
+                        </div>
+                    </div>
+
+                    {{-- Co-instructors --}}
+                    <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                        <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Co-instructors</h3>
+                        <p class="mb-3 text-xs text-zinc-500">Editors can change course content. Viewers can only see it and follow students.</p>
+
+                        <div class="flex flex-col gap-2 sm:flex-row">
+                            <select wire:model="coInstructorId" class="{{ $input }}">
+                                <option value="">Choose a staff member…</option>
+                                @foreach ($coOptions as $u)
+                                    <option value="{{ $u->id }}">{{ $u->name }} — {{ $roleLabel($u) }}</option>
+                                @endforeach
+                            </select>
+                            <select wire:model="coInstructorRole" class="{{ $input }} sm:w-32">
+                                <option value="editor">Editor</option>
+                                <option value="viewer">Viewer</option>
+                            </select>
+                            <button type="button" wire:click="addCoInstructor" wire:loading.attr="disabled" wire:target="addCoInstructor" class="{{ $btnPrimary }} shrink-0">
+                                <flux:icon.plus class="size-4" /> Add
+                            </button>
+                        </div>
+                        @error('coInstructorId') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+
+                        <div class="mt-4 space-y-2">
+                            @forelse ($managedCourse->collaboratorUsers as $co)
+                                <div wire:key="co-{{ $co->id }}" class="flex items-center gap-3 rounded-lg bg-zinc-50 p-2.5 dark:bg-zinc-800/60">
+                                    <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-900 text-xs font-bold text-white">{{ $co->initials() }}</span>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{{ $co->name }}</p>
+                                        <p class="truncate text-xs text-zinc-500">{{ $co->email }}</p>
+                                    </div>
+                                    <select wire:change="updateCoInstructorRole({{ $co->id }}, $event.target.value)" class="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200">
+                                        <option value="editor" @selected($co->pivot->role === 'editor')>Editor</option>
+                                        <option value="viewer" @selected($co->pivot->role === 'viewer')>Viewer</option>
+                                    </select>
+                                    <button type="button" wire:click="removeCoInstructor({{ $co->id }})" wire:confirm="Remove {{ $co->name }} from this course team?" class="{{ $btnDangerSoft }}" aria-label="Remove {{ $co->name }}">
+                                        <flux:icon.trash class="size-3.5" />
+                                    </button>
+                                </div>
+                            @empty
+                                <p class="rounded-lg border border-dashed border-zinc-300 p-4 text-center text-xs text-zinc-500 dark:border-zinc-700">No co-instructors yet.</p>
+                            @endforelse
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- ============ REJECT MODAL ============ --}}
+    @if ($rejectingRequest)
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" wire:keydown.escape.window="closeReject">
+            <div class="absolute inset-0 bg-zinc-950/50 backdrop-blur-sm" wire:click="closeReject"></div>
+            <div class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-zinc-900">
+                <h2 class="text-lg font-bold text-zinc-900 dark:text-zinc-100">Reject enrollment request</h2>
+                <p class="mt-1 text-sm text-zinc-500">
+                    {{ $rejectingRequest->user?->name ?? 'This student' }} asked to join
+                    <span class="font-semibold text-zinc-700 dark:text-zinc-300">{{ $rejectingRequest->course?->title ?? 'a course' }}</span>.
+                    The reason is sent to the student.
+                </p>
+                <textarea wire:model="rejectionReason" rows="4" maxlength="500" class="{{ $input }} mt-4" placeholder="e.g. This course is full for this term. Please request again next term."></textarea>
+                @error('rejectionReason') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                <div class="mt-5 flex justify-end gap-2">
+                    <button type="button" wire:click="closeReject" class="{{ $btnSecondary }}">Cancel</button>
+                    <button type="button" wire:click="confirmReject" wire:loading.attr="disabled" wire:target="confirmReject"
+                            class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">Reject request</button>
+                </div>
+            </div>
+        </div>
+    @endif
 </div>
