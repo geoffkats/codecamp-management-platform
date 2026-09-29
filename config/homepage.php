@@ -35,6 +35,13 @@ return [
     | Public gallery where children's projects are hosted.
     */
 
+    /*
+    | Shown instead of the live learner count in the homepage stats.
+    | Set to an empty value to show the real count.
+    */
+
+    'learners_display' => env('HOMEPAGE_LEARNERS_DISPLAY', '500+'),
+
     'projects_url' => env('HOMEPAGE_PROJECTS_URL', 'https://codeacademyug.org/children-projects'),
 
     /*

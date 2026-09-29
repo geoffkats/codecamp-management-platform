@@ -180,7 +180,7 @@ class HomeController extends Controller
         $projects = DB::table('assignment_submissions')->whereNotNull('submitted_at')->count();
 
         return array_values(array_filter([
-            ['value' => $learners, 'label' => 'Registered learners'],
+            ['value' => $learners, 'display' => config('homepage.learners_display'), 'label' => 'Registered learners'],
             ['value' => $courseCount, 'label' => 'Published courses'],
             ['value' => $lessons, 'label' => 'Lessons to explore'],
             ['value' => $projects, 'label' => 'Projects submitted'],
