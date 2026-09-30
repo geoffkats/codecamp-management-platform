@@ -28,6 +28,7 @@ class IctTeacherDashboard extends Component
                 'stats' => $this->emptyStats(),
                 'modules' => collect(),
                 'recentActivity' => collect(),
+                'recentAssessmentResults' => collect(),
             ]);
         }
 
