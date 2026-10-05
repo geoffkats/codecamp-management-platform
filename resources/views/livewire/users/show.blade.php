@@ -460,7 +460,7 @@
                                     <tr class="border-t border-gray-100 dark:border-gray-800">
                                         <td class="px-3 py-2 text-gray-900 dark:text-white">{{ $attempt->assessment?->title ?? 'Assessment #' . $attempt->assessment_id }}</td>
                                         <td class="px-3 py-2 text-gray-600 dark:text-gray-300">{{ ucfirst(str_replace('_', ' ', (string) $attempt->assessment?->assessment_type)) }}</td>
-                                        <td class="px-3 py-2 text-gray-600 dark:text-gray-300">{{ $attempt->score !== null ? number_format((float) $attempt->score, 1) . '%' : '—' }}</td>
+                                        <td class="px-3 py-2 text-gray-600 dark:text-gray-300">{{ $attempt->score !== null ? number_format((float) $attempt->scorePercentage(), 1) . '%' : '—' }}</td>
                                         <td class="px-3 py-2">
                                             <flux:badge variant="{{ $attempt->is_passed ? 'success' : 'danger' }}" size="sm">
                                                 {{ $attempt->is_passed ? 'Passed' : 'Not Passed' }}

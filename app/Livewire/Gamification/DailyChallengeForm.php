@@ -28,7 +28,7 @@ class DailyChallengeForm extends Component
             $this->requirements = $challenge->requirements ?? [];
             $this->reward_points = $challenge->reward_points;
             $this->date = $challenge->date;
-            $this->is_active = $challenge->is_active;
+            $this->is_active = (bool) $challenge->is_active;
             $this->difficulty_level = $challenge->difficulty_level;
             $this->category = $challenge->category;
         } else {

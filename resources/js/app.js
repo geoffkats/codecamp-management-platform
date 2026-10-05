@@ -1,6 +1,9 @@
 import './bootstrap';
 import { initTipTapEditor, createToolbar, escapeUnknownTags } from './components/tiptap-editor';
 
+window.cauRenderScratch = (el) => import('./components/question-text').then((m) => m.renderScratch(el));
+window.cauHighlightCode = (el) => import('./components/question-text').then((m) => m.highlightCode(el));
+
 // TipTap is bundled directly — no dynamic import needed
 window.loadTipTap = () => Promise.resolve({ initTipTapEditor, createToolbar });
 

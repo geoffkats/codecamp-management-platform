@@ -64,6 +64,7 @@ class NewBuilder extends Component
         'close-form' => 'closeForm',
         'flash-message' => 'handleFlashMessage',
         'archive-lesson' => 'deleteLesson',
+        'toggle-lesson-lock' => 'toggleLessonLock',
         'archive-module' => 'deleteModule',
         'restore-module' => 'restoreModule',
         'restore-lesson' => 'restoreLesson',
@@ -96,6 +97,11 @@ class NewBuilder extends Component
                 }
             }
             
+            $assessmentId = request()->query('assessment');
+            if ($assessmentId && \App\Models\Assessment::whereKey($assessmentId)->where('course_id', $this->courseId)->exists()) {
+                $this->selectItem('assessment', (int) $assessmentId);
+            }
+
             // Check if we should create a new lesson (for draft restoration)
             $createNew = request()->query('new');
             if ($createNew === 'lesson') {
@@ -747,10 +753,15 @@ class NewBuilder extends Component
 
     public function toggleLessonLock($lessonId)
     {
-        $lesson = Lesson::find($lessonId);
+        $lesson = Lesson::where('course_id', $this->courseId)->find($lessonId);
 
         if (!$lesson) {
             session()->flash('error', 'Lesson not found.');
+            return;
+        }
+
+        if (!$this->userCanManageCourse()) {
+            session()->flash('error', 'You do not have permission to lock lessons in this course.');
             return;
         }
 
@@ -765,14 +776,20 @@ class NewBuilder extends Component
         }
 
         $this->loadCourse();
+        $this->dispatch('course-structure-updated');
     }
 
     public function toggleAssessmentLock($assessmentId)
     {
-        $assessment = Assessment::find($assessmentId);
+        $assessment = Assessment::where('course_id', $this->courseId)->find($assessmentId);
 
         if (!$assessment) {
             session()->flash('error', 'Assessment not found.');
+            return;
+        }
+
+        if (!$this->userCanManageCourse()) {
+            session()->flash('error', 'You do not have permission to lock quizzes in this course.');
             return;
         }
 
@@ -787,10 +804,15 @@ class NewBuilder extends Component
 
     public function toggleAssignmentLock($assignmentId)
     {
-        $assignment = Assignment::find($assignmentId);
+        $assignment = Assignment::where('course_id', $this->courseId)->find($assignmentId);
 
         if (!$assignment) {
             session()->flash('error', 'Assignment not found.');
+            return;
+        }
+
+        if (!$this->userCanManageCourse()) {
+            session()->flash('error', 'You do not have permission to lock assignments in this course.');
             return;
         }
 

@@ -38,9 +38,9 @@ class AssessmentForm extends Component
             $this->time_limit_minutes = $assessment->time_limit_minutes;
             $this->passing_score = $assessment->passing_score;
             $this->xp_reward = $assessment->xp_reward;
-            $this->is_required = $assessment->is_required;
-            $this->show_results_immediately = $assessment->show_results_immediately;
-            $this->is_locked = $assessment->is_locked;
+            $this->is_required = (bool) $assessment->is_required;
+            $this->show_results_immediately = (bool) $assessment->show_results_immediately;
+            $this->is_locked = (bool) $assessment->is_locked;
             $this->questions = $assessment->questions ?? [];
         }
     }

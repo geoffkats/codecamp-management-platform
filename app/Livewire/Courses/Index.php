@@ -28,6 +28,7 @@ class Index extends Component
         'filterCategory' => ['except' => 'all'],
         'filterDifficulty' => ['except' => 'all'],
         'sortBy' => ['except' => 'latest'],
+        'viewMode' => ['except' => 'grid', 'as' => 'view'],
     ];
 
     public function updatingSearch()
@@ -80,14 +81,34 @@ class Index extends Component
         }
     }
 
-    public function render()
+    public function setStatus(string $status): void
     {
-        $query = Course::query()
-            ->select('courses.*')
-            ->with(['instructor:id,name'])
-            ->withCount(['enrollments', 'lessons']);
+        $this->filterStatus = $status;
+        $this->resetPage();
+    }
 
-        // Role-based filtering
+    public function setView(string $mode): void
+    {
+        $this->viewMode = $mode === 'list' ? 'list' : 'grid';
+    }
+
+    public function clearFilters(): void
+    {
+        $this->search = '';
+        $this->filterStatus = 'all';
+        $this->filterCategory = 'all';
+        $this->filterDifficulty = 'all';
+        $this->resetPage();
+    }
+
+    private function scopedQuery()
+    {
+        $query = Course::query();
+
+        if (Auth::user()?->isAdmin() || Auth::user()?->isSupervisor()) {
+            return $query;
+        }
+
         if (Auth::user()?->hasRole('teacher')) {
             $user = Auth::user();
 
@@ -109,6 +130,16 @@ class Index extends Component
             $query->where('is_published', true)
                   ->where('approval_status', 'approved');
         }
+
+        return $query;
+    }
+
+    public function render()
+    {
+        $query = $this->scopedQuery()
+            ->select('courses.*')
+            ->with(['instructor:id,name'])
+            ->withCount(['enrollments', 'lessons']);
 
         // Search
         if ($this->search) {
@@ -193,7 +224,17 @@ class Index extends Component
 
         $isIctTeacher = Auth::user()?->isIctTeacher() ?? false;
 
+        $scoped = $this->scopedQuery();
+        $stats = [
+            'total' => (clone $scoped)->count(),
+            'live' => (clone $scoped)->where('is_published', true)->count(),
+            'draft' => (clone $scoped)->where('is_published', false)->count(),
+            'pending' => (clone $scoped)->where('approval_status', 'pending')->count(),
+            'students' => \App\Models\CourseEnrollment::whereIn('course_id', (clone $scoped)->select('courses.id'))->count(),
+        ];
+
         return view('livewire.courses.index', [
+            'stats' => $stats,
             'courses' => $courses,
             'categories' => $categories,
             'categoryOptions' => $categoryOptions,

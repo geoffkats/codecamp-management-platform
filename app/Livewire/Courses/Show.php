@@ -36,7 +36,7 @@ class Show extends Component
             return;
         }
 
-        $this->course = $course->load(['instructor', 'modules.lessons', 'assessments']);
+        $this->course = $course->load('instructor');
 
         if ($user) {
             $this->enrollment = CourseEnrollment::where('user_id', $user->id)
@@ -154,27 +154,51 @@ class Show extends Component
 
     public function render()
     {
+        $user = Auth::user();
+
         $modules = $this->course->modules()
-            ->with(['lessons' => function ($q) {
-                $q->orderBy('order_index');
-            }])
+            ->with(['lessons' => fn ($q) => $q->orderBy('order_index')])
             ->orderBy('order_index')
             ->get();
 
-        $reviews = []; // Can add reviews later
-        $similarCourses = Course::where('category', $this->course->category)
-            ->where('id', '!=', $this->course->id)
-            ->where('is_published', true)
-            ->where('approval_status', 'approved')
-            ->withCount('enrollments')
-            ->orderBy('enrollments_count', 'desc')
-            ->take(4)
-            ->get();
+        $quizzesByLesson = $this->course->assessments()
+            ->orderBy('id')
+            ->get(['id', 'lesson_id', 'title', 'assessment_type'])
+            ->groupBy(fn ($a) => $a->lesson_id ?? 0);
+
+        $isOversight = $user?->hasAnyRole(['admin', 'supervisor']) ?? false;
+        $canManage = $user && ($isOversight || ($user->can('edit_courses') && $this->course->canUserEdit($user)));
+
+        $enrollmentType = $this->course->enrollment_type ?? 'open';
+        $hasInvitation = false;
+        $hasPendingRequest = false;
+
+        if ($user && ! $canManage && ! $this->enrolled) {
+            if ($enrollmentType === 'invite_only') {
+                $hasInvitation = \App\Models\CourseInvitation::where('course_id', $this->course->id)
+                    ->where('user_id', $user->id)
+                    ->activePending()
+                    ->exists();
+            } elseif ($enrollmentType === 'approval_required') {
+                $hasPendingRequest = \App\Models\EnrollmentRequest::where('course_id', $this->course->id)
+                    ->where('user_id', $user->id)
+                    ->where('status', 'pending')
+                    ->exists();
+            }
+        }
 
         return view('livewire.courses.show', [
             'modules' => $modules,
-            'reviews' => $reviews,
-            'similarCourses' => $similarCourses,
+            'quizzesByLesson' => $quizzesByLesson,
+            'lessonCount' => $modules->sum(fn ($m) => $m->lessons->count()),
+            'quizCount' => $quizzesByLesson->flatten()->count(),
+            'studentCount' => $this->course->enrollments()->count(),
+            'canManage' => $canManage,
+            'isOversight' => $isOversight,
+            'showAllLessons' => $canManage || $this->enrolled || ($user?->isTeacher() ?? false),
+            'enrollmentType' => $enrollmentType,
+            'hasInvitation' => $hasInvitation,
+            'hasPendingRequest' => $hasPendingRequest,
         ]);
     }
 }

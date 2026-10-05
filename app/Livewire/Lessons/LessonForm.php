@@ -39,9 +39,9 @@ class LessonForm extends Component
             $this->difficulty_level = $lesson->difficulty_level;
             $this->duration_minutes = $lesson->duration_minutes;
             $this->video_url = $lesson->video_url;
-            $this->is_published = $lesson->is_published;
-            $this->is_free_preview = $lesson->is_free_preview;
-            $this->is_locked = $lesson->is_locked;
+            $this->is_published = (bool) $lesson->is_published;
+            $this->is_free_preview = (bool) $lesson->is_free_preview;
+            $this->is_locked = (bool) $lesson->is_locked;
             $this->order_index = $lesson->order_index;
         }
     }

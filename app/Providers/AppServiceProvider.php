@@ -45,7 +45,7 @@ class AppServiceProvider extends AuthServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(\App\Services\Assessments\QuestionTypeRegistry::class);
     }
 
     /**
@@ -110,8 +110,15 @@ class AppServiceProvider extends AuthServiceProvider
         });
 
         Gate::define('view_analytics', function (User $user) {
-            return $user->hasPermission('view_analytics') || $user->isAdmin() || $user->isTeacher();
+            return $user->hasPermission('view_analytics') || $user->isAdmin() || $user->isTeacher()
+                || $user->isSupervisor() || $user->isOperationsManager();
         });
+
+        Gate::define('manage_enrollments', fn (User $user) => $user->hasAnyRole(['admin', 'supervisor']));
+
+        Gate::define('review_daily_reports', fn (User $user) => $user->hasAnyRole(['admin', 'supervisor']));
+
+        Gate::define('view_attendance', fn (User $user) => Gate::forUser($user)->allows('manage_users') || $user->isSupervisor());
 
         Gate::define('manage_badges', function (User $user) {
             return $user->hasPermission('manage_badges') || $user->isAdmin();

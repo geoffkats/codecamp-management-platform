@@ -53,7 +53,7 @@ class Edit extends Component
         $this->courseId = $discussion->course_id;
         $this->lessonId = $discussion->lesson_id;
         $this->isPinned = $discussion->is_pinned;
-        $this->isLocked = $discussion->is_locked;
+        $this->isLocked = (bool) $discussion->is_locked;
         $this->status = $discussion->status;
         
         // Load rich content

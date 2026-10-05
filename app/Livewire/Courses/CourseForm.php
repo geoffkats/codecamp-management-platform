@@ -33,8 +33,8 @@ class CourseForm extends Component
             $this->featured_image = $course->featured_image;
             $this->difficulty_level = $course->difficulty_level;
             $this->estimated_duration = $course->estimated_duration;
-            $this->is_published = $course->is_published;
-            $this->is_featured = $course->is_featured;
+            $this->is_published = (bool) $course->is_published;
+            $this->is_featured = (bool) $course->is_featured;
             $this->price = $course->price;
             $this->category = $course->category;
             $this->tags = $course->tags ?? [];

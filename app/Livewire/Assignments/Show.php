@@ -182,7 +182,9 @@ class Show extends Component
                 'total' => $this->assignment->submissions()->count(),
                 'graded' => $this->assignment->submissions()->whereNotNull('graded_at')->count(),
                 'pending' => $this->assignment->submissions()->whereNull('graded_at')->count(),
-                'average_score' => $this->assignment->submissions()->whereNotNull('points_earned')->avg('points_earned') ?? 0,
+                'average_score' => (($avgPoints = $this->assignment->submissions()->whereNotNull('points_earned')->avg('points_earned')) !== null && $this->assignment->max_points > 0)
+                    ? min(100, $avgPoints / $this->assignment->max_points * 100)
+                    : 0,
             ];
         }
 

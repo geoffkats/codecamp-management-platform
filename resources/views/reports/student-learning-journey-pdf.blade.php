@@ -202,7 +202,7 @@
                 <tr>
                     <td>{{ $item->assessment?->title ?? 'Assessment #' . $item->assessment_id }}</td>
                     <td>{{ ucfirst(str_replace('_', ' ', (string) $item->assessment?->assessment_type)) }}</td>
-                    <td>{{ $item->score !== null ? number_format((float) $item->score, 1) . '%' : '—' }}</td>
+                    <td>{{ $item->score !== null ? number_format((float) $item->scorePercentage(), 1) . '%' : '—' }}</td>
                     <td>{{ $item->is_passed ? 'Passed' : 'Not Passed' }}</td>
                     <td>{{ optional($item->completed_at ?? $item->started_at)->format('d M Y H:i') }}</td>
                 </tr>

@@ -22,7 +22,7 @@
             <div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-2xl p-12 text-center print-section">
                 <div class="mb-6">
                     <h2 class="text-white text-xl font-medium mb-2">Today's Attendance Code</h2>
-                    <p class="text-blue-100 text-sm">Students use this code to check in/out</p>
+                    <p class="text-blue-100 text-sm">Students scan the QR code to open the check-in page</p>
                 </div>
 
                 {{-- The Code --}}
@@ -35,11 +35,11 @@
                 {{-- QR Code Placeholder --}}
                 <div class="bg-white rounded-xl p-6 mb-6 inline-block">
                     <div class="w-48 h-48 flex items-center justify-center">
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{ $code }}" 
-                             alt="QR Code" 
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{ urlencode(route('attendance.check-in')) }}"
+                             alt="QR code that opens the student check-in page"
                              class="w-full h-full">
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Scan to auto-fill code</p>
+                    <p class="text-xs text-gray-500 mt-2">Scan to open check-in</p>
                 </div>
 
                 {{-- Actions --}}
@@ -61,15 +61,15 @@
                 <ol class="space-y-3 text-gray-700 dark:text-gray-300">
                     <li class="flex items-start">
                         <span class="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full flex items-center justify-center text-sm font-bold mr-3">1</span>
-                        <span>Display this code on the projector or board</span>
+                        <span>Show this page on the projector or print it for the door</span>
                     </li>
                     <li class="flex items-start">
                         <span class="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full flex items-center justify-center text-sm font-bold mr-3">2</span>
-                        <span>Students enter the code when they arrive (check-in)</span>
+                        <span>When they arrive, students scan the QR code (or open <strong>Attendance</strong>) and tap <strong>I'm here – check in</strong>. No code needed.</span>
                     </li>
                     <li class="flex items-start">
                         <span class="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full flex items-center justify-center text-sm font-bold mr-3">3</span>
-                        <span>Students enter the code again when they leave (check-out)</span>
+                        <span>When they leave, they tap <strong>Check Out</strong>.</span>
                     </li>
                     <li class="flex items-start">
                         <span class="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full flex items-center justify-center text-sm font-bold mr-3">4</span>

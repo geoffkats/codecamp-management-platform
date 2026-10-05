@@ -1,886 +1,856 @@
-<div class="{{ $this->embedded ? 'bg-white dark:bg-gray-900' : 'min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900' }}">
-    {{-- Embedded mode: compact top bar with back button --}}
+@php
+    $isAssignment = $assessment_type === 'assignment';
+    $inputClass = 'w-full rounded-xl border-0 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 ring-1 ring-inset ring-gray-200 placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-500 dark:bg-gray-800 dark:text-white dark:ring-gray-700';
+    $labelClass = 'mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400';
+    $cardClass = 'rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100 dark:bg-gray-900 dark:ring-gray-800 sm:p-6';
+    $canReview = auth()->user()->isAdmin() || auth()->user()->isTeacher();
+    $poolSize = $questions->count();
+    $perAttempt = $poolSize ? $assessment->questionsPerAttemptFor($poolSize) : 0;
+    $isPool = $poolSize > 1 && $assessment->drawsFromPool($poolSize);
+    $typeLabels = app(\App\Services\Assessments\QuestionTypeRegistry::class);
+    $tabs = array_filter([
+        'questions' => $isAssignment ? null : ['Questions', 'queue-list', $poolSize],
+        'settings' => ['Settings', 'adjustments-horizontal', null],
+        'submissions' => $canReview ? ['Submissions', 'inbox-stack', $submissionStats['total']] : null,
+    ]);
+    $activeTab = array_key_exists($tab, $tabs) ? $tab : array_key_first($tabs);
+    $facts = $isAssignment
+        ? [
+            ['star', ($assignment_max_points ?: 100).' pts', 'Max points'],
+            ['calendar-days', $assignment_due_date ? \Illuminate\Support\Carbon::parse($assignment_due_date)->format('M j') : 'No due date', 'Due'],
+            ['check-badge', ($passing_score ?? 0).'%', 'Pass mark'],
+        ]
+        : [
+            ['queue-list', $isPool ? "{$perAttempt} of {$poolSize}" : $poolSize, $isPool ? 'Random draw' : 'Questions'],
+            ['star', rtrim(rtrim(number_format((float) $totalPoints, 1), '0'), '.').' pts', 'Total'],
+            ['check-badge', ($passing_score ?? 0).'%', 'Pass mark'],
+            ['clock', $time_limit_minutes ? $time_limit_minutes.' min' : 'Untimed', 'Time'],
+        ];
+@endphp
+
+<div class="{{ $this->embedded ? 'min-h-full bg-gray-50 dark:bg-gray-950' : 'mx-auto max-w-6xl p-4 sm:p-6' }}">
+
     @if($this->embedded)
-    <div class="flex items-center gap-3 px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 sticky top-0 z-10">
-        <button wire:click="backToBuilder" type="button"
-                class="flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
-            </svg>
-            Back to Lesson
-        </button>
-        <div class="h-4 w-px bg-gray-200 dark:bg-gray-700"></div>
-        <span class="text-sm font-bold text-gray-800 dark:text-white truncate">{{ $this->title ?: 'Assessment Editor' }}</span>
-        <span class="ml-auto text-xs text-gray-400 dark:text-gray-500">Assessment Builder</span>
-    </div>
+        {{-- Embedded (curriculum builder) header --}}
+        <div class="sticky top-0 z-20 border-b border-gray-200 bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
+            <div class="flex items-center gap-3 px-5 py-2.5">
+                <button wire:click="backToBuilder" type="button"
+                        class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-gray-500 transition hover:bg-orange-50 hover:text-orange-600 dark:text-gray-400 dark:hover:bg-orange-900/20">
+                    <flux:icon name="chevron-left" variant="micro" class="size-4" /> Lesson
+                </button>
+                <nav class="hidden min-w-0 items-center gap-1 text-xs text-gray-400 md:flex">
+                    <span class="truncate">{{ $assessment->course->title }}</span>
+                    @if($assessment->lesson)
+                        <flux:icon name="chevron-right" variant="micro" class="size-3 shrink-0" />
+                        <span class="truncate">{{ $assessment->lesson->title }}</span>
+                    @endif
+                </nav>
+                <div class="ml-auto flex shrink-0 items-center gap-1.5">
+                    <button type="button" wire:click="toggleLock"
+                            @class([
+                                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold ring-1 transition',
+                                'bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-300 dark:ring-rose-900' => $assessment->is_locked,
+                                'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-900' => ! $assessment->is_locked,
+                            ])
+                            title="{{ $assessment->is_locked ? 'Students cannot open it. Click to unlock.' : 'Students can open it. Click to lock.' }}">
+                        <flux:icon :name="$assessment->is_locked ? 'lock-closed' : 'lock-open'" variant="micro" class="size-3.5" />
+                        {{ $assessment->is_locked ? 'Locked' : 'Open to students' }}
+                    </button>
+                    <a href="{{ route('assessments.show', $assessment) }}" wire:navigate
+                       class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-600 ring-1 ring-gray-200 transition hover:bg-gray-50 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-gray-800">
+                        <flux:icon name="chart-bar" variant="micro" class="size-3.5" /> Results
+                    </a>
+                </div>
+            </div>
+        </div>
     @endif
 
-    <div class="flex flex-col gap-6 {{ $this->embedded ? 'p-4' : 'p-6' }}">
-        {{-- Header (hidden in embedded mode) --}}
-        @if(!$this->embedded)
-        <div class="flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-            <div>
-                <div class="flex items-center gap-3 mb-2">
-                    <a href="{{ route('curriculum.builder', $assessment->course) }}" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                        </svg>
-                    </a>
-                    <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Edit Assessment</h1>
+    <div class="{{ $this->embedded ? 'space-y-5 p-5' : 'space-y-5' }}">
+
+        {{-- Summary card --}}
+        <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500 to-orange-600 p-5 text-white shadow-lg sm:p-6">
+            <div class="pointer-events-none absolute -right-12 -top-16 size-52 rounded-full bg-white/10"></div>
+            <div class="pointer-events-none absolute -bottom-20 right-32 size-40 rounded-full bg-white/10"></div>
+            <div class="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div class="flex min-w-0 items-start gap-4">
+                    <span class="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/20 ring-1 ring-white/30">
+                        <flux:icon :name="$typeMeta['icon']" class="size-6" />
+                    </span>
+                    <div class="min-w-0">
+                        @unless($this->embedded)
+                            <a href="{{ route('assessments.manage') }}" wire:navigate class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest text-orange-100 hover:text-white">
+                                <flux:icon name="arrow-left" variant="micro" class="size-3.5" /> Assessments
+                            </a>
+                        @endunless
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ring-1 ring-white/25">{{ $typeMeta['label'] }}</span>
+                            @if($is_required)
+                                <span class="rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ring-1 ring-white/25">Required</span>
+                            @endif
+                            @if(! $this->embedded && $assessment->is_locked)
+                                <span class="inline-flex items-center gap-1 rounded-full bg-gray-900/30 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider"><flux:icon name="lock-closed" variant="micro" class="size-3" /> Locked</span>
+                            @endif
+                        </div>
+                        <h1 class="mt-1.5 truncate text-2xl font-extrabold leading-tight">{{ $title ?: 'Untitled assessment' }}</h1>
+                        @unless($this->embedded)
+                            <p class="truncate text-sm text-orange-100">{{ $assessment->course->title }}@if($assessment->lesson) · {{ $assessment->lesson->title }}@endif</p>
+                        @endunless
+                    </div>
                 </div>
-                <p class="text-gray-600 dark:text-gray-400">{{ $assessment->course->title }}</p>
-            </div>
-            <div class="flex gap-3">
-                <flux:button href="{{ route('assessments.show', $assessment) }}" variant="outline" wire:navigate>
-                    View Assessment
-                </flux:button>
+
+                <div class="flex flex-wrap gap-2">
+                    @foreach($facts as [$icon, $value, $caption])
+                        <div class="min-w-[92px] rounded-2xl bg-white/15 px-3.5 py-2 ring-1 ring-white/20">
+                            <p class="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-orange-100"><flux:icon :name="$icon" variant="micro" class="size-3" />{{ $caption }}</p>
+                            <p class="text-base font-extrabold leading-tight">{{ $value }}</p>
+                        </div>
+                    @endforeach
+                    @unless($this->embedded)
+                        <a href="{{ route('curriculum.builder', ['course' => $assessment->course_id, 'assessment' => $assessment->id]) }}" wire:navigate
+                           class="inline-flex items-center gap-1.5 self-center rounded-xl bg-white/15 px-3.5 py-2 text-xs font-bold ring-1 ring-white/30 transition hover:bg-white/25">
+                            <flux:icon name="squares-2x2" variant="micro" class="size-4" /> In builder
+                        </a>
+                        <a href="{{ route('assessments.show', $assessment) }}" wire:navigate
+                           class="inline-flex items-center gap-1.5 self-center rounded-xl bg-white px-3.5 py-2 text-xs font-bold text-orange-600 shadow-sm transition hover:shadow-md">
+                            <flux:icon name="chart-bar" variant="micro" class="size-4" /> Results
+                        </a>
+                    @endunless
+                </div>
             </div>
         </div>
-        @endif
 
         @if(session()->has('message'))
-            <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center gap-3">
-                <svg class="h-5 w-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p class="text-sm font-medium text-green-800 dark:text-green-200">{{ session('message') }}</p>
+            <div class="flex items-center gap-3 rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-200 dark:bg-emerald-900/20 dark:ring-emerald-900">
+                <flux:icon name="check-circle" variant="mini" class="size-5 shrink-0 text-emerald-600" />
+                <p class="text-sm font-semibold text-emerald-800 dark:text-emerald-200">{{ session('message') }}</p>
             </div>
         @endif
-
         @if(session()->has('error'))
-            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-center gap-3">
-                <svg class="h-5 w-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p class="text-sm font-medium text-red-800 dark:text-red-200">{{ session('error') }}</p>
+            <div class="flex items-center gap-3 rounded-2xl bg-rose-50 px-4 py-3 ring-1 ring-rose-200 dark:bg-rose-900/20 dark:ring-rose-900">
+                <flux:icon name="exclamation-circle" variant="mini" class="size-5 shrink-0 text-rose-600" />
+                <p class="text-sm font-semibold text-rose-800 dark:text-rose-200">{{ session('error') }}</p>
             </div>
         @endif
 
-        {{-- Assessment Details Form --}}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-xl font-bold text-gray-900 dark:text-white">Assessment Details</h2>
-            </div>
-            <form wire:submit.prevent="updateAssessment" class="p-6 space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <flux:field>
-                        <flux:label>Title *</flux:label>
-                        <flux:input wire:model="title" />
-                        @error('title') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
-                    </flux:field>
-
-                    <flux:field>
-                        <flux:label>Assessment Type</flux:label>
-                        <flux:select wire:model="assessment_type" disabled>
-                            <option value="{{ $assessment_type }}">{{ ucfirst(str_replace('_', ' ', $assessment_type)) }}</option>
-                        </flux:select>
-                    </flux:field>
-
-                    <flux:field>
-                        <flux:label>Description</flux:label>
-                        <flux:textarea wire:model="description" rows="4" />
-                    </flux:field>
-
-                    @if($assessment_type === 'assignment')
-                    <div class="md:col-span-2 border border-purple-200 dark:border-purple-800 rounded-xl p-5 space-y-4 bg-purple-50/50 dark:bg-purple-900/10">
-                        <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Assignment Settings</h3>
-                        <flux:field>
-                            <flux:label>Instructions for Students</flux:label>
-                            <flux:textarea wire:model="assignment_instructions" rows="4" />
-                            @error('assignment_instructions') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                        </flux:field>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <flux:field>
-                                <flux:label>Due Date</flux:label>
-                                <flux:input type="date" wire:model="assignment_due_date" />
-                            </flux:field>
-                            <flux:field>
-                                <flux:label>Max Points</flux:label>
-                                <flux:input type="number" wire:model="assignment_max_points" min="1" max="1000" />
-                            </flux:field>
-                        </div>
-                        <div class="flex flex-wrap gap-x-5 gap-y-2">
-                            <flux:checkbox wire:model="assignment_allow_text">Allow text response</flux:checkbox>
-                            <flux:checkbox wire:model="assignment_allow_files">Allow file uploads</flux:checkbox>
-                        </div>
-                        @if(!empty($assignment_existing_attachments))
-                            <ul class="space-y-2">
-                                @foreach($assignment_existing_attachments as $index => $file)
-                                    <li class="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm">
-                                        <a href="{{ asset('storage/' . $file['path']) }}" target="_blank" class="truncate text-blue-600 hover:underline">{{ $file['name'] }}</a>
-                                        <button type="button" wire:click="removeExistingAssignmentAttachment({{ $index }})" class="text-red-600 text-xs font-semibold">Remove</button>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        @endif
-                        <flux:field>
-                            <flux:label>Add Brief Files</flux:label>
-                            <flux:input type="file" wire:model="assignmentBriefFiles" multiple accept=".pdf,.doc,.docx,.txt,.zip,.jpg,.jpeg,.png" />
-                        </flux:field>
-                    </div>
+        {{-- Tabs --}}
+        <div class="flex flex-wrap items-center gap-1 rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-gray-100 dark:bg-gray-900 dark:ring-gray-800">
+            @foreach($tabs as $key => [$label, $icon, $count])
+                <button type="button" wire:click="setTab('{{ $key }}')" wire:key="tab-{{ $key }}"
+                        @class([
+                            'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition',
+                            'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-900' => $activeTab === $key,
+                            'text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white' => $activeTab !== $key,
+                        ])>
+                    <flux:icon :name="$icon" variant="micro" class="size-4" />
+                    {{ $label }}
+                    @if($count !== null)
+                        <span @class([
+                            'rounded-full px-1.5 py-px text-[11px] font-extrabold',
+                            'bg-white/20 text-white dark:bg-gray-900/10 dark:text-gray-900' => $activeTab === $key,
+                            'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' => $activeTab !== $key,
+                        ])>{{ $count }}</span>
                     @endif
-
-                    <div class="space-y-4">
-                        <flux:field>
-                            <flux:label>Max Attempts</flux:label>
-                            <flux:input type="number" wire:model="max_attempts" min="1" />
-                        </flux:field>
-
-                        <flux:field>
-                            <flux:label>Time Limit (minutes)</flux:label>
-                            <flux:input type="number" wire:model="time_limit_minutes" min="1" />
-                        </flux:field>
-
-                        <flux:field>
-                            <flux:label>Passing Score (%)</flux:label>
-                            <flux:input type="number" wire:model="passing_score" min="0" max="100" />
-                        </flux:field>
-
-                        <flux:field>
-                            <flux:label>XP Reward</flux:label>
-                            <flux:input type="number" wire:model="xp_reward" min="0" />
-                        </flux:field>
-                    </div>
-
-                    <div class="space-y-4">
-                        <flux:field>
-                            <flux:checkbox wire:model="is_required" label="Required Assessment" />
-                        </flux:field>
-
-                        <flux:field>
-                            <flux:checkbox wire:model="show_results_immediately" label="Show Results Immediately" />
-                        </flux:field>
-
-                        <flux:field>
-                            <flux:checkbox wire:model="is_randomized" label="Randomize Questions" />
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Questions will appear in random order</p>
-                        </flux:field>
-
-                        <flux:field>
-                            <flux:checkbox wire:model="shuffle_options" label="Shuffle Answer Options" />
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Answer options will be randomly shuffled</p>
-                        </flux:field>
-
-                        <flux:field>
-                            <flux:checkbox wire:model="show_correct_answers" label="Show Correct Answers" />
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Display correct answers after submission</p>
-                        </flux:field>
-
-                        <flux:field>
-                            <flux:checkbox wire:model="allow_review" label="Allow Review" />
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Students can review their answers</p>
-                        </flux:field>
-                    </div>
-                </div>
-
-                <div class="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <flux:button type="submit" variant="primary">Save Assessment</flux:button>
-                </div>
-            </form>
+                    @if($key === 'submissions' && $submissionStats['pending'] > 0)
+                        <span class="rounded-full bg-rose-500 px-1.5 py-px text-[11px] font-extrabold text-white" title="Waiting to be graded">{{ $submissionStats['pending'] }}</span>
+                    @endif
+                </button>
+            @endforeach
+            <div wire:loading.delay wire:target="setTab" class="ml-auto pr-3 text-xs font-semibold text-orange-600">Loading…</div>
         </div>
 
-        {{-- Questions Section --}}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div class="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <div>
-                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">Questions</h2>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        {{ $questions->count() }} question(s) • {{ $totalPoints }} total points
-                    </p>
+        {{-- ===================== QUESTIONS ===================== --}}
+        @if($activeTab === 'questions')
+            <section class="space-y-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h2 class="text-lg font-extrabold text-gray-900 dark:text-white">Questions</h2>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ $poolSize }} {{ \Illuminate\Support\Str::plural('question', $poolSize) }} · {{ rtrim(rtrim(number_format((float) $totalPoints, 1), '0'), '.') }} points in total
+                        </p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" wire:click="openBankPicker"
+                                class="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-sm font-bold text-gray-700 shadow-sm ring-1 ring-gray-200 transition hover:ring-orange-300 hover:text-orange-600 dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700">
+                            <flux:icon name="archive-box" variant="micro" class="size-4" /> From Question Bank
+                        </button>
+                        <button type="button" wire:click="openQuestionModal"
+                                class="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-3.5 py-2 text-sm font-bold text-white shadow-sm transition hover:shadow-md">
+                            <flux:icon name="plus" variant="micro" class="size-4" /> New question
+                        </button>
+                    </div>
                 </div>
-                <flux:button wire:click="openQuestionModal" variant="primary">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    Add Question
-                </flux:button>
-            </div>
 
-            <div class="p-6">
-                @if($questions->count() > 0)
-                    <div class="space-y-4">
-                        @foreach($questions as $question)
-                            <div class="border-2 border-gray-200 dark:border-gray-700 rounded-xl p-6 bg-gray-50 dark:bg-gray-900/50 hover:border-blue-400 dark:hover:border-blue-600 transition-colors">
-                                <div class="flex items-start justify-between gap-4">
-                                    <div class="flex-1">
-                                        <div class="flex items-center gap-3 mb-3">
-                                            <span class="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                                                #{{ $question->order }}
-                                            </span>
-                                            <span class="px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400 capitalize">
-                                                {{ str_replace('_', ' ', $question->question_type) }}
-                                            </span>
-                                            <span class="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                                {{ $question->points }} pts
+                @if($poolSize > 1)
+                    <div class="rounded-2xl p-4 ring-1 {{ $isPool ? 'bg-orange-50 ring-orange-200 dark:bg-orange-900/10 dark:ring-orange-900/50' : 'bg-white ring-gray-100 dark:bg-gray-900 dark:ring-gray-800' }}"
+                         x-data="{ count: {{ $assessment->questions_per_attempt ? min($assessment->questions_per_attempt, $poolSize) : max(1, (int) ceil($poolSize / 2)) }} }">
+                        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div class="flex items-start gap-3">
+                                <span class="flex size-10 shrink-0 items-center justify-center rounded-xl {{ $isPool ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400' }}">
+                                    <flux:icon name="arrows-right-left" class="size-5" />
+                                </span>
+                                <div>
+                                    <p class="text-sm font-extrabold text-gray-900 dark:text-white">
+                                        {{ $isPool ? "Random pool: each student gets {$perAttempt} of {$poolSize} questions" : "Every student gets all {$poolSize} questions" }}
+                                    </p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                                        {{ $isPool ? 'Every attempt draws a fresh random set in a random order, so students can\'t copy each other or memorise the paper.' : 'Turn on a random pool so each attempt draws a different subset in random order.' }}
+                                    </p>
+                                    @error('questions_per_attempt') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="flex items-center gap-2 rounded-xl bg-white px-3 py-1.5 ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-700">
+                                    <span class="text-xs font-semibold text-gray-500">Per attempt</span>
+                                    <input type="number" min="1" max="{{ $poolSize }}" x-model.number="count"
+                                           class="w-16 rounded-lg border-0 bg-gray-100 px-2 py-1 text-center text-sm font-extrabold text-gray-900 focus:ring-2 focus:ring-orange-500 dark:bg-gray-800 dark:text-white">
+                                    <span class="text-xs text-gray-400">of {{ $poolSize }}</span>
+                                </div>
+                                <button type="button" x-on:click="$wire.savePool(count)"
+                                        class="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-orange-600">
+                                    <flux:icon name="sparkles" variant="micro" class="size-4" /> {{ $isPool ? 'Update pool' : 'Use random pool' }}
+                                </button>
+                                @if($isPool)
+                                    <button type="button" wire:click="savePool(null)"
+                                            class="rounded-xl px-3 py-2 text-xs font-bold text-gray-500 transition hover:bg-white hover:text-gray-800 dark:hover:bg-gray-800">
+                                        Use all questions
+                                    </button>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                @forelse($questions as $question)
+                    @php
+                        $isChoice = in_array($question->question_type, ['multiple_choice', 'true_false', 'choice', 'multiple_select'], true);
+                        $difficultyDot = ['easy' => 'bg-emerald-500', 'medium' => 'bg-amber-500', 'hard' => 'bg-rose-500'][$question->difficulty] ?? 'bg-gray-300';
+                    @endphp
+                    <article wire:key="assessment-question-{{ $question->id }}"
+                             class="group flex gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100 transition hover:ring-orange-200 dark:bg-gray-900 dark:ring-gray-800 dark:hover:ring-orange-900 sm:p-5">
+                        <div class="flex shrink-0 flex-col items-center gap-1">
+                            <span class="flex size-9 items-center justify-center rounded-xl bg-gray-900 text-sm font-extrabold text-white dark:bg-white dark:text-gray-900">{{ $loop->iteration }}</span>
+                            <button type="button" wire:click="moveQuestion({{ $question->id }}, -1)" @disabled($loop->first) title="Move up"
+                                    class="rounded-md p-0.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 disabled:invisible dark:hover:bg-gray-800">
+                                <flux:icon name="chevron-up" variant="micro" class="size-4" />
+                            </button>
+                            <button type="button" wire:click="moveQuestion({{ $question->id }}, 1)" @disabled($loop->last) title="Move down"
+                                    class="rounded-md p-0.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 disabled:invisible dark:hover:bg-gray-800">
+                                <flux:icon name="chevron-down" variant="micro" class="size-4" />
+                            </button>
+                        </div>
+
+                        <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+                                <span class="rounded-md bg-orange-50 px-2 py-0.5 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">{{ $typeLabels->label($question->question_type) }}</span>
+                                <span class="rounded-md bg-gray-100 px-2 py-0.5 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{{ rtrim(rtrim(number_format((float) $question->points, 1), '0'), '.') }} {{ (float) $question->points === 1.0 ? 'pt' : 'pts' }}</span>
+                                @if($question->difficulty)
+                                    <span class="inline-flex items-center gap-1 rounded-md bg-gray-50 px-2 py-0.5 capitalize text-gray-600 dark:bg-gray-800 dark:text-gray-300"><span class="size-1.5 rounded-full {{ $difficultyDot }}"></span>{{ $question->difficulty }}</span>
+                                @endif
+                                @if($question->status && $question->status !== 'active')
+                                    <span class="rounded-md bg-gray-200 px-2 py-0.5 capitalize text-gray-700 dark:bg-gray-700 dark:text-gray-200">{{ $question->status }}</span>
+                                @endif
+                                @if($question->assessments_count > 1)
+                                    <span class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-900" title="Editing this question changes it everywhere it is used">
+                                        <flux:icon name="link" variant="micro" class="size-3" /> Shared · {{ $question->assessments_count }}
+                                    </span>
+                                @endif
+                                @foreach($question->tags as $tag)
+                                    <span class="font-semibold text-gray-400">#{{ $tag->name }}</span>
+                                @endforeach
+                            </div>
+
+                            <x-question-text :text="$question->question_text" class="mt-2 text-[15px] font-semibold leading-snug text-gray-900 dark:text-white" />
+
+                            @if($question->image_url)
+                                <img src="{{ Storage::disk('public')->url($question->image_url) }}" alt="Question image"
+                                     class="mt-3 max-h-48 rounded-xl ring-1 ring-gray-200 dark:ring-gray-700">
+                            @endif
+
+                            @if($question->options->count() > 0)
+                                <div class="mt-3 grid gap-1.5 sm:grid-cols-2">
+                                    @foreach($question->options as $option)
+                                        <div @class([
+                                            'flex items-start gap-2 rounded-xl px-3 py-2 text-sm',
+                                            'bg-emerald-50 font-semibold text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-200 dark:ring-emerald-900' => $option->is_correct,
+                                            'bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-300' => ! $option->is_correct,
+                                        ])>
+                                            @if($isChoice)
+                                                <span @class([
+                                                    'mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold',
+                                                    'bg-emerald-500 text-white' => $option->is_correct,
+                                                    'bg-white text-gray-400 ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-700' => ! $option->is_correct,
+                                                ])>
+                                                    @if($option->is_correct)<flux:icon name="check" variant="micro" class="size-3" />@else{{ chr(65 + $loop->index) }}@endif
+                                                </span>
+                                            @else
+                                                <span class="mt-0.5 shrink-0 text-xs font-extrabold text-gray-400">{{ $loop->iteration }}.</span>
+                                            @endif
+                                            <span class="min-w-0">
+                                                {{ $option->option_text }}
+                                                @if($option->image_url)
+                                                    <img src="{{ Storage::disk('public')->url($option->image_url) }}" alt="{{ $option->image_alt_text ?? 'Option image' }}"
+                                                         class="mt-1.5 max-h-28 rounded-lg ring-1 ring-gray-200 dark:ring-gray-700">
+                                                @endif
                                             </span>
                                         </div>
-                                        <h3 class="font-bold text-lg text-gray-900 dark:text-white mb-2">
-                                            {{ $question->question_text }}
-                                        </h3>
-                                        @if($question->image_url)
-                                            <div class="mt-4">
-                                                <img src="{{ Storage::disk('public')->url($question->image_url) }}" 
-                                                     alt="Question image" 
-                                                     class="max-w-md rounded-lg border border-gray-200 dark:border-gray-700">
-                                            </div>
-                                        @endif
-                                        @if($question->options->count() > 0)
-                                            <div class="mt-4 space-y-3">
-                                                @foreach($question->options as $option)
-                                                    <div class="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border {{ $option->is_correct ? 'border-green-300 dark:border-green-700' : 'border-gray-200 dark:border-gray-700' }}">
-                                                        @if(in_array($question->question_type, ['multiple_choice', 'true_false', 'choice']))
-                                                            <input type="radio" disabled {{ $option->is_correct ? 'checked' : '' }} class="w-4 h-4 mt-1">
-                                                        @elseif($question->question_type === 'multiple_select')
-                                                            <input type="checkbox" disabled {{ $option->is_correct ? 'checked' : '' }} class="w-4 h-4 mt-1 rounded">
-                                                        @endif
-                                                        <div class="flex-1">
-                                                            <span class="text-gray-900 dark:text-white font-medium {{ $option->is_correct ? 'text-green-600 dark:text-green-400' : '' }}">
-                                                                {{ $option->option_text }}
-                                                            </span>
-                                                            @if($option->image_url)
-                                                                <div class="mt-2">
-                                                                    <img src="{{ Storage::disk('public')->url($option->image_url) }}" 
-                                                                         alt="{{ $option->image_alt_text ?? 'Option image' }}" 
-                                                                         class="max-w-xs rounded border border-gray-200 dark:border-gray-700">
-                                                                </div>
-                                                            @endif
-                                                        </div>
-                                                        @if($option->is_correct)
-                                                            <span class="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">✓ Correct</span>
-                                                        @endif
-                                                    </div>
-                                                @endforeach
-                                            </div>
-                                        @endif
-                                        @if($question->explanation)
-                                            <div class="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                                                <p class="text-sm text-gray-700 dark:text-gray-300"><strong>Explanation:</strong> {{ $question->explanation }}</p>
-                                            </div>
-                                        @endif
-                                    </div>
-                                    <div class="flex gap-2">
-                                        <flux:button wire:click="openQuestionModal({{ $question->id }})" variant="ghost" class="text-sm">
-                                            Edit
-                                        </flux:button>
-                                        <flux:button wire:click="deleteQuestion({{ $question->id }})" variant="danger" class="text-sm" wire:confirm="Are you sure?">
-                                            Delete
-                                        </flux:button>
-                                    </div>
+                                    @endforeach
                                 </div>
+                            @endif
+
+                            @if($question->explanation)
+                                <details class="group/exp mt-3">
+                                    <summary class="inline-flex cursor-pointer list-none items-center gap-1 text-xs font-bold text-sky-600 hover:text-sky-700 dark:text-sky-400">
+                                        <flux:icon name="light-bulb" variant="micro" class="size-3.5" /> Explanation
+                                        <flux:icon name="chevron-down" variant="micro" class="size-3 transition group-open/exp:rotate-180" />
+                                    </summary>
+                                    <p class="mt-1.5 rounded-xl bg-sky-50 px-3 py-2 text-sm text-gray-700 dark:bg-sky-900/20 dark:text-gray-300">{{ $question->explanation }}</p>
+                                </details>
+                            @endif
+                        </div>
+
+                        <div class="flex shrink-0 flex-col gap-1 sm:flex-row sm:items-start">
+                            <button type="button" wire:click="openQuestionModal({{ $question->id }})" title="Edit question"
+                                    class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-600 ring-1 ring-gray-200 transition hover:bg-orange-50 hover:text-orange-600 hover:ring-orange-200 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-orange-900/20">
+                                <flux:icon name="pencil-square" variant="micro" class="size-3.5" /> Edit
+                            </button>
+                            <button type="button" wire:click="deleteQuestion({{ $question->id }})" title="Remove from this assessment"
+                                    wire:confirm="Remove this question from the assessment? It stays in the Question Bank."
+                                    class="inline-flex items-center justify-center rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/20">
+                                <flux:icon name="trash" variant="micro" class="size-4" />
+                            </button>
+                        </div>
+                    </article>
+                @empty
+                    <div class="rounded-2xl border-2 border-dashed border-gray-200 bg-white px-6 py-14 text-center dark:border-gray-800 dark:bg-gray-900">
+                        <span class="mx-auto flex size-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-500 dark:bg-orange-900/20">
+                            <flux:icon name="queue-list" class="size-7" />
+                        </span>
+                        <h3 class="mt-4 text-base font-extrabold text-gray-900 dark:text-white">No questions yet</h3>
+                        <p class="mx-auto mt-1 max-w-sm text-sm text-gray-500 dark:text-gray-400">Write a new question, or reuse ones you already have in the Question Bank.</p>
+                        <div class="mt-5 flex justify-center gap-2">
+                            <button type="button" wire:click="openBankPicker"
+                                    class="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-bold text-gray-700 ring-1 ring-gray-200 transition hover:ring-orange-300 dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700">
+                                <flux:icon name="archive-box" variant="micro" class="size-4" /> From Question Bank
+                            </button>
+                            <button type="button" wire:click="openQuestionModal"
+                                    class="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 text-sm font-bold text-white shadow-sm">
+                                <flux:icon name="plus" variant="micro" class="size-4" /> New question
+                            </button>
+                        </div>
+                    </div>
+                @endforelse
+            </section>
+        @endif
+
+        {{-- ===================== SETTINGS ===================== --}}
+        @if($activeTab === 'settings')
+            <form wire:submit="updateAssessment" class="space-y-5">
+                <section class="{{ $cardClass }} space-y-4">
+                    <h2 class="text-base font-extrabold text-gray-900 dark:text-white">Basics</h2>
+                    <div>
+                        <label class="{{ $labelClass }}">Title <span class="text-rose-500">*</span></label>
+                        <input type="text" wire:model="title" class="{{ $inputClass }} text-base font-semibold" required>
+                        @error('title') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">{{ $isAssignment ? 'Brief summary' : 'Description' }}</label>
+                        <textarea wire:model="description" rows="3" class="{{ $inputClass }}" placeholder="Optional. Shown to students before they start."></textarea>
+                        @error('description') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <span class="flex size-7 items-center justify-center rounded-lg {{ $typeMeta['tile'] }}"><flux:icon :name="$typeMeta['icon']" variant="micro" class="size-4" /></span>
+                        <span><span class="font-bold text-gray-700 dark:text-gray-200">{{ $typeMeta['label'] }}</span>. The type can't be changed after creation.</span>
+                    </div>
+                </section>
+
+                @if($isAssignment)
+                    <section class="{{ $cardClass }} space-y-4">
+                        <h2 class="text-base font-extrabold text-gray-900 dark:text-white">Assignment details</h2>
+                        <div>
+                            <label class="{{ $labelClass }}">Instructions for students</label>
+                            <textarea wire:model="assignment_instructions" rows="5" class="{{ $inputClass }}" placeholder="What should students do? Include steps, rubric notes or links."></textarea>
+                            @error('assignment_instructions') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <div>
+                                <label class="{{ $labelClass }}">Due date</label>
+                                <input type="date" wire:model="assignment_due_date" class="{{ $inputClass }}">
+                                @error('assignment_due_date') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="{{ $labelClass }}">Max points</label>
+                                <input type="number" wire:model="assignment_max_points" min="1" max="1000" class="{{ $inputClass }}" required>
+                                @error('assignment_max_points') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+                            </div>
+                        </div>
+                        <div>
+                            <label class="{{ $labelClass }}">Students can hand in</label>
+                            <div class="grid gap-2.5 sm:grid-cols-2">
+                                @foreach(['assignment_allow_text' => ['Text response', 'Type their answer in the browser', 'pencil-square'], 'assignment_allow_files' => ['File upload', 'PDF, Word, images, ZIP (10MB max)', 'paper-clip']] as $field => [$label, $hint, $icon])
+                                    <label class="flex cursor-pointer items-start gap-3 rounded-xl p-3 ring-1 ring-gray-200 transition has-[:checked]:bg-orange-50 has-[:checked]:ring-2 has-[:checked]:ring-orange-500 dark:ring-gray-700 dark:has-[:checked]:bg-orange-900/20">
+                                        <input type="checkbox" wire:model="{{ $field }}" class="mt-0.5 size-4 rounded accent-orange-500">
+                                        <span>
+                                            <span class="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white"><flux:icon :name="$icon" variant="micro" class="size-4 text-orange-500" />{{ $label }}</span>
+                                            <span class="block text-xs text-gray-500 dark:text-gray-400">{{ $hint }}</span>
+                                        </span>
+                                    </label>
+                                @endforeach
+                            </div>
+                            @error('assignment_allow_files') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="{{ $labelClass }}">Brief files</label>
+                            @if(!empty($assignment_existing_attachments))
+                                <ul class="mb-3 space-y-2">
+                                    @foreach($assignment_existing_attachments as $index => $file)
+                                        <li class="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2 text-sm dark:bg-gray-800">
+                                            <a href="{{ asset('storage/' . $file['path']) }}" target="_blank" class="flex min-w-0 items-center gap-2 font-semibold text-gray-700 hover:text-orange-600 dark:text-gray-200">
+                                                <flux:icon name="document" variant="micro" class="size-4 shrink-0 text-gray-400" /><span class="truncate">{{ $file['name'] }}</span>
+                                            </a>
+                                            <button type="button" wire:click="removeExistingAssignmentAttachment({{ $index }})" class="text-xs font-bold text-rose-600 hover:text-rose-700">Remove</button>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @endif
+                            <label class="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-gray-200 px-4 py-5 text-center transition hover:border-orange-300 hover:bg-orange-50/50 dark:border-gray-700 dark:hover:bg-orange-900/10">
+                                <flux:icon name="cloud-arrow-up" class="size-6 text-orange-400" />
+                                <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">Attach worksheets or reference images</span>
+                                <span class="text-xs text-gray-400">Max 10MB each. Saved when you click Save changes.</span>
+                                <input type="file" wire:model="assignmentBriefFiles" multiple accept=".pdf,.doc,.docx,.txt,.zip,.jpg,.jpeg,.png" class="hidden">
+                            </label>
+                            <div wire:loading wire:target="assignmentBriefFiles" class="mt-2 text-xs font-semibold text-orange-600">Uploading…</div>
+                            @if(!empty($assignmentBriefFiles))
+                                <p class="mt-2 text-xs font-semibold text-gray-600 dark:text-gray-300">{{ count($assignmentBriefFiles) }} new {{ \Illuminate\Support\Str::plural('file', count($assignmentBriefFiles)) }} ready to upload</p>
+                            @endif
+                            @error('assignmentBriefFiles.*') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+                        </div>
+                    </section>
+                @endif
+
+                <section class="{{ $cardClass }} space-y-5">
+                    <h2 class="text-base font-extrabold text-gray-900 dark:text-white">Rules</h2>
+                    @php
+                        $numbers = ['max_attempts' => ['Attempts', 'arrow-path', 1, null, ''], 'passing_score' => ['Pass mark %', 'check-badge', 0, 100, ''], 'xp_reward' => ['XP reward', 'star', 0, null, '']];
+                        if (! $isAssignment) {
+                            $numbers = ['max_attempts' => $numbers['max_attempts'], 'time_limit_minutes' => ['Time limit (min)', 'clock', 1, null, 'None']] + array_slice($numbers, 1, null, true);
+                        }
+                    @endphp
+                    <div class="grid grid-cols-2 gap-3 {{ $isAssignment ? 'sm:grid-cols-3' : 'sm:grid-cols-4' }}">
+                        @foreach($numbers as $field => [$label, $icon, $min, $max, $placeholder])
+                            <div class="rounded-xl bg-gray-50 p-3 ring-1 ring-gray-100 focus-within:ring-2 focus-within:ring-orange-500 dark:bg-gray-800 dark:ring-gray-700">
+                                <span class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400"><flux:icon :name="$icon" variant="micro" class="size-3.5 text-orange-500" />{{ $label }}</span>
+                                <input type="number" wire:model="{{ $field }}" min="{{ $min }}" @if($max) max="{{ $max }}" @endif placeholder="{{ $placeholder }}"
+                                       class="mt-1 w-full border-0 bg-transparent p-0 text-2xl font-extrabold text-gray-900 placeholder:text-gray-300 focus:ring-0 dark:text-white">
+                                @error($field) <p class="text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
                             </div>
                         @endforeach
                     </div>
-                @else
-                    <div class="text-center py-12">
-                        <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Questions Yet</h3>
-                        <p class="text-gray-600 dark:text-gray-400 mb-4">Start by adding your first question</p>
-                        <flux:button wire:click="openQuestionModal" variant="primary">
-                            Add First Question
-                        </flux:button>
-                    </div>
-                @endif
-            </div>
-        </div>
 
-        {{-- Student Submissions Section (for teachers/admins) --}}
-        @if(auth()->user()->isAdmin() || auth()->user()->isTeacher())
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <div>
-                        <h2 class="text-xl font-bold text-gray-900 dark:text-white">Student Submissions</h2>
-                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            View and review student attempts
+                    @unless($isAssignment)
+                        <div class="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                            @foreach([
+                                'is_randomized' => ['Shuffle question order', 'Each student sees questions in a different order', 'queue-list'],
+                                'shuffle_options' => ['Shuffle answers', 'A, B, C, D appear in a different order', 'arrows-up-down'],
+                                'show_results_immediately' => ['Show score right away', 'Students see their result on submit', 'bolt'],
+                                'show_correct_answers' => ['Show correct answers', 'Reveal the answers after submitting', 'eye'],
+                                'allow_review' => ['Allow review', 'Students can look back at their answers', 'document-magnifying-glass'],
+                                'is_required' => ['Required', 'Must be completed to finish the lesson', 'flag'],
+                            ] as $field => [$label, $hint, $icon])
+                                <label class="flex cursor-pointer items-start gap-3 rounded-xl p-3 ring-1 ring-gray-200 transition has-[:checked]:bg-orange-50 has-[:checked]:ring-orange-300 dark:ring-gray-700 dark:has-[:checked]:bg-orange-900/20">
+                                    <input type="checkbox" wire:model="{{ $field }}" class="mt-0.5 size-4 rounded accent-orange-500">
+                                    <span>
+                                        <span class="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white"><flux:icon :name="$icon" variant="micro" class="size-4 text-orange-500" />{{ $label }}</span>
+                                        <span class="block text-xs text-gray-500 dark:text-gray-400">{{ $hint }}</span>
+                                    </span>
+                                </label>
+                            @endforeach
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            <flux:icon name="arrows-right-left" variant="micro" class="inline size-3.5 text-orange-500" />
+                            The random question pool is set on the <button type="button" wire:click="setTab('questions')" class="font-bold text-orange-600 hover:underline">Questions</button> tab.
                         </p>
-                    </div>
-                    <flux:button wire:click="$toggle('showSubmissions')" variant="outline">
-                        {{ $showSubmissions ? 'Hide' : 'Show' }} Submissions
-                    </flux:button>
+                    @else
+                        <label class="flex w-fit cursor-pointer items-start gap-3 rounded-xl p-3 ring-1 ring-gray-200 transition has-[:checked]:bg-orange-50 has-[:checked]:ring-orange-300 dark:ring-gray-700">
+                            <input type="checkbox" wire:model="is_required" class="mt-0.5 size-4 rounded accent-orange-500">
+                            <span>
+                                <span class="text-sm font-bold text-gray-900 dark:text-white">Required</span>
+                                <span class="block text-xs text-gray-500 dark:text-gray-400">Must be submitted to finish the lesson</span>
+                            </span>
+                        </label>
+                    @endunless
+                </section>
+
+                <div class="sticky bottom-4 z-10 flex items-center justify-between gap-3 rounded-2xl bg-white/90 p-3 shadow-lg ring-1 ring-gray-100 backdrop-blur dark:bg-gray-900/90 dark:ring-gray-800">
+                    <p class="hidden pl-2 text-xs text-gray-500 sm:block">Changes apply to new attempts. Attempts already started keep their questions.</p>
+                    <button type="submit" wire:loading.attr="disabled" wire:target="updateAssessment"
+                            class="ml-auto inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:shadow-md disabled:opacity-60">
+                        <flux:icon name="check" variant="micro" class="size-4" />
+                        <span wire:loading.remove wire:target="updateAssessment">Save changes</span>
+                        <span wire:loading wire:target="updateAssessment">Saving…</span>
+                    </button>
                 </div>
-                @if($showSubmissions && $attempts)
-                    <div class="p-6">
-                        @if($attempts->count() > 0)
-                            <div class="space-y-4">
-                                @foreach($attempts as $attempt)
-                                    <div class="border-2 border-gray-200 dark:border-gray-700 rounded-xl p-5 bg-gray-50 dark:bg-gray-900/50 hover:border-blue-400 dark:hover:border-blue-600 transition-colors">
-                                        <div class="flex items-center justify-between">
-                                            <div class="flex-1">
-                                                <div class="flex items-center gap-3 mb-2">
-                                                    <h3 class="font-bold text-lg text-gray-900 dark:text-white">
-                                                        {{ $attempt->user->name }}
-                                                    </h3>
-                                                    @if($assessment->assessment_type === 'assignment' && $attempt->score === null)
-                                                        <span class="px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
-                                                            Awaiting Grade
-                                                        </span>
-                                                        <span class="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                                            Score: Not Graded
-                                                        </span>
-                                                    @else
-                                                        <span class="px-3 py-1 rounded-full text-xs font-medium {{ $attempt->is_passed ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' }}">
-                                                            {{ $attempt->is_passed ? 'Passed' : 'Failed' }}
-                                                        </span>
-                                                        <span class="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                                                            Score: {{ number_format($attempt->score ?? 0, 1) }}%
-                                                        </span>
-                                                    @endif
-                                                </div>
-                                                <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                                                    <span>Completed: {{ $attempt->completed_at ? $attempt->completed_at->format('M d, Y H:i') : 'N/A' }}</span>
-                                                    <span>Time Spent: {{ $attempt->time_spent ?? 0 }} minutes</span>
-                                                </div>
-                                            </div>
-                                            <div class="flex gap-2">
-                                                <flux:button wire:click="viewAttempt({{ $attempt->id }})" variant="primary" class="text-sm">
-                                                    View Details
-                                                </flux:button>
-                                                @if($assessment->assessment_type === 'assignment' && $attempt->score === null)
-                                                    <flux:button wire:click="startGrading({{ $attempt->id }})" variant="primary" class="text-sm">
-                                                        Grade
-                                                    </flux:button>
-                                                @elseif($assessment->assessment_type === 'assignment' && $attempt->score !== null)
-                                                    <flux:button wire:click="startGrading({{ $attempt->id }})" variant="outline" class="text-sm">
-                                                        Edit Grade
-                                                    </flux:button>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endforeach
+            </form>
+        @endif
+
+        {{-- ===================== SUBMISSIONS ===================== --}}
+        @if($activeTab === 'submissions')
+            <section class="space-y-4">
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    @foreach([
+                        ['Submitted', $submissionStats['total'], 'inbox-stack', 'bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300'],
+                        ['Needs grading', $submissionStats['pending'], 'pencil-square', 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300'],
+                        ['Average score', $submissionStats['average'] !== null ? $submissionStats['average'].'%' : '–', 'chart-bar', 'bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300'],
+                        ['Pass rate', $submissionStats['passRate'] !== null ? $submissionStats['passRate'].'%' : '–', 'check-badge', 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300'],
+                    ] as [$label, $value, $icon, $tile])
+                        <div class="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100 dark:bg-gray-900 dark:ring-gray-800">
+                            <span class="flex size-10 shrink-0 items-center justify-center rounded-xl {{ $tile }}"><flux:icon :name="$icon" class="size-5" /></span>
+                            <div>
+                                <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400">{{ $label }}</p>
+                                <p class="text-xl font-extrabold text-gray-900 dark:text-white">{{ $value }}</p>
                             </div>
-                            <div class="mt-6">
-                                {{ $attempts->links() }}
+                        </div>
+                    @endforeach
+                </div>
+
+                <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100 dark:bg-gray-900 dark:ring-gray-800">
+                    @forelse($attempts as $attempt)
+                        @php
+                            $percent = $attempt->scorePercentage();
+                            $ungraded = $attempt->score === null;
+                            $initials = collect(explode(' ', trim($attempt->user->name ?? '?')))->filter()->take(2)->map(fn ($p) => mb_strtoupper(mb_substr($p, 0, 1)))->implode('');
+                        @endphp
+                        <div wire:key="attempt-row-{{ $attempt->id }}" class="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-0 dark:border-gray-800 sm:flex-row sm:items-center">
+                            <div class="flex min-w-0 flex-1 items-center gap-3">
+                                <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gray-700 to-gray-900 text-xs font-extrabold text-white">{{ $initials ?: '?' }}</span>
+                                <div class="min-w-0">
+                                    <p class="truncate text-sm font-bold text-gray-900 dark:text-white">{{ $attempt->user->name ?? 'Unknown student' }}</p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                                        {{ $attempt->completed_at ? $attempt->completed_at->format('M j, Y · H:i') : 'Not finished' }}
+                                        @if($attempt->time_spent) · {{ $attempt->time_spent }} min @endif                                    </p>
+                                </div>
                             </div>
-                        @else
-                            <div class="text-center py-12">
-                                <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Submissions Yet</h3>
-                                <p class="text-gray-600 dark:text-gray-400">Students haven't completed this assessment yet</p>
+                            <div class="flex items-center gap-2">
+                                @if($ungraded)
+                                    <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-900">
+                                        <flux:icon name="clock" variant="micro" class="size-3.5" /> Awaiting grade
+                                    </span>
+                                @else
+                                    <span class="w-14 text-right text-base font-extrabold {{ $attempt->is_passed ? 'text-emerald-600' : 'text-rose-600' }}">{{ $percent !== null ? round($percent).'%' : '–' }}</span>
+                                    <span @class([
+                                        'rounded-full px-2.5 py-1 text-xs font-bold',
+                                        'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300' => $attempt->is_passed,
+                                        'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-300' => ! $attempt->is_passed,
+                                    ])>{{ $attempt->is_passed ? 'Passed' : 'Not passed' }}</span>
+                                @endif
                             </div>
-                        @endif
-                    </div>
+                            <div class="flex items-center gap-1.5 sm:justify-end">
+                                <button type="button" wire:click="viewAttempt({{ $attempt->id }})"
+                                        class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-600 ring-1 ring-gray-200 transition hover:bg-gray-50 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-gray-800">
+                                    <flux:icon name="eye" variant="micro" class="size-3.5" /> View
+                                </button>
+                                @if($isAssignment)
+                                    <button type="button" wire:click="startGrading({{ $attempt->id }})"
+                                            @class([
+                                                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition',
+                                                'bg-orange-500 text-white hover:bg-orange-600' => $ungraded,
+                                                'text-orange-600 ring-1 ring-orange-200 hover:bg-orange-50 dark:ring-orange-900' => ! $ungraded,
+                                            ])>
+                                        <flux:icon name="pencil-square" variant="micro" class="size-3.5" /> {{ $ungraded ? 'Grade' : 'Edit grade' }}
+                                    </button>
+                                @elseif($ungraded)
+                                    <a href="{{ route('grades.grade', $attempt->id) }}" wire:navigate
+                                       class="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-orange-600">
+                                        <flux:icon name="pencil-square" variant="micro" class="size-3.5" /> Grade
+                                    </a>
+                                @endif
+                            </div>
+                        </div>
+                    @empty
+                        <div class="px-6 py-14 text-center">
+                            <span class="mx-auto flex size-14 items-center justify-center rounded-2xl bg-gray-100 text-gray-400 dark:bg-gray-800">
+                                <flux:icon name="inbox" class="size-7" />
+                            </span>
+                            <h3 class="mt-4 text-base font-extrabold text-gray-900 dark:text-white">No submissions yet</h3>
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Completed attempts will appear here.</p>
+                        </div>
+                    @endforelse
+                </div>
+                @if($attempts->hasPages())
+                    <div>{{ $attempts->links() }}</div>
                 @endif
-            </div>
+            </section>
         @endif
     </div>
 
     {{-- Question Editor Modal --}}
     @if($showQuestionModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" wire:ignore.self>
+        <div class="fixed inset-0 z-50 overflow-y-auto">
             <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" wire:click="closeQuestionModal"></div>
-            
+
             <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 shadow-2xl transition-all w-full max-w-4xl max-h-[90vh] flex flex-col">
-                    {{-- Modal Header --}}
-                    <div class="bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 px-8 py-6">
-                        <div class="flex items-center justify-between">
-<div>
-                                <h3 class="text-2xl font-bold text-white">
-                                    {{ $editingQuestionId ? 'Edit' : 'Add' }} Question
-                                </h3>
-                                <p class="text-white/80 text-sm mt-1">Create a question for this {{ str_replace('_', ' ', $assessment_type) }} assessment</p>
+                <div class="relative transform overflow-hidden rounded-2xl bg-gray-50 dark:bg-gray-950 shadow-2xl transition-all w-full max-w-6xl max-h-[92vh] flex flex-col">
+                    <div class="relative overflow-hidden bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4">
+                        <div class="pointer-events-none absolute -right-8 -top-12 size-36 rounded-full bg-white/10"></div>
+                        <div class="relative flex items-center justify-between">
+                            <div>
+                                <p class="text-[11px] font-semibold uppercase tracking-widest text-orange-100">{{ $title }}</p>
+                                <h3 class="text-xl font-extrabold text-white">{{ $editingQuestionId ? 'Edit question' : 'New question' }}</h3>
                             </div>
-                            <button type="button" wire:click="closeQuestionModal" class="text-white/80 hover:text-white hover:bg-white/20 rounded-lg p-2 transition-colors">
-                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
+                            <button type="button" wire:click="closeQuestionModal" class="rounded-lg p-2 text-white/80 transition hover:bg-white/20 hover:text-white" aria-label="Close">
+                                <flux:icon name="x-mark" class="size-6" />
                             </button>
                         </div>
                     </div>
-                    
-                    {{-- Modal Body --}}
-                    <div class="px-8 py-6 flex-1 overflow-y-auto">
-                        <form wire:submit.prevent="saveQuestion" class="space-y-6">
-                            {{-- Question Text --}}
-                            <flux:field>
-                                <flux:label class="text-base font-semibold">Question Text *</flux:label>
-                                <flux:textarea wire:model="questionFormData.question_text" rows="3" placeholder="Enter your question here..." />
-                                @error('questionFormData.question_text') 
-                                    <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> 
-                                @enderror
-                            </flux:field>
 
-                            {{-- Question Type --}}
-                            <flux:field>
-                                <flux:label class="text-base font-semibold">Question Type *</flux:label>
-                                <flux:select wire:model.live="questionFormData.question_type">
-                                    @foreach($availableQuestionTypes as $value => $label)
-                                        <option value="{{ $value }}">{{ $label }}</option>
-                                    @endforeach
-                                </flux:select>
-                            </flux:field>
+                    <div class="px-6 py-5 flex-1 overflow-y-auto">
+                        <livewire:questions.question-editor
+                            :question-id="$editingQuestionId"
+                            :assessment-id="$assessment->id"
+                            :allowed-types="$availableQuestionTypes"
+                            :default-type="$this->getDefaultQuestionType()"
+                            context="modal"
+                            :key="'question-editor-'.$questionEditorKey" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 
-                            {{-- Points and Order --}}
-                            <div class="grid grid-cols-2 gap-4">
-                                <flux:field>
-                                    <flux:label class="text-base font-semibold">Points *</flux:label>
-                                    <flux:input type="number" wire:model="questionFormData.points" min="0" />
-                                </flux:field>
-                                <flux:field>
-                                    <flux:label class="text-base font-semibold">Order</flux:label>
-                                    <flux:input type="number" wire:model="questionFormData.order" min="0" />
-                                </flux:field>
+    {{-- Add from Question Bank --}}
+    @if($showBankPicker && $bank)
+        @php
+            $pickerStyles = \App\Livewire\Questions\QuestionEditor::TYPE_STYLES;
+            $pickerSelected = array_map('strval', $bankSelected);
+            $pickerDifficulty = ['easy' => 'bg-emerald-50 text-emerald-700 ring-emerald-600/20', 'medium' => 'bg-amber-50 text-amber-700 ring-amber-600/20', 'hard' => 'bg-rose-50 text-rose-700 ring-rose-600/20'];
+            $pickerSelect = 'w-full rounded-xl border-0 bg-gray-50 py-2 pl-3 pr-8 text-sm text-gray-700 ring-1 ring-gray-200 focus:ring-2 focus:ring-orange-500 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700';
+        @endphp
+        <div class="fixed inset-0 z-50 overflow-y-auto">
+            <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" wire:click="closeBankPicker"></div>
+
+            <div class="flex min-h-full items-center justify-center p-4">
+                <div class="relative overflow-hidden rounded-2xl bg-gray-50 dark:bg-gray-950 shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col">
+                    <div class="relative overflow-hidden bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4 text-white">
+                        <div class="pointer-events-none absolute -right-8 -top-12 size-36 rounded-full bg-white/10"></div>
+                        <div class="relative flex items-center justify-between">
+                            <div>
+                                <p class="text-[11px] font-semibold uppercase tracking-widest text-orange-100">Question Bank</p>
+                                <h3 class="text-xl font-extrabold">Add questions to “{{ $title }}”</h3>
                             </div>
+                            <button type="button" wire:click="closeBankPicker" class="rounded-lg p-2 text-white/80 transition hover:bg-white/20 hover:text-white" aria-label="Close">
+                                <flux:icon name="x-mark" class="size-6" />
+                            </button>
+                        </div>
+                    </div>
 
-                            {{-- Options for multiple choice, multiple select, true/false, choice --}}
-                            @if(in_array($questionFormData['question_type'], ['multiple_choice', 'multiple_select', 'true_false', 'choice']))
-                                <div class="border-2 border-blue-200 dark:border-blue-800 rounded-xl p-6 bg-blue-50/50 dark:bg-blue-900/10">
-                                    <div class="flex items-center justify-between mb-2">
-                                        <h4 class="font-semibold text-gray-900 dark:text-white">Answer Options</h4>
-                                        <flux:button type="button" wire:click="addQuestionOption" variant="outline" class="text-sm">
-                                            + Add Option
-                                        </flux:button>
-                                    </div>
-                                    <p class="text-sm text-blue-800 dark:text-blue-300 mb-4">
-                                        @if($questionFormData['question_type'] === 'multiple_select')
-                                            Students can tick more than one answer. Mark every option that is correct.
-                                        @elseif($questionFormData['question_type'] === 'true_false')
-                                            Add True and False, then mark the one correct answer.
-                                        @else
-                                            Students pick one answer. Mark only one option as correct.
+                    <div class="space-y-3 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
+                        @php
+                            $scopeBtn = fn (bool $on) => $on
+                                ? 'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-900'
+                                : 'text-gray-600 hover:bg-white hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700';
+                            $otherCourse = is_numeric($bankCourse) ? $bank['courses']->firstWhere('id', (int) $bankCourse) : null;
+                        @endphp
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Questions from</span>
+                            <div class="flex flex-wrap items-center gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
+                                <button type="button" wire:click="$set('bankCourse', 'this')"
+                                        class="inline-flex max-w-[22rem] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition {{ $scopeBtn($bankCourse === 'this') }}">
+                                    <flux:icon name="academic-cap" variant="micro" class="size-3.5 shrink-0" />
+                                    <span class="truncate">This course: {{ $assessment->course->title }}</span>
+                                    <span class="rounded-full bg-black/10 px-1.5 text-[10px] dark:bg-white/10">{{ $bank['thisCourseCount'] }}</span>
+                                </button>
+                                <button type="button" wire:click="$set('bankCourse', 'all')"
+                                        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition {{ $scopeBtn($bankCourse === 'all') }}">
+                                    <flux:icon name="globe-alt" variant="micro" class="size-3.5" /> All courses
+                                    <span class="rounded-full bg-black/10 px-1.5 text-[10px] dark:bg-white/10">{{ $bank['allCount'] }}</span>
+                                </button>
+                                <select wire:model.live="bankCourse"
+                                        class="rounded-lg border-0 bg-transparent py-1.5 pl-3 pr-8 text-xs font-bold focus:ring-2 focus:ring-orange-500 {{ $otherCourse ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : 'text-gray-600 dark:text-gray-300' }}">
+                                    <option value="this" @selected(! $otherCourse)>Another course…</option>
+                                    @foreach($bank['courses'] as $course)
+                                        @if($course->id !== $assessment->course_id)
+                                            <option value="{{ $course->id }}">{{ $course->title }}</option>
                                         @endif
-                                    </p>
-                                    @if(!empty($questionOptions))
-                                        <div class="space-y-4">
-                                            @foreach($questionOptions as $index => $option)
-                                                <div class="p-4 bg-white dark:bg-gray-800 rounded-lg border-2 border-gray-200 dark:border-gray-700">
-                                                    <div class="flex items-start gap-3 mb-3">
-                                                        @if($questionFormData['question_type'] === 'multiple_select')
-                                                            <input type="checkbox" wire:model="questionOptions.{{ $index }}.is_correct" class="w-5 h-5 text-blue-600 rounded mt-1" title="Correct answer">
-                                                        @else
-                                                            <input type="radio" name="correct-option" wire:click="markCorrectOption({{ $index }})" @checked($option['is_correct'] ?? false) class="w-5 h-5 text-blue-600 mt-1" title="Correct answer">
-                                                        @endif
-                                                        <flux:input wire:model="questionOptions.{{ $index }}.option_text" placeholder="Option text..." class="flex-1" />
-                                                        <button type="button" wire:click="removeQuestionOption({{ $index }})" class="text-red-500 hover:text-red-700 p-2">
-                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                    {{-- Option Image --}}
-                                                    @if(isset($option['image_url']) && $option['image_url'])
-                                                        <div class="relative inline-block mt-2">
-                                                            <img src="{{ Storage::disk('public')->url($option['image_url']) }}" 
-                                                                 alt="Option image" 
-                                                                 class="max-w-xs rounded-lg border border-gray-200 dark:border-gray-700">
-                                                            <button type="button" 
-                                                                    wire:click="removeOptionImage({{ $index }})" 
-                                                                    class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600">
-                                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                                                </svg>
-                                                            </button>
-                                                        </div>
-                                                    @endif
-                                                    @if(isset($tempOptionImages[$index]) && $tempOptionImages[$index])
-                                                        <div class="relative inline-block mt-2">
-                                                            <img src="{{ $tempOptionImages[$index]->temporaryUrl() }}" 
-                                                                 alt="Option preview" 
-                                                                 class="max-w-xs rounded-lg border border-gray-200 dark:border-gray-700">
-                                                        </div>
-                                                    @endif
-                                                    <div class="mt-2">
-                                                        <flux:field>
-                                                            <flux:input type="file" 
-                                                                       wire:model="tempOptionImages.{{ $index }}" 
-                                                                       accept="image/*" 
-                                                                       class="text-sm" />
-                                                            <flux:description class="text-xs">Upload image for this option (optional)</flux:description>
-                                                        </flux:field>
-                                                    </div>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    @else
-                                        <p class="text-sm text-gray-600 dark:text-gray-400 text-center py-4">Click "+ Add Option" to add answer choices</p>
-                                    @endif
-                                </div>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                        @if($bankCourse === 'this' && $bank['thisCourseCount'] === 0)
+                            <p class="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200 dark:bg-amber-900/20 dark:text-amber-200 dark:ring-amber-900">
+                                This course has no unused questions in the bank yet. Write a new one, or switch to <button type="button" wire:click="$set('bankCourse', 'all')" class="font-bold underline">All courses</button> to reuse questions from another course.
+                            </p>
+                        @endif
+                        <div class="flex flex-col gap-2 md:flex-row">
+                            <div class="relative flex-1">
+                                <flux:icon name="magnifying-glass" variant="mini" class="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
+                                <input type="search" wire:model.live.debounce.300ms="bankSearch" placeholder="Search questions..."
+                                       class="w-full rounded-xl border-0 bg-gray-50 py-2 pl-11 pr-4 text-sm ring-1 ring-gray-200 placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-500 dark:bg-gray-800 dark:text-white dark:ring-gray-700">
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 md:w-[22rem]">
+                                <select wire:model.live="bankType" class="{{ $pickerSelect }}">
+                                    <option value="">All types</option>
+                                    @foreach($availableQuestionTypes as $value => $label)
+                                        <option value="{{ $value }}">{{ \Illuminate\Support\Str::before($label, ' (') }}</option>
+                                    @endforeach
+                                </select>
+                                <select wire:model.live="bankTag" class="{{ $pickerSelect }}">
+                                    <option value="">All tags</option>
+                                    @foreach($bank['tags'] as $tag)
+                                        <option value="{{ $tag->id }}">{{ $tag->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="mr-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Difficulty</span>
+                            @foreach(['' => 'Any'] + \App\Models\Question::DIFFICULTIES as $value => $label)
+                                <button type="button" wire:click="$set('bankDifficulty', '{{ $value }}')" @class([
+                                    'rounded-full px-3.5 py-1 text-xs font-semibold transition',
+                                    'bg-orange-500 text-white shadow-sm' => $bankDifficulty === (string) $value,
+                                    'bg-gray-100 text-gray-600 hover:bg-orange-50 hover:text-orange-700 dark:bg-gray-800 dark:text-gray-300' => $bankDifficulty !== (string) $value,
+                                ])>{{ $label }}</button>
+                            @endforeach
+                            <span class="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-700"></span>
+                            <button type="button" wire:click="$toggle('bankUnusedOnly')" @class([
+                                'inline-flex items-center gap-1 rounded-full px-3.5 py-1 text-xs font-semibold transition',
+                                'bg-gray-900 text-white dark:bg-white dark:text-gray-900' => $bankUnusedOnly,
+                                'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300' => ! $bankUnusedOnly,
+                            ])>
+                                <flux:icon name="sparkles" variant="micro" class="size-3.5" /> Not used yet
+                            </button>
+                            @if($bankSearch !== '' || $bankType !== '' || $bankDifficulty !== '' || $bankTag !== '' || $bankUnusedOnly)
+                                <button type="button" wire:click="clearBankFilters" class="text-xs font-semibold text-orange-600 hover:underline">Clear filters</button>
                             @endif
-
-                            {{-- File Upload Question Type --}}
-                            @if($questionFormData['question_type'] === 'file_upload')
-                                <div class="border-2 border-green-200 dark:border-green-800 rounded-xl p-6 bg-green-50/50 dark:bg-green-900/10">
-                                    <h4 class="font-semibold text-gray-900 dark:text-white mb-4">File Upload Settings</h4>
-                                    <div class="grid grid-cols-1 gap-4">
-                                        <flux:field>
-                                            <flux:label>Allowed File Types (comma separated)</flux:label>
-                                            <flux:input wire:model="questionFormData.settings.allowed_types" 
-                                                       placeholder="html,htm,css,pdf,jpg,png,jpeg" />
-                                            <flux:description>Specify allowed file extensions (e.g., pdf,doc,docx)</flux:description>
-                                        </flux:field>
-                                        <div class="grid grid-cols-2 gap-4">
-                                            <flux:field>
-                                                <flux:label>Max File Size (MB)</flux:label>
-                                                <flux:input type="number" wire:model="questionFormData.settings.max_size" min="1" max="100" />
-                                            </flux:field>
-                                            <flux:field>
-                                                <flux:label>Max Files Allowed</flux:label>
-                                                <flux:input type="number" wire:model="questionFormData.settings.max_files" min="1" />
-                                            </flux:field>
-                                        </div>
-                                    </div>
-                                    <div class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                                        <p class="text-sm text-blue-800 dark:text-blue-300">
-                                            <strong>Note:</strong> Students will see a file upload interface when answering this question. They can upload files based on your settings above.
-                                        </p>
-                                    </div>
-                                </div>
-                            @endif
-
-                            {{-- Code Submission Question Type --}}
-                            @if($questionFormData['question_type'] === 'code_submission')
-                                <div class="border-2 border-indigo-200 dark:border-indigo-800 rounded-xl p-6 bg-indigo-50/50 dark:bg-indigo-900/10">
-                                    <h4 class="font-semibold text-gray-900 dark:text-white mb-4">Code Submission Settings</h4>
-                                    <div class="grid grid-cols-1 gap-4">
-                                        <flux:field>
-                                            <flux:label>Programming Language</flux:label>
-                                            <flux:select wire:model="codeSubmissionSettings.language">
-                                                <option value="javascript">JavaScript</option>
-                                                <option value="python">Python</option>
-                                                <option value="java">Java</option>
-                                                <option value="cpp">C++</option>
-                                                <option value="c">C</option>
-                                                <option value="php">PHP</option>
-                                                <option value="ruby">Ruby</option>
-                                                <option value="go">Go</option>
-                                                <option value="rust">Rust</option>
-                                                <option value="typescript">TypeScript</option>
-                                            </flux:select>
-                                        </flux:field>
-                                        <flux:field>
-                                            <flux:label>Code Template (Optional)</flux:label>
-                                            <flux:textarea wire:model="codeSubmissionSettings.template" rows="6" 
-                                                          placeholder="// Enter starting code template for students...&#10;function solution() {&#10;    // Your code here&#10;}" />
-                                            <flux:description>Students will see this template when they start coding</flux:description>
-                                        </flux:field>
-                                        <flux:field>
-                                            <flux:label>Expected Output (Optional)</flux:label>
-                                            <flux:textarea wire:model="codeSubmissionSettings.expected_output" rows="3" 
-                                                          placeholder="Enter expected output if applicable..." />
-                                        </flux:field>
-                                    </div>
-                                </div>
-                            @endif
-
-                            {{-- Rubric Criteria Question Type --}}
-                            @if($questionFormData['question_type'] === 'rubric_criteria')
-                                <div class="border-2 border-purple-200 dark:border-purple-800 rounded-xl p-6 bg-purple-50/50 dark:bg-purple-900/10">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <h4 class="font-semibold text-gray-900 dark:text-white">Rubric Criteria</h4>
-                                        <flux:button type="button" wire:click="addRubricCriterion" variant="outline" class="text-sm">
-                                            + Add Criterion
-                                        </flux:button>
-                                    </div>
-                                    @if(!empty($rubricCriteria))
-                                        <div class="space-y-4">
-                                            @foreach($rubricCriteria as $index => $criterion)
-                                                <div class="p-4 bg-white dark:bg-gray-800 rounded-lg border-2 border-gray-200 dark:border-gray-700">
-                                                    <div class="flex items-center justify-between mb-3">
-                                                        <h5 class="font-semibold text-gray-900 dark:text-white">Criterion {{ $index + 1 }}</h5>
-                                                        <button type="button" wire:click="removeRubricCriterion({{ $index }})" class="text-red-500 hover:text-red-700 p-2">
-                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                                                        <flux:field>
-                                                            <flux:label>Criterion Name *</flux:label>
-                                                            <flux:input wire:model="rubricCriteria.{{ $index }}.name" placeholder="e.g., Code Quality" />
-                                                        </flux:field>
-                                                        <flux:field>
-                                                            <flux:label>Max Points</flux:label>
-                                                            <flux:input type="number" wire:model="rubricCriteria.{{ $index }}.max_points" min="0" />
-                                                        </flux:field>
-                                                    </div>
-                                                    <flux:field>
-                                                        <flux:label>Description</flux:label>
-                                                        <flux:textarea wire:model="rubricCriteria.{{ $index }}.description" rows="2" />
-                                                    </flux:field>
-                                                    <div class="mt-4">
-                                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Performance Levels</label>
-                                                        <div class="space-y-2">
-                                                            @foreach($criterion['performance_levels'] ?? [] as $levelIndex => $level)
-                                                                <div class="grid grid-cols-12 gap-2 items-center">
-                                                                    <div class="col-span-3">
-                                                                        <flux:input wire:model="rubricCriteria.{{ $index }}.performance_levels.{{ $levelIndex }}.level" 
-                                                                                   placeholder="Level name" class="text-sm" />
-                                                                    </div>
-                                                                    <div class="col-span-2">
-                                                                        <flux:input type="number" wire:model="rubricCriteria.{{ $index }}.performance_levels.{{ $levelIndex }}.points" 
-                                                                                   placeholder="Points" min="0" class="text-sm" />
-                                                                    </div>
-                                                                    <div class="col-span-7">
-                                                                        <flux:input wire:model="rubricCriteria.{{ $index }}.performance_levels.{{ $levelIndex }}.description" 
-                                                                                   placeholder="Level description" class="text-sm" />
-                                                                    </div>
-                                                                </div>
-                                                            @endforeach
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    @else
-                                        <p class="text-sm text-gray-600 dark:text-gray-400 text-center py-4">Click "+ Add Criterion" to create rubric criteria</p>
-                                    @endif
-                                </div>
-                            @endif
-
-                            {{-- Matching Question Type --}}
-                            @if($questionFormData['question_type'] === 'matching')
-                                <div class="border-2 border-cyan-200 dark:border-cyan-800 rounded-xl p-6 bg-cyan-50/50 dark:bg-cyan-900/10">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <h4 class="font-semibold text-gray-900 dark:text-white">Matching Pairs</h4>
-                                        <flux:button type="button" wire:click="addMatchingPair" variant="outline" class="text-sm">
-                                            + Add Pair
-                                        </flux:button>
-                                    </div>
-                                    @if(!empty($matchingPairs))
-                                        <div class="space-y-4">
-                                            @foreach($matchingPairs as $index => $pair)
-                                                <div class="p-4 bg-white dark:bg-gray-800 rounded-lg border-2 border-gray-200 dark:border-gray-700">
-                                                    <div class="flex items-center justify-between mb-3">
-                                                        <h5 class="font-semibold text-gray-900 dark:text-white">Pair {{ $index + 1 }}</h5>
-                                                        <button type="button" wire:click="removeMatchingPair({{ $index }})" class="text-red-500 hover:text-red-700 p-2">
-                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                    <div class="grid grid-cols-2 gap-4">
-                                                        <flux:field>
-                                                            <flux:label>Left Item *</flux:label>
-                                                            <flux:input wire:model="matchingPairs.{{ $index }}.left_item" placeholder="e.g., HTML" />
-                                                        </flux:field>
-                                                        <flux:field>
-                                                            <flux:label>Right Item (Match) *</flux:label>
-                                                            <flux:input wire:model="matchingPairs.{{ $index }}.right_item" placeholder="e.g., HyperText Markup Language" />
-                                                        </flux:field>
-                                                    </div>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    @else
-                                        <p class="text-sm text-gray-600 dark:text-gray-400 text-center py-4">Click "+ Add Pair" to create matching pairs</p>
-                                    @endif
-                                </div>
-                            @endif
-
-                            {{-- Ordering Question Type --}}
-                            @if($questionFormData['question_type'] === 'ordering')
-                                <div class="border-2 border-pink-200 dark:border-pink-800 rounded-xl p-6 bg-pink-50/50 dark:bg-pink-900/10">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <h4 class="font-semibold text-gray-900 dark:text-white">Ordering Items</h4>
-                                        <flux:button type="button" wire:click="addOrderingItem" variant="outline" class="text-sm">
-                                            + Add Item
-                                        </flux:button>
-                                    </div>
-                                    @if(!empty($orderingItems))
-                                        <div class="space-y-4">
-                                            @foreach($orderingItems as $index => $item)
-                                                <div class="p-4 bg-white dark:bg-gray-800 rounded-lg border-2 border-gray-200 dark:border-gray-700">
-                                                    <div class="flex items-center justify-between mb-3">
-                                                        <div class="flex items-center gap-3">
-                                                            <span class="px-3 py-1 rounded text-sm font-medium bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400">
-                                                                Order: {{ $item['correct_order'] ?? ($index + 1) }}
-                                                            </span>
-                                                            <h5 class="font-semibold text-gray-900 dark:text-white">Item {{ $index + 1 }}</h5>
-                                                        </div>
-                                                        <button type="button" wire:click="removeOrderingItem({{ $index }})" class="text-red-500 hover:text-red-700 p-2">
-                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                        <flux:field>
-                                                            <flux:label>Item Text *</flux:label>
-                                                            <flux:input wire:model="orderingItems.{{ $index }}.item_text" placeholder="e.g., Step 1: Planning" />
-                                                        </flux:field>
-                                                        <flux:field>
-                                                            <flux:label>Correct Order Position</flux:label>
-                                                            <flux:input type="number" wire:model="orderingItems.{{ $index }}.correct_order" min="1" />
-                                                            <flux:description>Set the correct position (1, 2, 3, etc.)</flux:description>
-                                                        </flux:field>
-                                                    </div>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    @else
-                                        <p class="text-sm text-gray-600 dark:text-gray-400 text-center py-4">Click "+ Add Item" to create items to order</p>
-                                    @endif
-                                </div>
-                            @endif
-
-                            {{-- Rating Scale Question Type --}}
-                            @if($questionFormData['question_type'] === 'rating')
-                                <div class="border-2 border-yellow-200 dark:border-yellow-800 rounded-xl p-6 bg-yellow-50/50 dark:bg-yellow-900/10">
-                                    <h4 class="font-semibold text-gray-900 dark:text-white mb-4">Rating Scale Settings</h4>
-                                    <div class="grid grid-cols-2 gap-4 mb-4">
-                                        <flux:field>
-                                            <flux:label>Minimum Value</flux:label>
-                                            <flux:input type="number" wire:model.live="ratingScaleSettings.min" min="0" />
-                                        </flux:field>
-                                        <flux:field>
-                                            <flux:label>Maximum Value</flux:label>
-                                            <flux:input type="number" wire:model.live="ratingScaleSettings.max" min="1" />
-                                        </flux:field>
-                                    </div>
-                                    <flux:field>
-                                        <flux:label>Scale Labels (Optional)</flux:label>
-                                        <flux:textarea wire:model="ratingScaleSettings.labels" rows="3" 
-                                                      placeholder="Enter labels separated by commas, e.g., Poor, Fair, Good, Very Good, Excellent" />
-                                        <flux:description>Optional: Provide labels for each rating point</flux:description>
-                                    </flux:field>
-                                </div>
-                            @endif
-
-                            {{-- Fill in the Blank Question Type --}}
-                            @if($questionFormData['question_type'] === 'fill_blank')
-                                <div class="border-2 border-teal-200 dark:border-teal-800 rounded-xl p-6 bg-teal-50/50 dark:bg-teal-900/10">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <h4 class="font-semibold text-gray-900 dark:text-white">Fill in the Blank</h4>
-                                        <flux:button type="button" wire:click="addFillBlank" variant="outline" class="text-sm">
-                                            + Add Blank
-                                        </flux:button>
-                                    </div>
-                                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                        Use <strong>{{ '{blank}' }}</strong> or <strong>_____</strong> in your question text to mark where blanks should appear.
-                                    </p>
-                                    @if(!empty($fillBlankSettings['blanks']))
-                                        <div class="space-y-4">
-                                            @foreach($fillBlankSettings['blanks'] as $index => $blank)
-                                                <div class="p-4 bg-white dark:bg-gray-800 rounded-lg border-2 border-gray-200 dark:border-gray-700">
-                                                    <div class="flex items-center justify-between mb-3">
-                                                        <h5 class="font-semibold text-gray-900 dark:text-white">Blank {{ $index + 1 }}</h5>
-                                                        <button type="button" wire:click="removeFillBlank({{ $index }})" class="text-red-500 hover:text-red-700 p-2">
-                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                                                        <flux:field>
-                                                            <flux:label>Correct Answer *</flux:label>
-                                                            <flux:input wire:model="fillBlankSettings.blanks.{{ $index }}.correct_answer" placeholder="Correct answer" />
-                                                        </flux:field>
-                                                        <flux:field>
-                                                            <flux:label>Position in Question</flux:label>
-                                                            <flux:input wire:model="fillBlankSettings.blanks.{{ $index }}.position" placeholder="e.g., 1 (first blank)" />
-                                                        </flux:field>
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <flux:field>
-                                                            <flux:checkbox wire:model="fillBlankSettings.blanks.{{ $index }}.case_sensitive" label="Case Sensitive" />
-                                                        </flux:field>
-                                                    </div>
-                                                    <div>
-                                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Alternative Answers (Optional)</label>
-                                                        <div class="space-y-2">
-                                                            @foreach($blank['alternative_answers'] ?? [] as $altIndex => $altAnswer)
-                                                                <div class="flex gap-2">
-                                                                    <flux:input wire:model="fillBlankSettings.blanks.{{ $index }}.alternative_answers.{{ $altIndex }}" 
-                                                                               placeholder="Alternative answer" class="flex-1" />
-                                                                    <button type="button" wire:click="$wire.fillBlankSettings.blanks.{{ $index }}.alternative_answers.splice({{ $altIndex }}, 1)" 
-                                                                            class="text-red-500 hover:text-red-700 p-2">
-                                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                                                        </svg>
-                                                                    </button>
-                                                                </div>
-                                                            @endforeach
-                                                            <flux:button type="button" wire:click="addAlternativeAnswer({{ $index }})" variant="ghost" class="text-sm">
-                                                                + Add Alternative
-                                                            </flux:button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    @else
-                                        <p class="text-sm text-gray-600 dark:text-gray-400 text-center py-4">Click "+ Add Blank" to define correct answers</p>
-                                    @endif
-                                </div>
-                            @endif
-
-                            {{-- True/False Question Type --}}
-                            @if($questionFormData['question_type'] === 'true_false')
-                                <div class="border-2 border-blue-200 dark:border-blue-800 rounded-xl p-6 bg-blue-50/50 dark:bg-blue-900/10">
-                                    <p class="text-sm text-blue-800 dark:text-blue-300 mb-4">
-                                        <strong>Note:</strong> Add two options below: "True" and "False", and mark the correct one.
-                                    </p>
-                                    @if(empty($questionOptions) || count($questionOptions) < 2)
-                                        <flux:button type="button" wire:click="addQuestionOption" variant="outline" class="text-sm mb-2">
-                                            + Add Option
-                                        </flux:button>
-                                    @endif
-                                </div>
-                            @endif
-
-                            {{-- Other question type specific fields --}}
-                            @if($questionFormData['question_type'] === 'essay' || $questionFormData['question_type'] === 'short_answer')
-                                <div class="border-2 border-purple-200 dark:border-purple-800 rounded-xl p-6 bg-purple-50/50 dark:bg-purple-900/10">
-                                    <h4 class="font-semibold text-gray-900 dark:text-white mb-3">Text Response Settings</h4>
-                                    <div class="grid grid-cols-2 gap-4">
-                                        <flux:field>
-                                            <flux:label>Minimum Word Count</flux:label>
-                                            <flux:input type="number" wire:model="questionFormData.settings.min_words" min="0" />
-                                        </flux:field>
-                                        <flux:field>
-                                            <flux:label>Maximum Word Count</flux:label>
-                                            <flux:input type="number" wire:model="questionFormData.settings.max_words" min="1" />
-                                        </flux:field>
-                                    </div>
-                                </div>
-                            @endif
-
-                            {{-- Explanation --}}
-                            <flux:field>
-                                <flux:label class="text-base font-semibold">Explanation (Optional)</flux:label>
-                                <flux:textarea wire:model="questionFormData.explanation" rows="2" placeholder="Explain the correct answer..." />
-                            </flux:field>
-
-                            {{-- Question Image Upload --}}
-                            <div class="border-2 border-blue-200 dark:border-blue-800 rounded-xl p-6 bg-blue-50/50 dark:bg-blue-900/10">
-                                <flux:label class="text-base font-semibold mb-3 block">Question Image (Optional)</flux:label>
-                                @if($questionFormData['image_url'] || $questionImage)
-                                    <div class="relative inline-block mb-3">
-                                        <img src="{{ $questionImage ? $questionImage->temporaryUrl() : Storage::disk('public')->url($questionFormData['image_url']) }}" 
-                                             alt="Question preview" 
-                                             class="max-w-md rounded-lg border-2 border-gray-200 dark:border-gray-700">
-                                        <button type="button" 
-                                                wire:click="removeQuestionImage" 
-                                                class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    </div>
+                            <div class="ml-auto flex items-center gap-3">
+                                <span class="text-xs text-gray-500">{{ $bank['total'] }} available</span>
+                                @if($bank['questions']->isNotEmpty())
+                                    @php $allShownPicked = $bank['questions']->every(fn ($q) => in_array((string) $q->id, $pickerSelected, true)); @endphp
+                                    <button type="button" wire:click="toggleAllBank"
+                                            class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold text-orange-600 ring-1 ring-orange-200 transition hover:bg-orange-50 dark:ring-orange-900">
+                                        <flux:icon :name="$allShownPicked ? 'minus' : 'check'" variant="micro" class="size-3.5" />
+                                        {{ $allShownPicked ? 'Unselect shown' : 'Select all '.$bank['questions']->count().' shown' }}
+                                    </button>
                                 @endif
-                                <flux:field>
-                                    <flux:input type="file" wire:model="questionImage" accept="image/*" />
-                                    <flux:description>Upload an image for this question (max 5MB)</flux:description>
-                                </flux:field>
                             </div>
+                        </div>
+                    </div>
 
-                            {{-- Modal Footer --}}
-                            <div class="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700 mt-8">
-                                <flux:button type="button" wire:click="closeQuestionModal" variant="ghost" class="px-6 py-2.5">
-                                    Cancel
-                                </flux:button>
-                                <flux:button type="submit" variant="primary" class="px-6 py-2.5">
-                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    Save Question
-                                </flux:button>
+                    <div class="flex-1 space-y-2.5 overflow-y-auto px-6 py-4">
+                        @forelse($bank['questions'] as $bankQuestion)
+                            @php
+                                $pStyle = $pickerStyles[$bankQuestion->question_type] ?? ['icon' => 'question-mark-circle', 'tile' => 'bg-gray-100 text-gray-600'];
+                                $picked = in_array((string) $bankQuestion->id, $pickerSelected, true);
+                            @endphp
+                            <label wire:key="bank-q-{{ $bankQuestion->id }}" x-data="{ open: false }" @class([
+                                'flex cursor-pointer items-start gap-3 rounded-2xl bg-white p-3.5 shadow-sm ring-1 transition hover:shadow-md dark:bg-gray-900',
+                                'ring-2 ring-orange-500 bg-orange-50/40' => $picked,
+                                'ring-gray-100 hover:ring-orange-200 dark:ring-gray-800' => ! $picked,
+                            ])>
+                                <input type="checkbox" value="{{ $bankQuestion->id }}" wire:model.live="bankSelected" class="mt-3 size-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500">
+                                <span class="flex size-10 shrink-0 items-center justify-center rounded-xl {{ $pStyle['tile'] }}">
+                                    <flux:icon :name="$pStyle['icon']" variant="mini" class="size-5" />
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    @php $bankPreview = \App\Support\QuestionText::preview($bankQuestion->question_text); @endphp
+                                    <span class="block text-sm font-semibold leading-snug text-gray-900 dark:text-white">{{ $bankPreview['text'] }}</span>
+                                    @foreach($bankPreview['kinds'] as $kind)
+                                        <span class="mt-1 mr-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold {{ $kind === 'Scratch blocks' ? 'bg-amber-50 text-amber-700' : 'bg-slate-900 text-slate-100' }}">
+                                            <flux:icon :name="$kind === 'Scratch blocks' ? 'puzzle-piece' : 'code-bracket'" variant="micro" class="size-3" /> {{ $kind }}
+                                        </span>
+                                    @endforeach
+                                    <span class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                                        <span class="font-semibold uppercase tracking-wide text-[10px] text-gray-400">{{ $typeLabels->label($bankQuestion->question_type) }}</span>
+                                        <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ring-1 ring-inset {{ $pickerDifficulty[$bankQuestion->difficulty] ?? $pickerDifficulty['medium'] }}">{{ $bankQuestion->difficulty }}</span>
+                                        <span>{{ rtrim(rtrim(number_format((float) $bankQuestion->points, 1), '0'), '.') }} pts</span>
+                                        @if($bankQuestion->assessments_count)
+                                            <span>&middot; used in {{ $bankQuestion->assessments_count }}</span>
+                                        @else
+                                            <span class="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:bg-sky-900/20 dark:text-sky-300">Not used yet</span>
+                                        @endif
+                                        @foreach($bankQuestion->tags as $tag)
+                                            <span class="rounded-lg bg-orange-50 px-1.5 py-0.5 font-medium text-orange-700 dark:bg-orange-900/20 dark:text-orange-300">#{{ $tag->name }}</span>
+                                        @endforeach
+                                    </span>
+                                    @if($bankQuestion->placements->isNotEmpty() || $bankQuestion->creator)
+                                        <span class="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-gray-400">
+                                            @foreach($bankQuestion->placements->take(2) as $placement)
+                                                <span class="inline-flex items-center gap-1 rounded-md bg-gray-50 px-1.5 py-0.5 dark:bg-gray-800">
+                                                    <flux:icon name="folder" variant="micro" class="size-3" />
+                                                    {{ $placement->course?->title ?? 'Any course' }}@if($placement->module) › {{ $placement->module->title }}@endif
+                                                </span>
+                                            @endforeach
+                                            @if($bankQuestion->placements->count() > 2)
+                                                <span>+{{ $bankQuestion->placements->count() - 2 }} more</span>
+                                            @endif
+                                            @if($bankQuestion->creator)
+                                                <span>by {{ $bankQuestion->creator->name }}</span>
+                                            @endif
+                                        </span>
+                                    @endif
+
+                                    @if($bankQuestion->options->isNotEmpty() || $bankQuestion->explanation)
+                                        <button type="button" x-on:click.prevent.stop="open = !open"
+                                                class="mt-2 inline-flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-orange-600">
+                                            <flux:icon name="eye" variant="micro" class="size-3.5" />
+                                            <span x-text="open ? 'Hide answers' : 'Preview answers'">Preview answers</span>
+                                        </button>
+                                        <span x-show="open" x-cloak class="mt-2 grid gap-1 sm:grid-cols-2">
+                                            @foreach($bankQuestion->options as $option)
+                                                <span @class([
+                                                    'flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-xs',
+                                                    'bg-emerald-50 font-semibold text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200' => $option->is_correct,
+                                                    'bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300' => ! $option->is_correct,
+                                                ])>
+                                                    @if($option->is_correct)<flux:icon name="check" variant="micro" class="mt-px size-3.5 shrink-0" />@endif
+                                                    {{ \Illuminate\Support\Str::limit(strip_tags((string) $option->option_text), 80) }}
+                                                </span>
+                                            @endforeach
+                                            @if($bankQuestion->explanation)
+                                                <span class="rounded-lg bg-sky-50 px-2.5 py-1.5 text-xs text-gray-600 sm:col-span-2 dark:bg-sky-900/20 dark:text-gray-300"><strong>Why:</strong> {{ \Illuminate\Support\Str::limit(strip_tags($bankQuestion->explanation), 160) }}</span>
+                                            @endif
+                                        </span>
+                                    @endif
+                                </span>
+                            </label>
+                        @empty
+                            <div class="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-14 text-center dark:border-gray-700 dark:bg-gray-900">
+                                <div class="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-orange-100 text-orange-500">
+                                    <flux:icon name="magnifying-glass" class="size-7" />
+                                </div>
+                                <p class="font-bold text-gray-900 dark:text-white">No matching questions</p>
+                                <p class="mt-1 text-sm text-gray-500">Clear the filters, switch to “All courses”, or write a new question.</p>
                             </div>
-                        </form>
+                        @endforelse
+
+                        @if($bank['total'] > $bank['questions']->count())
+                            <div class="pt-1 text-center">
+                                <button type="button" wire:click="showMoreBank"
+                                        class="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs font-bold text-gray-600 ring-1 ring-gray-200 transition hover:text-orange-600 hover:ring-orange-300 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">
+                                    <flux:icon name="chevron-down" variant="micro" class="size-4" />
+                                    Show more ({{ $bank['total'] - $bank['questions']->count() }} left)
+                                </button>
+                            </div>
+                        @endif
+                    </div>
+
+                    <div class="flex items-center justify-between gap-3 border-t border-gray-200 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
+                        <div class="text-sm text-gray-600 dark:text-gray-400">
+                            <span class="font-bold text-gray-900 dark:text-white">{{ count($bankSelected) }}</span> selected
+                            @if(count($bankSelected))
+                                @php $poolAfter = $poolSize + count($bankSelected); @endphp
+                                <span class="ml-2 text-xs text-gray-500">
+                                    &middot; {{ $poolAfter }} in this assessment after adding{{ $assessment->questions_per_attempt && $assessment->questions_per_attempt < $poolAfter ? ', each student gets a random '.$assessment->questions_per_attempt : '' }}
+                                </span>
+                            @endif
+                            @error('bankSelected') <span class="ml-2 font-medium text-rose-600">{{ $message }}</span> @enderror
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="button" wire:click="closeBankPicker" class="rounded-xl px-4 py-2.5 text-sm font-semibold text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50 dark:text-gray-300 dark:ring-gray-700">Cancel</button>
+                            <button type="button" wire:click="addSelectedFromBank" @disabled(count($bankSelected) === 0)
+                                    class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white shadow-md transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
+                                <flux:icon name="plus" variant="mini" class="size-5" />
+                                Add {{ count($bankSelected) ?: '' }} to assessment
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -905,7 +875,7 @@
                                     @if($assessment->assessment_type === 'assignment' && $selectedAttempt->score === null)
                                         Score: Not Graded • Awaiting Grade
                                     @else
-                                        Score: {{ number_format($selectedAttempt->score ?? 0, 1) }}% 
+                                        Score: {{ number_format($selectedAttempt->scorePercentage() ?? 0, 1) }}% 
                                         @if($selectedAttempt->is_passed ?? false)
                                             • Passed ✓
                                         @else
@@ -930,7 +900,7 @@
                                 @if($assessment->assessment_type === 'assignment' && $selectedAttempt->score === null)
                                     <p class="text-lg font-bold text-gray-900 dark:text-white">Not Graded</p>
                                 @else
-                                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ number_format($selectedAttempt->score ?? 0, 1) }}%</p>
+                                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ number_format($selectedAttempt->scorePercentage() ?? 0, 1) }}%</p>
                                 @endif
                             </div>
                             <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
@@ -946,7 +916,7 @@
                         <div class="space-y-6">
                             @php
                                 $answers = $selectedAttempt->answers ?? [];
-                                $questions = $selectedAttempt->assessment->questions ?? collect();
+                                $questions = $selectedAttemptQuestions ?? collect();
                             @endphp
                             @foreach($questions as $question)
                                 <div class="border-2 border-gray-200 dark:border-gray-700 rounded-xl p-6">
@@ -963,7 +933,7 @@
                                                     {{ $question->points }} pts
                                                 </span>
                                             </div>
-                                            <h4 class="font-bold text-gray-900 dark:text-white mb-2">{{ $question->question_text }}</h4>
+                                            <x-question-text :text="$question->question_text" class="mb-2 font-semibold text-gray-900 dark:text-white" />
                                             @if($question->image_url)
                                                 <img src="{{ Storage::disk('public')->url($question->image_url) }}" 
                                                      alt="Question image" 
@@ -1037,7 +1007,8 @@
                                                 <p class="text-gray-600 dark:text-gray-400 italic">No answer selected</p>
                                             @endif
                                         @else
-                                            <p class="text-gray-900 dark:text-white">{{ $answers[$question->id] ?? 'No answer provided' }}</p>
+                                            @php $otherAnswer = $answers[$question->id] ?? null; @endphp
+                                            <p class="text-gray-900 dark:text-white">{{ is_array($otherAnswer) ? implode(', ', array_map(fn ($v) => is_scalar($v) ? (string) $v : json_encode($v), $otherAnswer)) : ($otherAnswer ?? 'No answer provided') }}</p>
                                         @endif
                                     </div>
                                 </div>

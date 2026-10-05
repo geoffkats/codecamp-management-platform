@@ -5,9 +5,18 @@ namespace App\Livewire\Assessments;
 use App\Models\Assessment;
 use App\Models\AssessmentAttempt;
 use App\Models\Question;
+use App\Services\Assessments\AssessmentGradingService;
+use App\Services\Assessments\AttemptQuestionModels;
+use App\Services\Assessments\AttemptQuestionSetGenerator;
+use App\Services\Assessments\LegacyQuestionSetBackfiller;
+use App\Services\Assessments\QuestionTypeRegistry;
+use App\Services\Assessments\QuestionTypes\MatchingType;
+use App\Services\Assessments\QuestionTypes\OrderingType;
 use App\Services\LessonCompletionService;
 use App\Support\SubmissionFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
@@ -39,13 +48,17 @@ class Take extends Component
     public $flaggedQuestions = [];
     public $autoSaveEnabled = true;
     public $lastSavedAt = null;
-    public $randomizedQuestions = null; // Store randomized questions for consistency
-    public $shuffledQuestionData = []; // Store shuffled question-specific data
-    public $shuffleSeed = null; // Seed for consistent shuffling
-    /** @var array<int, int> Stable question id order for this attempt */
-    public array $questionOrder = [];
-    /** @var array<int, array<int, int>> Stable option id order per question for this attempt */
-    public array $optionOrder = [];
+
+    /**
+     * Per-request caches of the attempt's frozen question set. Kept non-public so snapshot data
+     * (including answer keys) is never serialized into the Livewire payload.
+     *
+     * @var Collection<int, Question>|null
+     */
+    protected ?Collection $questionModels = null;
+
+    /** @var Collection<int, array<string, mixed>>|null */
+    protected ?Collection $questionData = null;
 
     public function mount(Assessment $assessment)
     {
@@ -107,24 +120,23 @@ class Take extends Component
             ->first();
 
         if ($existingAttempt && ! $existingAttempt->completed_at) {
+            if (! $existingAttempt->hasQuestionSet()) {
+                // Started before question sets were frozen: snapshot it conservatively, never re-randomize.
+                $existingAttempt = app(LegacyQuestionSetBackfiller::class)->backfill($existingAttempt);
+            }
+
             $this->attempt = $existingAttempt;
             $this->attemptId = $existingAttempt->id;
             $this->answers = $existingAttempt->answers ?? [];
             $this->startedAt = $existingAttempt->started_at;
-            $this->shuffleSeed = $existingAttempt->id;
 
             if ($this->assessment->assessment_type === 'assignment' && isset($this->answers['submission_text'])) {
                 $this->submissionText = (string) $this->answers['submission_text'];
             }
         } else {
-            $this->questionOrder = [];
-            $this->optionOrder = [];
             $this->startNewAttempt($attemptCount + 1);
             $this->attemptId = $this->attempt->id;
-            $this->shuffleSeed = $this->attempt->id;
         }
-
-        $this->randomizedQuestions = null;
 
         if ($this->assessment->time_limit_minutes) {
             $totalSeconds = $this->assessment->time_limit_minutes * 60;
@@ -143,9 +155,6 @@ class Take extends Component
             $this->assessment = Assessment::with(['course', 'lesson'])
                 ->findOrFail($this->assessment->id);
         }
-
-        // Livewire cannot reliably serialize Eloquent collections — always rebuild questions
-        $this->randomizedQuestions = null;
 
         // Reload attempt if we have an attemptId
         if ($this->attemptId && !$this->attempt) {
@@ -199,18 +208,22 @@ class Take extends Component
         $teacherId = $this->getTeacherIdForAttempt();
         $autoScored = $this->assessment->assessment_type !== 'assignment';
 
-        $this->attempt = AssessmentAttempt::create([
-            'user_id' => Auth::id(),
-            'assessment_id' => $this->assessment->id,
-            'school_id' => $schoolId,
-            'teacher_id' => $teacherId,
-            'student_type' => $studentType,
-            'auto_scored' => $autoScored,
-            'is_locked' => false,
-            'started_at' => now(),
-            'status' => 'in_progress',
-            'answers' => [],
-        ]);
+        $this->attempt = DB::transaction(function () use ($schoolId, $teacherId, $studentType, $autoScored) {
+            $attempt = AssessmentAttempt::create([
+                'user_id' => Auth::id(),
+                'assessment_id' => $this->assessment->id,
+                'school_id' => $schoolId,
+                'teacher_id' => $teacherId,
+                'student_type' => $studentType,
+                'auto_scored' => $autoScored,
+                'is_locked' => false,
+                'started_at' => now(),
+                'status' => 'in_progress',
+                'answers' => [],
+            ]);
+
+            return app(AttemptQuestionSetGenerator::class)->generate($attempt);
+        });
 
         $this->startedAt = $this->attempt->started_at;
     }
@@ -489,7 +502,7 @@ class Take extends Component
 
     public function questionType(Question $question): string
     {
-        return str_replace(' ', '_', strtolower(trim((string) $question->question_type)));
+        return app(QuestionTypeRegistry::class)->normalize($question->question_type);
     }
 
     /**
@@ -564,8 +577,8 @@ class Take extends Component
                 return;
             }
 
-        // Use fresh questions for scoring (not shuffled) to ensure accurate scoring
-        $questions = $this->assessment->questions()->with('options')->orderBy('order')->get();
+        // Score against the attempt's frozen question set, never the live bank
+        $questions = $this->getQuestions();
 
         $this->persistAllFileUploadAnswers($questions);
 
@@ -652,33 +665,13 @@ class Take extends Component
         // Persist any remaining file_upload attachments before scoring
         $this->persistAllFileUploadAnswers($questions);
 
-        // Detect questions that always need manual grading
-        $manualOnlyTypes = ['essay', 'code_submission', 'file_upload', 'rubric_criteria'];
-        $needsManualGrading = $this->assessment->assessment_type === 'assignment';
-        foreach ($questions as $question) {
-            if (in_array($question->question_type, $manualOnlyTypes)) {
-                $needsManualGrading = true;
-                break;
-            }
-            if ($question->question_type === 'short_answer') {
-                $s = $question->settings ?? [];
-                $hasCorrect = !empty($s['correct_answer'] ?? $s['short_answer']['correct_answer'] ?? '');
-                if (!$hasCorrect) {
-                    $hasCorrect = $question->options->where('is_correct', true)->isNotEmpty();
-                }
-                if (!$hasCorrect) {
-                    $needsManualGrading = true;
-                    break;
-                }
-            }
-        }
+        $grading = app(AssessmentGradingService::class);
+        $attemptWithSet = AssessmentAttempt::with('questionSet')->findOrFail($attempt->id);
+        $grade = $grading->gradeAttempt($attemptWithSet, $this->answers);
 
-        $totalPoints = $questions->sum('points');
-        $earnedPoints = 0;
-
-        foreach ($questions as $question) {
-            $earnedPoints += $this->calculateQuestionScore($question);
-        }
+        $needsManualGrading = $this->assessment->assessment_type === 'assignment' || $grade->needsManual;
+        $totalPoints = $grade->max;
+        $earnedPoints = $grade->earned;
 
         $this->score = $earnedPoints;
         $this->percentage = $totalPoints > 0 ? round(($earnedPoints / $totalPoints) * 100, 2) : 0;
@@ -690,6 +683,7 @@ class Take extends Component
         $attempt->update([
             'answers' => $this->answers,
             'score' => $needsManualGrading ? null : $this->score,
+            'score_unit' => 'points',
             'is_passed' => $needsManualGrading ? false : $this->isPassed,
             'completed_at' => now(),
             'status' => 'completed',
@@ -697,6 +691,8 @@ class Take extends Component
             'auto_scored' => !$needsManualGrading,
             'is_locked' => !$needsManualGrading,
         ]);
+
+        $grading->storeResults($attemptWithSet, $grade);
 
         // Award XP only when fully auto-graded and passed
         if (!$needsManualGrading && $this->isPassed && $this->assessment->xp_reward) {
@@ -760,231 +756,9 @@ class Take extends Component
         }
     }
 
-    protected function calculateQuestionScore($question)
-    {
-        $userAnswer = $this->answers[$question->id] ?? null;
-        
-        // Check if answer exists and is not empty/null
-        if ($userAnswer === null || $userAnswer === '' || (is_array($userAnswer) && empty(array_filter($userAnswer)))) {
-            return 0;
-        }
-
-        // For multiple choice/select questions
-        if (in_array($question->question_type, ['multiple_choice', 'multiple_select', 'choice', 'true_false'])) {
-            $correctOptions = $question->options->where('is_correct', true)->pluck('id')->toArray();
-            
-            // Ensure all correct options are integers
-            $correctOptions = array_map(function($opt) {
-                return is_numeric($opt) ? (int)$opt : $opt;
-            }, $correctOptions);
-            sort($correctOptions);
-            
-            if (is_array($userAnswer)) {
-                $userAnswerArray = array_map(function($val) {
-                    return is_numeric($val) ? (int)$val : $val;
-                }, array_filter($userAnswer));
-                sort($userAnswerArray);
-                return $userAnswerArray === $correctOptions ? $question->points : 0;
-            } else {
-                $userAnswerInt = is_numeric($userAnswer) ? (int)$userAnswer : $userAnswer;
-                return in_array($userAnswerInt, $correctOptions, true) ? $question->points : 0;
-            }
-        }
-
-        // For fill_blank questions
-        if ($question->question_type === 'fill_blank') {
-            return $this->scoreFillBlankQuestion($question);
-        }
-
-        // For ordering questions
-        if ($question->question_type === 'ordering') {
-            return $this->scoreOrderingQuestion($question);
-        }
-
-        // For matching questions
-        if ($question->question_type === 'matching') {
-            return $this->scoreMatchingQuestion($question);
-        }
-
-        // For rating questions - award points if answered
-        if ($question->question_type === 'rating') {
-            return $question->points;
-        }
-
-        // short_answer: auto-grade if a correct answer is defined; otherwise 0 (teacher grades)
-        if ($question->question_type === 'short_answer') {
-            return $this->scoreShortAnswerQuestion($question);
-        }
-
-        // essay, code_submission, file_upload — always 0 until teacher grades
-        return 0;
-    }
-
-    protected function scoreShortAnswerQuestion($question): float
-    {
-        $userAnswer = trim($this->answers[$question->id] ?? '');
-        if ($userAnswer === '') return 0;
-
-        $settings = $question->settings ?? [];
-        $correctAnswer = trim($settings['correct_answer'] ?? $settings['short_answer']['correct_answer'] ?? '');
-
-        if (empty($correctAnswer)) {
-            $correctOption = $question->options->where('is_correct', true)->first();
-            $correctAnswer = $correctOption ? trim($correctOption->option_text) : '';
-        }
-
-        if (empty($correctAnswer)) return 0;
-
-        $caseSensitive = $settings['case_sensitive'] ?? false;
-        $userCmp    = $caseSensitive ? $userAnswer    : mb_strtolower($userAnswer);
-        $correctCmp = $caseSensitive ? $correctAnswer : mb_strtolower($correctAnswer);
-
-        if ($userCmp === $correctCmp) return $question->points;
-
-        foreach ($settings['alternative_answers'] ?? [] as $alt) {
-            $altCmp = $caseSensitive ? trim($alt) : mb_strtolower(trim($alt));
-            if ($userCmp === $altCmp) return $question->points;
-        }
-
-        return 0;
-    }
-
-    protected function scoreFillBlankQuestion($question)
-    {
-        $settings = $question->settings ?? [];
-        $blanks = $settings['fill_blank']['blanks'] ?? [];
-        $userAnswers = $this->answers[$question->id] ?? [];
-        
-        // Fallback for legacy data stored in options
-        if (empty($blanks) && $question->options->isNotEmpty()) {
-            $blanks = [];
-            foreach ($question->options as $option) {
-                $blanks[] = [
-                    'correct_answer' => $option->option_text,
-                    'case_sensitive' => false,
-                    'alternative_answers' => []
-                ];
-            }
-        }
-        
-        if (empty($blanks)) {
-            return 0;
-        }
-        
-        $correct = 0;
-        foreach ($blanks as $index => $blank) {
-            $userAnswer = trim($userAnswers[$index] ?? '');
-            $correctAnswer = trim($blank['correct_answer'] ?? '');
-            
-            if (empty($userAnswer) || empty($correctAnswer)) {
-                continue;
-            }
-            
-            $caseSensitive = $blank['case_sensitive'] ?? false;
-            $matched = $caseSensitive 
-                ? $userAnswer === $correctAnswer
-                : strtolower($userAnswer) === strtolower($correctAnswer);
-            
-            // Check alternatives
-            if (!$matched && !empty($blank['alternative_answers'])) {
-                foreach ($blank['alternative_answers'] as $alt) {
-                    $matched = $caseSensitive 
-                        ? $userAnswer === trim($alt)
-                        : strtolower($userAnswer) === strtolower(trim($alt));
-                    if ($matched) break;
-                }
-            }
-            
-            if ($matched) $correct++;
-        }
-        
-        $totalBlanks = count($blanks);
-        return $totalBlanks > 0 ? ($correct / $totalBlanks) * $question->points : 0;
-    }
-
-    protected function scoreOrderingQuestion($question)
-    {
-        $settings = $question->settings ?? [];
-        $items = $settings['ordering_items'] ?? [];
-        
-        // Fallback for legacy data stored in options
-        if (empty($items) && $question->options->isNotEmpty()) {
-            $items = [];
-            foreach ($question->options->sortBy('order') as $option) {
-                $items[] = [
-                    'item_text' => $option->option_text,
-                    'correct_order' => $option->order + 1
-                ];
-            }
-        }
-        
-        if (empty($items)) {
-            return 0;
-        }
-        
-        $userAnswers = $this->answers[$question->id] ?? [];
-        
-        if (empty($userAnswers) || count($userAnswers) !== count($items)) {
-            return 0;
-        }
-        
-        // Check if order matches
-        $correct = true;
-        foreach ($items as $index => $item) {
-            $expectedText = $item['item_text'];
-            $actualText = $userAnswers[$index] ?? '';
-            
-            if ($actualText !== $expectedText) {
-                $correct = false;
-                break;
-            }
-        }
-        
-        return $correct ? $question->points : 0;
-    }
-
-    protected function scoreMatchingQuestion($question)
-    {
-        $settings = $question->settings ?? [];
-        $pairs = $settings['matching_pairs'] ?? [];
-        
-        // Fallback for legacy data stored in options
-        if (empty($pairs) && $question->options->isNotEmpty()) {
-            $pairs = [];
-            foreach ($question->options as $option) {
-                $parts = explode('|', $option->option_text);
-                if (count($parts) === 2) {
-                    $pairs[] = [
-                        'left_item' => $parts[0],
-                        'right_item' => $parts[1]
-                    ];
-                }
-            }
-        }
-        
-        if (empty($pairs)) {
-            return 0;
-        }
-        
-        $userAnswers = $this->answers[$question->id] ?? [];
-        
-        $correct = 0;
-        foreach ($pairs as $index => $pair) {
-            $expectedMatch = $pair['right_item'];
-            $actualMatch = $userAnswers[$index] ?? '';
-            
-            if ($actualMatch === $expectedMatch) {
-                $correct++;
-            }
-        }
-        
-        $totalPairs = count($pairs);
-        return $totalPairs > 0 ? ($correct / $totalPairs) * $question->points : 0;
-    }
-
     protected function questionCount(): int
     {
-        return $this->assessment->questions()->count();
+        return $this->getQuestions()->count();
     }
 
     protected function validateAssignmentBeforeSubmit($questions): bool
@@ -1051,163 +825,83 @@ class Take extends Component
         return true;
     }
 
-    protected function getQuestions()
+    /**
+     * The attempt's frozen question set as read-only models, in the persisted order.
+     *
+     * @return Collection<int, Question>
+     */
+    protected function getQuestions(): Collection
     {
-        if ($this->randomizedQuestions instanceof \Illuminate\Support\Collection
-            && $this->randomizedQuestions->isNotEmpty()
-            && $this->randomizedQuestions->first() instanceof Question) {
-            return $this->randomizedQuestions->values();
+        if ($this->questionModels !== null) {
+            return $this->questionModels;
         }
 
-        $questions = $this->assessment->questions()->with('options')->orderBy('order')->get();
+        $models = app(AttemptQuestionModels::class);
 
-        // Build a stable question order once per attempt (survives Livewire rehydration)
-        if ($this->questionOrder === []) {
-            $ordered = $questions;
-            if ($this->assessment->is_randomized) {
-                $ordered = $questions->shuffle($this->shuffleSeed ? (int) $this->shuffleSeed : null);
-            }
-            $this->questionOrder = $ordered->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
-        }
-
-        $byId = $questions->keyBy('id');
-        $orderedQuestions = collect($this->questionOrder)
-            ->map(fn ($id) => $byId->get($id))
-            ->filter()
+        return $this->questionModels = $this->questionDataSet()
+            ->map(fn (array $data) => $models->toModel($data))
             ->values();
+    }
 
-        // Include any new questions not yet in the stored order
-        foreach ($questions as $question) {
-            if (! in_array((int) $question->id, $this->questionOrder, true)) {
-                $orderedQuestions->push($question);
-                $this->questionOrder[] = (int) $question->id;
-            }
+    /**
+     * @return Collection<int, array<string, mixed>>
+     */
+    protected function questionDataSet(): Collection
+    {
+        if ($this->questionData !== null) {
+            return $this->questionData;
         }
 
-        foreach ($orderedQuestions as $question) {
-            $options = $question->relationLoaded('options')
-                ? $question->options
-                : $question->options()->orderBy('order')->get();
-
-            if ($this->assessment->shuffle_options) {
-                if (! isset($this->optionOrder[$question->id])) {
-                    $shuffled = $options->shuffle(
-                        $this->shuffleSeed
-                            ? (int) $this->shuffleSeed + (int) $question->id
-                            : null
-                    );
-                    $this->optionOrder[$question->id] = $shuffled->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
-                }
-
-                $optionById = $options->keyBy('id');
-                $orderedOptions = collect($this->optionOrder[$question->id] ?? [])
-                    ->map(fn ($id) => $optionById->get($id))
-                    ->filter()
-                    ->values();
-
-                foreach ($options as $option) {
-                    if (! in_array((int) $option->id, $this->optionOrder[$question->id] ?? [], true)) {
-                        $orderedOptions->push($option);
-                        $this->optionOrder[$question->id][] = (int) $option->id;
-                    }
-                }
-
-                $question->setRelation('options', $orderedOptions);
-            } else {
-                $question->setRelation('options', $options->sortBy('order')->values());
-            }
+        if (! $this->attemptId) {
+            return collect();
         }
 
-        $this->randomizedQuestions = $orderedQuestions;
+        $attempt = AssessmentAttempt::with('questionSet')->find($this->attemptId);
+        if (! $attempt) {
+            return collect();
+        }
 
-        return $this->randomizedQuestions;
+        if (! $attempt->hasQuestionSet() && $attempt->status === 'in_progress') {
+            $attempt = app(LegacyQuestionSetBackfiller::class)->backfill($attempt)->load('questionSet');
+        }
+
+        return $this->questionData = app(AssessmentGradingService::class)->questionsFor($attempt)->values();
     }
 
     public function getShuffledQuestionData($questionId, $questionType)
     {
-        // Return cached data if available
-        if (isset($this->shuffledQuestionData[$questionId])) {
-            return $this->shuffledQuestionData[$questionId];
-        }
-
-        $question = $this->getQuestions()->firstWhere('id', $questionId);
-        if (!$question) {
+        $data = $this->questionDataSet()->first(fn (array $q) => (int) $q['question_id'] === (int) $questionId);
+        if (! $data) {
             return null;
         }
 
-        $data = null;
+        $types = app(QuestionTypeRegistry::class);
+        $presentation = $data['presentation'] ?? [];
 
         if ($questionType === 'matching') {
-            $settings = $question->settings ?? [];
-            $pairs = $settings['matching_pairs'] ?? [];
-            
-            // Fallback for legacy data stored in options
-            if (empty($pairs) && $question->options->isNotEmpty()) {
-                foreach ($question->options as $option) {
-                    $parts = explode('|', $option->option_text);
-                    if (count($parts) === 2) {
-                        $pairs[] = [
-                            'left_item' => $parts[0],
-                            'right_item' => $parts[1]
-                        ];
-                    }
-                }
-            }
-            
-            $rightItems = collect($pairs)->pluck('right_item');
-            
-            // Shuffle only if assessment has shuffle_options enabled
-            if ($this->assessment->shuffle_options) {
-                if ($this->shuffleSeed) {
-                    mt_srand($this->shuffleSeed + $questionId); // Use question-specific seed
-                }
-                $rightItems = $rightItems->shuffle();
-                if ($this->shuffleSeed) {
-                    mt_srand();
-                }
-            }
-            
-            $data = [
+            /** @var MatchingType $matching */
+            $matching = $types->for('matching');
+            $pairs = $matching->pairs($data);
+
+            return [
                 'pairs' => $pairs,
-                'rightItems' => $rightItems->toArray()
-            ];
-        } elseif ($questionType === 'ordering') {
-            $settings = $question->settings ?? [];
-            $items = $settings['ordering_items'] ?? [];
-            
-            // Fallback for legacy data stored in options
-            if (empty($items) && $question->options->isNotEmpty()) {
-                foreach ($question->options as $option) {
-                    $items[] = [
-                        'item_text' => $option->option_text,
-                        'correct_order' => $option->order + 1
-                    ];
-                }
-            }
-            
-            $shuffledItems = collect($items);
-            
-            // Shuffle only if assessment has shuffle_options enabled
-            if ($this->assessment->shuffle_options) {
-                if ($this->shuffleSeed) {
-                    mt_srand($this->shuffleSeed + $questionId); // Use question-specific seed
-                }
-                $shuffledItems = $shuffledItems->shuffle();
-                if ($this->shuffleSeed) {
-                    mt_srand();
-                }
-            }
-            
-            $data = [
-                'items' => $items,
-                'shuffledItems' => $shuffledItems->toArray()
+                'rightItems' => $presentation['right_items'] ?? array_column($pairs, 'right_item'),
             ];
         }
 
-        // Cache the data
-        $this->shuffledQuestionData[$questionId] = $data;
-        
-        return $data;
+        if ($questionType === 'ordering') {
+            /** @var OrderingType $ordering */
+            $ordering = $types->for('ordering');
+            $items = $ordering->items($data);
+            $wrap = fn (array $texts) => array_map(fn ($text) => ['item_text' => $text], array_values($texts));
+
+            return [
+                'items' => $wrap($items),
+                'shuffledItems' => $wrap($presentation['ordering_items'] ?? $items),
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -1232,13 +926,8 @@ class Take extends Component
 
     public function render()
     {
-        // Always reload questions relationship to ensure it's available in the view
-        // Livewire doesn't preserve relationships through serialization
         $questions = $this->getQuestions();
-        
-        // Explicitly set the relationship on the assessment model for the view
-        $this->assessment->setRelation('questions', $questions);
-        
+
         // Ensure course and lesson are also loaded
         if (!$this->assessment->relationLoaded('course')) {
             $this->assessment->load('course');

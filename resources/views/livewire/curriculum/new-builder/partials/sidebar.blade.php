@@ -426,7 +426,7 @@
                                             <span class="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="Pending approval"></span>
                                         @elseif(($lesson->approval_status ?? '') === 'rejected')
                                             <span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="Rejected — needs revision"></span>
-                                        @elseif($lesson->is_locked ?? false)
+                                        @elseif(($lesson->is_locked ?? false) && ! $canManageCourse)
                                             <svg class="w-3 h-3 flex-shrink-0 text-gray-400" fill="currentColor" viewBox="0 0 20 20" title="Locked">
                                                 <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
                                             </svg>
@@ -445,6 +445,22 @@
                                     </a>
 
                                     @if($canManageCourse)
+                                        @php($lessonLocked = (bool) ($lesson->is_locked ?? false))
+                                        <button type="button"
+                                                wire:click="toggleLessonLock({{ $lesson->id }})"
+                                                title="{{ $lessonLocked ? 'Locked for students – click to unlock' : 'Open to students – click to lock' }}"
+                                                aria-label="{{ $lessonLocked ? 'Unlock lesson' : 'Lock lesson' }}"
+                                                class="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-md transition-all {{ $lessonLocked ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20' : 'text-gray-400 opacity-0 group-hover/lesson:opacity-100 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20' }}">
+                                            @if($lessonLocked)
+                                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                                                </svg>
+                                            @else
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                                                </svg>
+                                            @endif
+                                        </button>
                                         <button type="button"
                                                 wire:click="deleteLesson({{ $lesson->id }})"
                                                 wire:confirm="Archive this lesson? It will be hidden from students but can be restored from the Archived tab."
@@ -504,6 +520,13 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                     </svg>
                     Course Settings
+                </a>
+                <a href="{{ route('questions.index', ['course' => $course->id]) }}" wire:navigate
+                   class="flex items-center gap-2 px-2.5 py-2 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0l-3-3m3 3l3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/>
+                    </svg>
+                    Question Bank
                 </a>
             </div>
         @endif

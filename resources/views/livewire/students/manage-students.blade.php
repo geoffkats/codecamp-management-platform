@@ -1,623 +1,628 @@
 @php
     $hasFilters = $search || $filterClass || $filterEnrollment || $filterEnrollmentCourseId || $filterCategory || $filterReadiness || $filterModuleId || ($showCampFilters && $filterCamp !== 'all') || (($showClubFilters ?? false) && $filterClub !== 'all');
     $activeCamps = $campOptions->where('status', 'active');
+    $codeClubView = $isCodeClubView ?? false;
+    $unassignedKey = \App\Livewire\Students\ManageStudents::CLASS_FILTER_UNASSIGNED;
+    $selectedCount = count($selected);
+    $addUrl = $isIct ? route('students.create-ict') : ($codeClubView ? route('students.create-codeclub') : route('students.create'));
+    $title = $isIct ? 'ICT Students' : ($codeClubView ? 'Code Club Students' : 'Students');
+    $subtitle = $isIct
+        ? 'Your school’s ICT learners, module progress and ICDL exam readiness.'
+        : ($codeClubView ? 'Club members, classes, enrolments and contact details.' : 'Every learner across camps, courses and programs — in one place.');
+    $avatarColors = ['bg-orange-500', 'bg-sky-500', 'bg-emerald-500', 'bg-violet-500', 'bg-rose-500', 'bg-amber-500', 'bg-teal-500', 'bg-indigo-500'];
+    $programBadge = [
+        'codecamp' => ['Codecamp', 'bg-orange-50 text-orange-700 ring-orange-100 dark:bg-orange-500/10 dark:text-orange-300 dark:ring-orange-500/20'],
+        'ict' => ['ICT', 'bg-sky-50 text-sky-700 ring-sky-100 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/20'],
+        'codeclub' => ['Code Club', 'bg-emerald-50 text-emerald-700 ring-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20'],
+    ];
+    $showProgramColumn = $showProgramTabs && $filterProgram === 'all';
+    $chip = 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ring-1 transition';
+    $chipOn = 'bg-gray-900 text-white ring-gray-900 dark:bg-white dark:text-gray-900 dark:ring-white';
+    $chipOff = 'bg-white text-gray-600 ring-gray-200 hover:ring-gray-300 hover:text-gray-900 dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-700';
+    $th = 'px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-400';
 @endphp
 
-<div class="min-h-screen bg-slate-50 dark:bg-zinc-950">
+<div class="min-h-screen bg-gray-50/70 pb-28 dark:bg-zinc-950">
+    <div class="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6">
 
-    {{-- Header --}}
-    <div class="border-b-4 border-blue-600 bg-orange-600">
-        <div class="mx-auto max-w-7xl px-4 py-5 sm:px-6">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <h1 class="text-xl font-bold text-white">{{ $isIct ? 'ICT Students' : (($isCodeClubView ?? false) ? 'Code Club Students' : 'Students') }}</h1>
-                    <p class="mt-0.5 text-sm text-orange-100">
-                        @if($isIct)
-                            ICT student list for your school
-                        @elseif($isCodeClubView ?? false)
-                            Manage Code Club members, enrolments, and contact details
-                        @else
-                            Manage student information, enrolments, and camps
-                        @endif
-                    </p>
+        {{-- Hero --}}
+        <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500 to-orange-600 p-6 text-white shadow-lg shadow-orange-500/20 sm:p-7">
+            <div class="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10"></div>
+            <div class="pointer-events-none absolute -bottom-24 right-40 h-56 w-56 rounded-full bg-white/5"></div>
+
+            <div class="relative flex flex-wrap items-start justify-between gap-4">
+                <div class="max-w-xl">
+                    <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-orange-100">People</p>
+                    <h1 class="mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">{{ $title }}</h1>
+                    <p class="mt-1 text-sm text-orange-50/90">{{ $subtitle }}</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <button type="button"
-                        wire:click="openAssignModal"
-                        @if(count($selected) === 0) disabled @endif
-                        class="inline-flex items-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 transition">
-                        {{ $isIct ? 'Enroll in Module' : 'Assign to Course' }}
-                    </button>
-                    @if($isIct || ($isCodeClubView ?? false))
-                        <button type="button"
-                            wire:click="printSelectedCredentials"
-                            @if(count($selected) === 0) disabled @endif
-                            class="inline-flex items-center rounded-lg border border-white/30 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50 transition">
-                            Print (PDF)
-                        </button>
-                        <button type="button"
-                            wire:click="exportSelectedCsv"
-                            @if(count($selected) === 0) disabled @endif
-                            class="inline-flex items-center rounded-lg border border-white/30 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50 transition">
-                            Export (CSV)
+                    @if($showCodeClubImport ?? false)
+                        <button type="button" wire:click="toggleImportPanel"
+                            class="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-3.5 py-2 text-sm font-semibold text-white ring-1 ring-white/25 backdrop-blur transition hover:bg-white/25">
+                            <flux:icon name="arrow-up-tray" variant="mini" class="size-4" />
+                            {{ $showImportPanel ? 'Hide import' : 'Bulk import' }}
                         </button>
                     @endif
-                    <a href="{{ $isIct ? route('students.create-ict') : (($isCodeClubView ?? false) ? route('students.create-codeclub') : route('students.create')) }}"
-                       wire:navigate
-                       class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-orange-700 hover:bg-orange-50 transition">
-                        + Add Student
+                    <a href="{{ $addUrl }}" wire:navigate
+                       class="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-bold text-orange-700 shadow-sm transition hover:bg-orange-50">
+                        <flux:icon name="user-plus" variant="mini" class="size-4" />
+                        Add student
                     </a>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <div class="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6">
+            <div class="relative mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                @php
+                    $pills = [['Total students', $stats['total'], 'users']];
+                    if ($codeClubView) {
+                        $pills[] = ['Showing now', $stats['matching'], 'funnel'];
+                        $pills[] = ['Classes', ($classes ?? collect())->count(), 'rectangle-group'];
+                        $pills[] = ['No class yet', $stats['unassigned'] ?? 0, 'question-mark-circle'];
+                    } elseif ($isIct) {
+                        $pills[] = ['Showing now', $stats['matching'], 'funnel'];
+                        $pills[] = ['Modules', $courses->count(), 'book-open'];
+                        $pills[] = ['No class yet', $stats['unassigned'] ?? 0, 'question-mark-circle'];
+                    } else {
+                        $pills[] = ['Showing now', $stats['matching'], 'funnel'];
+                        $pills[] = $showCampFilters ? ['In an active camp', $stats['in_camp'], 'flag'] : ['Codecamp', $stats['codecamp'], 'code-bracket'];
+                        $pills[] = ['No class yet', $stats['unassigned'] ?? 0, 'question-mark-circle'];
+                    }
+                @endphp
+                @foreach($pills as [$label, $value, $icon])
+                    <div class="flex items-center gap-3 rounded-2xl bg-white/15 px-4 py-3 ring-1 ring-white/20 backdrop-blur">
+                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/20">
+                            <flux:icon :name="$icon" variant="outline" class="size-5" />
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-xl font-extrabold leading-none">{{ number_format($value) }}</p>
+                            <p class="mt-1 truncate text-[11px] font-semibold uppercase tracking-wide text-orange-50/90">{{ $label }}</p>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </section>
 
         {{-- Flash --}}
         @if(session()->has('message'))
-            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
-                {{ session('message') }}
+            <div class="flex items-start gap-3 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-200 dark:ring-emerald-500/20">
+                <flux:icon name="check-circle" variant="solid" class="mt-0.5 size-5 shrink-0 text-emerald-500" />
+                <p>{{ session('message') }}</p>
             </div>
         @endif
 
-        {{-- Program tabs (admin / supervisor only) --}}
-        @if($showProgramTabs)
-            <div class="flex flex-wrap gap-2">
-                @foreach(array_filter([
-                    'all' => 'All Programs',
-                    'codecamp' => 'Codecamp',
-                    'ict' => 'ICT',
-                    'codeclub' => config('features.code_club', false) ? 'Code Club' : null,
-                ]) as $key => $label)
-                    <button type="button" wire:click="$set('filterProgram', '{{ $key }}')"
-                        class="inline-flex items-center rounded-lg border px-3 py-1.5 text-sm font-medium transition
-                            {{ $filterProgram === $key
-                                ? 'border-orange-600 bg-orange-600 text-white'
-                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300' }}">
-                        {{ $label }}
-                    </button>
-                @endforeach
-            </div>
-        @endif
-
-        @if($showCodeClubImport ?? false)
-            <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <p class="text-sm font-semibold text-amber-900 dark:text-amber-100">Code Club bulk import</p>
-                        <p class="text-xs text-amber-800/80 dark:text-amber-200/70 mt-0.5">Upload a CSV (save Excel as CSV). Select a Code Club filter below, or import from Admin → Code Clubs → your club.</p>
-                    </div>
-                    <div class="flex flex-wrap gap-2">
-                        <button type="button" wire:click="downloadCodeClubImportTemplate" class="text-xs font-semibold text-blue-600 hover:underline">Template</button>
-                        <button type="button" wire:click="toggleImportPanel" class="inline-flex items-center rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700">
-                            {{ $showImportPanel ? 'Hide Import' : '↑ Bulk Import Students' }}
-                        </button>
-                    </div>
-                </div>
-                @if($showImportPanel)
-                    <div class="mt-4 space-y-4 rounded-xl border border-amber-300/60 bg-white/70 p-4 dark:border-amber-800 dark:bg-zinc-900/40">
-                        @if(($clubOptions ?? collect())->count() > 1)
-                            <flux:select wire:model="importClubId" label="Import into club (required)">
-                                <option value="">Select club…</option>
-                                @foreach($clubOptions as $clubOpt)
-                                    <option value="{{ $clubOpt->id }}">{{ $clubOpt->name }}</option>
-                                @endforeach
-                            </flux:select>
-                        @elseif(($clubOptions ?? collect())->count() === 1)
-                            <div class="rounded-lg bg-amber-100/80 px-3 py-2 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">
-                                Importing into: <strong>{{ $clubOptions->first()->name }}</strong>
-                            </div>
-                        @endif
-
-                        <x-codeclub.bulk-import-uploader wire:model="importCsv" :file="$importCsv" />
-
-                        <x-codeclub.import-default-class />
-
-                        @error('importCsv')
-                            <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
-                                {{ $message }}
-                            </div>
-                        @enderror
-
-                        <div class="flex flex-wrap items-center gap-2 pt-1">
-                            <button type="button" wire:click="importCodeClubStudents" wire:loading.attr="disabled" wire:target="importCsv,importCodeClubStudents"
-                                class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
-                                <svg wire:loading.remove wire:target="importCodeClubStudents" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                <span wire:loading wire:target="importCodeClubStudents">Importing…</span>
-                                <span wire:loading.remove wire:target="importCodeClubStudents">Run Import</span>
-                            </button>
-                            <button type="button" wire:click="toggleImportPanel" class="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:text-slate-300 dark:hover:bg-zinc-800">
-                                Cancel
-                            </button>
-                        </div>
-
-                        @if($importReport)
-                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
-                                <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{{ $importReport['imported'] }} imported · {{ $importReport['skipped'] }} skipped</p>
-                                @if(!empty($importReport['errors']))
-                                    <ul class="mt-2 max-h-32 list-disc space-y-1 pl-5 text-xs text-red-700 dark:text-red-300 overflow-y-auto">
-                                        @foreach($importReport['errors'] as $error)
-                                            <li>{{ $error }}</li>
-                                        @endforeach
-                                    </ul>
-                                @endif
-                            </div>
-                        @endif
-                    </div>
-                @endif
-            </div>
-        @endif
-
-        @if(($isCodeClubView ?? false) && count($selected) > 0)
-            <div class="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-950/30">
+        {{-- Code Club import --}}
+        @if(($showCodeClubImport ?? false) && $showImportPanel)
+            <section class="rounded-2xl bg-white p-5 ring-1 ring-gray-100 dark:bg-zinc-900 dark:ring-zinc-800">
                 <div class="flex flex-wrap items-start justify-between gap-3">
-                    <p class="text-sm font-semibold text-blue-900 dark:text-blue-100">
-                        {{ count($selected) }} student{{ count($selected) === 1 ? '' : 's' }} selected
-                    </p>
-                    <div class="flex flex-1 flex-wrap gap-2">
-                        <button type="button" wire:click="openAssignModal" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">Assign Course</button>
-                        <button type="button" wire:click="openBulkClassModal" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Set Class</button>
-                        <button type="button" wire:click="exportSelectedCsv" class="rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-800 dark:bg-zinc-900 dark:text-blue-200">Export CSV</button>
-                        <button type="button" wire:click="printSelectedCredentials" class="rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-800 dark:bg-zinc-900 dark:text-blue-200">Print Credentials</button>
-                        <button type="button" wire:click="bulkRemoveFromClub" wire:confirm="Remove selected students from the club? They will stay in the system." class="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700">Remove from Club</button>
-                        <button type="button" wire:click="clearSelection" class="rounded-lg border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-800 dark:text-blue-200">Clear</button>
+                    <div>
+                        <h2 class="text-base font-bold text-gray-900 dark:text-white">Bulk import Code Club students</h2>
+                        <p class="mt-0.5 text-sm text-gray-500">Upload a CSV (save Excel as CSV). Each row becomes a student with a login.</p>
                     </div>
+                    <button type="button" wire:click="downloadCodeClubImportTemplate" class="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold text-orange-600 ring-1 ring-orange-200 hover:bg-orange-50 dark:ring-orange-500/30 dark:hover:bg-orange-500/10">
+                        <flux:icon name="arrow-down-tray" variant="mini" class="size-4" /> Template
+                    </button>
                 </div>
 
-                @if($canBulkAdminActions ?? false)
-                    <x-students.bulk-advanced-panel
-                        :can-deactivate="auth()->user()->isAdmin() || auth()->user()->isSupervisor() || auth()->user()->isOperationsManager()"
-                        :can-delete="auth()->user()->isAdmin() || auth()->user()->isSupervisor()"
-                        export-action="exportSelectedCsv"
-                    />
-                @endif
-            </div>
+                <div class="mt-4 space-y-4">
+                    @if(($clubOptions ?? collect())->count() > 1)
+                        <flux:select wire:model="importClubId" label="Import into club (required)">
+                            <option value="">Select club…</option>
+                            @foreach($clubOptions as $clubOpt)
+                                <option value="{{ $clubOpt->id }}">{{ $clubOpt->name }}</option>
+                            @endforeach
+                        </flux:select>
+                    @elseif(($clubOptions ?? collect())->count() === 1)
+                        <div class="rounded-xl bg-orange-50 px-3 py-2 text-sm text-orange-900 dark:bg-orange-500/10 dark:text-orange-100">
+                            Importing into <strong>{{ $clubOptions->first()->name }}</strong>
+                        </div>
+                    @endif
+
+                    <x-codeclub.bulk-import-uploader wire:model="importCsv" :file="$importCsv" />
+                    <x-codeclub.import-default-class />
+
+                    @error('importCsv')
+                        <div class="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100 dark:bg-red-500/10 dark:text-red-300">{{ $message }}</div>
+                    @enderror
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" wire:click="importCodeClubStudents" wire:loading.attr="disabled" wire:target="importCsv,importCodeClubStudents"
+                            class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+                            <span wire:loading wire:target="importCodeClubStudents">Importing…</span>
+                            <span wire:loading.remove wire:target="importCodeClubStudents">Run import</span>
+                        </button>
+                        <button type="button" wire:click="toggleImportPanel" class="rounded-xl px-4 py-2.5 text-sm font-semibold text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50 dark:text-zinc-300 dark:ring-zinc-700 dark:hover:bg-zinc-800">Cancel</button>
+                    </div>
+
+                    @if($importReport)
+                        <div class="rounded-xl bg-gray-50 p-3 ring-1 ring-gray-100 dark:bg-zinc-800/50 dark:ring-zinc-700">
+                            <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{{ $importReport['imported'] }} imported · {{ $importReport['skipped'] }} skipped</p>
+                            @if(!empty($importReport['errors']))
+                                <ul class="mt-2 max-h-32 list-disc space-y-1 overflow-y-auto pl-5 text-xs text-red-700 dark:text-red-300">
+                                    @foreach($importReport['errors'] as $error)
+                                        <li>{{ $error }}</li>
+                                    @endforeach
+                                </ul>
+                            @endif
+                        </div>
+                    @endif
+                </div>
+            </section>
         @endif
 
-        {{-- Camp quick-pills (codecamp only) --}}
-        @if($showCampFilters && $activeCamps->isNotEmpty())
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Camp:</span>
-                <button type="button" wire:click="selectCamp('all')"
-                    class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium transition
-                        {{ $filterCamp === 'all'
-                            ? 'border-blue-600 bg-blue-600 text-white'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300' }}">
-                    All
-                </button>
-                @foreach($activeCamps as $camp)
-                    <button type="button" wire:click="selectCamp('{{ $camp->id }}')"
-                        class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium transition
-                            {{ (string) $filterCamp === (string) $camp->id
-                                ? 'border-blue-600 bg-blue-600 text-white'
-                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300' }}">
-                        {{ $camp->name }}
+        {{-- Program tabs --}}
+        @if($showProgramTabs)
+            <div class="flex flex-wrap gap-1 rounded-2xl bg-white p-1.5 ring-1 ring-gray-100 dark:bg-zinc-900 dark:ring-zinc-800">
+                @foreach(array_filter([
+                    'all' => ['All programs', $stats['total']],
+                    'codecamp' => ['Codecamp', $stats['codecamp']],
+                    'ict' => ['ICT', $stats['ict']],
+                    'codeclub' => config('features.code_club', false) ? ['Code Club', $stats['codeclub']] : null,
+                ]) as $key => [$label, $count])
+                    <button type="button" wire:click="$set('filterProgram', '{{ $key }}')"
+                        class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition {{ $filterProgram === $key ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/30' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-zinc-300 dark:hover:bg-zinc-800' }}">
+                        {{ $label }}
+                        <span class="rounded-full px-1.5 py-0.5 text-[10px] font-bold {{ $filterProgram === $key ? 'bg-white/20' : 'bg-gray-100 text-gray-500 dark:bg-zinc-800' }}">{{ number_format($count) }}</span>
                     </button>
                 @endforeach
             </div>
         @endif
-
-        {{-- Class quick-pills (Code Club) --}}
-        @if(($isCodeClubView ?? false) && ($classes ?? collect())->isNotEmpty())
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Class:</span>
-                <button type="button" wire:click="selectClass('')"
-                    class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium transition
-                        {{ $filterClass === ''
-                            ? 'border-emerald-600 bg-emerald-600 text-white'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300' }}">
-                    All
-                </button>
-                @if(($stats['unassigned'] ?? 0) > 0)
-                    <button type="button" wire:click="selectClass('{{ \App\Livewire\Students\ManageStudents::CLASS_FILTER_UNASSIGNED }}')"
-                        class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium transition
-                            {{ $filterClass === \App\Livewire\Students\ManageStudents::CLASS_FILTER_UNASSIGNED
-                                ? 'border-emerald-600 bg-emerald-600 text-white'
-                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300' }}">
-                        Unassigned
-                    </button>
-                @endif
-                @foreach($classes as $classOption)
-                    <button type="button" wire:click="selectClass('{{ $classOption }}')"
-                        class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium transition
-                            {{ $filterClass === $classOption
-                                ? 'border-emerald-600 bg-emerald-600 text-white'
-                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300' }}">
-                        {{ $classOption }}
-                    </button>
-                @endforeach
-            </div>
-        @endif
-
-        {{-- Stats --}}
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
-                <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Total</p>
-                <p class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{{ number_format($stats['total']) }}</p>
-            </div>
-            @if($isCodeClubView ?? false)
-                <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
-                    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Showing</p>
-                    <p class="mt-1 text-2xl font-bold text-emerald-600">{{ number_format($stats['matching']) }}</p>
-                </div>
-            @elseif(!$isIct && !$isCodecampOnly && $showProgramTabs)
-                <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
-                    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Codecamp</p>
-                    <p class="mt-1 text-2xl font-bold text-orange-600">{{ number_format($stats['codecamp']) }}</p>
-                </div>
-                <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
-                    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">ICT</p>
-                    <p class="mt-1 text-2xl font-bold text-blue-600">{{ number_format($stats['ict']) }}</p>
-                </div>
-                @if(config('features.code_club', false))
-                <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
-                    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Code Club</p>
-                    <p class="mt-1 text-2xl font-bold text-emerald-600">{{ number_format($stats['codeclub']) }}</p>
-                </div>
-                @endif
-            @else
-                <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
-                    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Matching</p>
-                    <p class="mt-1 text-2xl font-bold text-blue-600">{{ number_format($stats['matching']) }}</p>
-                </div>
-            @endif
-            @if($showCampFilters)
-                <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
-                    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">In Active Camp</p>
-                    <p class="mt-1 text-2xl font-bold text-emerald-600">{{ number_format($stats['in_camp']) }}</p>
-                </div>
-            @else
-                <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
-                    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Showing</p>
-                    <p class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{{ number_format($stats['matching']) }}</p>
-                </div>
-            @endif
-        </div>
 
         {{-- Filters --}}
-        <div class="rounded-lg border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-{{ $isIct ? '4' : '5' }} lg:items-end">
-                <div class="sm:col-span-2 lg:col-span-1">
-                    <flux:input wire:model.live.debounce.300ms="search"
-                        placeholder="{{ $isIct ? 'Name, ID, or ICDL #' : 'Name, ID, or contact…' }}" />
+        <section class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 dark:bg-zinc-900 dark:ring-zinc-800">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <div class="relative flex-1">
+                    <flux:icon name="magnifying-glass" variant="mini" class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+                    <input type="search" wire:model.live.debounce.300ms="search"
+                        placeholder="{{ $isIct ? 'Search name, student ID or ICDL number…' : 'Search name, student ID or parent contact…' }}"
+                        class="w-full rounded-xl border-0 bg-gray-50 py-2.5 pl-10 pr-3 text-sm text-gray-900 ring-1 ring-gray-200 placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-500/50 dark:bg-zinc-800 dark:text-white dark:ring-zinc-700">
                 </div>
 
-                <div>
-                    <flux:select wire:model.live="filterClass" label="Class / grade">
-                        <option value="">All classes</option>
-                        <option value="{{ \App\Livewire\Students\ManageStudents::CLASS_FILTER_UNASSIGNED }}">Unassigned</option>
-                        @foreach($classes as $class)
-                            <option value="{{ $class }}">{{ $class }}</option>
-                        @endforeach
-                    </flux:select>
-                </div>
+                <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+                    @php $select = 'rounded-xl border-0 bg-gray-50 py-2.5 pl-3 pr-8 text-sm font-medium text-gray-700 ring-1 ring-gray-200 focus:ring-2 focus:ring-orange-500/50 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-zinc-700'; @endphp
+                    @unless($codeClubView)
+                        <select wire:model.live="filterClass" class="{{ $select }}" aria-label="Class">
+                            <option value="">All classes</option>
+                            <option value="{{ $unassignedKey }}">No class</option>
+                            @foreach($classes as $class)
+                                <option value="{{ $class }}">{{ $class }}</option>
+                            @endforeach
+                        </select>
+                    @endunless
 
-                @if($isIct)
-                    <div>
-                        <flux:select wire:model.live="filterModuleId" label="Module">
+                    @if($isIct)
+                        <select wire:model.live="filterModuleId" class="{{ $select }}" aria-label="Module">
                             <option value="">All modules</option>
                             @foreach($courses as $course)
                                 <option value="{{ $course->id }}">{{ $course->title }}</option>
                             @endforeach
-                        </flux:select>
-                    </div>
-                    <div>
-                        <flux:select wire:model.live="filterReadiness" label="Readiness">
-                            <option value="">All readiness</option>
-                            <option value="not_ready">Not Ready</option>
-                            <option value="student_requested">Requested Exam</option>
-                            <option value="teacher_approved">Exam Ready</option>
-                            <option value="needs_practice">Needs Practice</option>
-                            <option value="exam_completed">Exam Completed</option>
-                        </flux:select>
-                    </div>
-                @else
-                    @if($showCampFilters && $campOptions->count() > 3)
-                        <div>
-                            <flux:select wire:model.live="filterCamp" label="Camp">
+                        </select>
+                        <select wire:model.live="filterReadiness" class="{{ $select }}" aria-label="Readiness">
+                            <option value="">Any readiness</option>
+                            <option value="not_ready">Not ready</option>
+                            <option value="student_requested">Requested exam</option>
+                            <option value="teacher_approved">Exam ready</option>
+                            <option value="needs_practice">Needs practice</option>
+                            <option value="exam_completed">Exam completed</option>
+                        </select>
+                    @else
+                        @if($showCampFilters && $campOptions->count() > 3)
+                            <select wire:model.live="filterCamp" class="{{ $select }}" aria-label="Camp">
                                 <option value="all">All camps</option>
                                 @foreach($campOptions as $campOpt)
                                     <option value="{{ $campOpt->id }}">{{ $campOpt->name }} ({{ $campOpt->status }})</option>
                                 @endforeach
-                            </flux:select>
-                        </div>
-                    @endif
-                    @if(($showClubFilters ?? false) && ($clubOptions ?? collect())->isNotEmpty())
-                        <div>
-                            <flux:select wire:model.live="filterClub" label="Code Club">
+                            </select>
+                        @endif
+                        @if(($showClubFilters ?? false) && ($clubOptions ?? collect())->isNotEmpty())
+                            <select wire:model.live="filterClub" class="{{ $select }}" aria-label="Code Club">
                                 <option value="all">All clubs</option>
                                 @foreach($clubOptions as $clubOpt)
                                     <option value="{{ $clubOpt->id }}">{{ $clubOpt->name }}</option>
                                 @endforeach
-                            </flux:select>
-                        </div>
-                    @endif
-                    <div>
-                        <flux:select wire:model.live="filterEnrollment" label="Enrolment">
-                            <option value="">Any status</option>
+                            </select>
+                        @endif
+                        <select wire:model.live="filterEnrollment" class="{{ $select }}" aria-label="Enrolment">
+                            <option value="">Any enrolment</option>
                             <option value="enrolled">Enrolled</option>
                             <option value="not_enrolled">Not enrolled</option>
-                        </flux:select>
-                    </div>
-                    <div>
-                        <flux:select wire:model.live="filterEnrollmentCourseId" label="Course">
+                        </select>
+                        <select wire:model.live="filterEnrollmentCourseId" class="{{ $select }}" aria-label="Course">
                             <option value="">Any course</option>
                             @foreach($courses as $course)
                                 <option value="{{ $course->id }}">{{ $course->title }}</option>
                             @endforeach
-                        </flux:select>
-                    </div>
-                @endif
-
-                <div class="flex items-end gap-2">
-                    @if($hasFilters)
-                        <flux:button variant="ghost" size="sm" wire:click="clearFilters">Clear</flux:button>
+                        </select>
                     @endif
-                    @if(count($selected) > 0)
-                        <span class="text-xs text-slate-500">{{ count($selected) }} selected</span>
+
+                    @if($hasFilters)
+                        <button type="button" wire:click="clearFilters" class="inline-flex items-center justify-center gap-1 rounded-xl px-3 py-2.5 text-sm font-semibold text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-500/10">
+                            <flux:icon name="x-mark" variant="mini" class="size-4" /> Clear
+                        </button>
                     @endif
                 </div>
             </div>
-        </div>
 
-        {{-- Table --}}
-        <div class="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+            @if(($showCampFilters && $activeCamps->isNotEmpty()) || ($codeClubView && ($classes ?? collect())->isNotEmpty()))
+                <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 dark:border-zinc-800">
+                    @if($showCampFilters && $activeCamps->isNotEmpty())
+                        <span class="mr-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Active camps</span>
+                        <button type="button" wire:click="selectCamp('all')" class="{{ $chip }} {{ $filterCamp === 'all' ? $chipOn : $chipOff }}">All</button>
+                        @foreach($activeCamps as $camp)
+                            <button type="button" wire:click="selectCamp('{{ $camp->id }}')" class="{{ $chip }} {{ (string) $filterCamp === (string) $camp->id ? $chipOn : $chipOff }}">
+                                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>{{ $camp->name }}
+                            </button>
+                        @endforeach
+                    @else
+                        <span class="mr-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Class</span>
+                        <button type="button" wire:click="selectClass('')" class="{{ $chip }} {{ $filterClass === '' ? $chipOn : $chipOff }}">All</button>
+                        @if(($stats['unassigned'] ?? 0) > 0)
+                            <button type="button" wire:click="selectClass('{{ $unassignedKey }}')" class="{{ $chip }} {{ $filterClass === $unassignedKey ? $chipOn : $chipOff }}">
+                                No class <span class="opacity-60">{{ $stats['unassigned'] }}</span>
+                            </button>
+                        @endif
+                        @foreach($classes as $classOption)
+                            <button type="button" wire:click="selectClass('{{ $classOption }}')" class="{{ $chip }} {{ $filterClass === $classOption ? $chipOn : $chipOff }}">{{ $classOption }}</button>
+                        @endforeach
+                    @endif
+                </div>
+            @endif
+        </section>
+
+        {{-- List --}}
+        <section class="overflow-hidden rounded-2xl bg-white ring-1 ring-gray-100 dark:bg-zinc-900 dark:ring-zinc-800">
+            <div class="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-zinc-800">
+                <p class="text-sm text-gray-500">
+                    <span class="font-bold text-gray-900 dark:text-white">{{ number_format($stats['matching']) }}</span>
+                    {{ \Illuminate\Support\Str::plural('student', $stats['matching']) }}{{ $hasFilters ? ' match your filters' : '' }}
+                </p>
+                <div wire:loading.flex wire:target="search,filterClass,filterProgram,filterCamp,filterCampStatus,filterClub,filterEnrollment,filterEnrollmentCourseId,filterCategory,filterReadiness,filterModuleId,selectCamp,selectClass,clearFilters" class="items-center gap-2 text-xs font-medium text-orange-600">
+                    <svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
+                    Updating…
+                </div>
+            </div>
+
             <div class="overflow-x-auto"
                  wire:loading.class="opacity-60"
-                 wire:target="search,filterClass,filterProgram,filterCamp,filterCampStatus,filterClub,filterEnrollment,filterEnrollmentCourseId,filterCategory,filterReadiness,filterModuleId">
-                <table class="min-w-full divide-y divide-slate-200 dark:divide-zinc-700">
-                    <thead class="bg-slate-50 dark:bg-zinc-800/80">
+                 wire:target="search,filterClass,filterProgram,filterCamp,filterCampStatus,filterClub,filterEnrollment,filterEnrollmentCourseId,filterCategory,filterReadiness,filterModuleId,selectCamp,selectClass,clearFilters">
+                <table class="min-w-full">
+                    <thead class="bg-gray-50/80 dark:bg-zinc-800/50">
                         <tr>
-                            <th class="px-3 py-2.5">
-                                <input type="checkbox" wire:model.live="selectAll"
-                                    class="rounded border-slate-300 text-blue-600 shadow-sm">
+                            <th class="w-10 py-3 pl-4 pr-2">
+                                <input type="checkbox" wire:model.live="selectAll" aria-label="Select all on this page"
+                                    class="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-zinc-600 dark:bg-zinc-800">
                             </th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Student</th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Class</th>
+                            <th class="{{ $th }}">Student</th>
+                            <th class="{{ $th }}">Class</th>
                             @if($isIct)
-                                <th class="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Module</th>
-                                <th class="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Progress</th>
-                                <th class="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Readiness</th>
-                                <th class="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Exam Request</th>
-                                <th class="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Payment</th>
+                                <th class="{{ $th }}">Modules</th>
+                                <th class="{{ $th }}">Readiness</th>
+                                <th class="{{ $th }}">Exam</th>
                             @else
-                                <th class="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">{{ ($isCodeClubView ?? false) ? 'Club' : 'Camp' }}</th>
-                                <th class="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Courses</th>
-                                <th class="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Contact</th>
-                                @if(!($isCodeClubView ?? false))
-                                    <th class="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Uniform</th>
-                                @endif
+                                <th class="{{ $th }}">{{ $codeClubView ? 'Club' : 'Camp' }}</th>
+                                <th class="{{ $th }}">Courses</th>
+                                <th class="{{ $th }}">Parent contact</th>
+                                @unless($codeClubView)
+                                    <th class="{{ $th }}">Uniform</th>
+                                @endunless
                             @endif
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Actions</th>
+                            <th class="{{ $th }} text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-100 dark:divide-zinc-800">
+                    <tbody class="divide-y divide-gray-100 dark:divide-zinc-800">
                         @forelse($students as $student)
                             @php
                                 $enrollments = $student->user?->enrollments ?? collect();
                                 $enrollmentCount = $enrollments->count();
-                                $avgProgress = $enrollmentCount > 0 ? round($enrollments->avg('progress_percentage'), 1) : 0;
+                                $avgProgress = $enrollmentCount > 0 ? (int) round($enrollments->avg('progress_percentage')) : 0;
                                 $moduleTitles = $enrollments->pluck('course.title')->filter()->values();
                                 $currentCamp = $student->user?->currentCampEnrollment?->camp;
                                 $activeClub = $student->user?->activeCodeClubMembership?->club;
-                                $readinessLabel = match($student->exam_readiness_status ?? 'not_ready') {
-                                    'student_requested' => 'Requested',
-                                    'teacher_approved' => 'Exam Ready',
-                                    'needs_practice' => 'Needs Practice',
-                                    'exam_completed' => 'Completed',
-                                    default => 'Not Ready',
+                                $isSelected = in_array((string) $student->id, array_map('strval', $selected), true);
+                                $initials = collect(preg_split('/\s+/', trim((string) $student->full_name)))->filter()->take(2)->map(fn ($p) => mb_strtoupper(mb_substr($p, 0, 1)))->implode('');
+                                $avatar = $avatarColors[$student->id % count($avatarColors)];
+                                [$readinessLabel, $readinessCls] = match($student->exam_readiness_status ?? 'not_ready') {
+                                    'student_requested' => ['Requested', 'bg-sky-50 text-sky-700 ring-sky-100'],
+                                    'teacher_approved' => ['Exam ready', 'bg-emerald-50 text-emerald-700 ring-emerald-100'],
+                                    'needs_practice' => ['Needs practice', 'bg-amber-50 text-amber-700 ring-amber-100'],
+                                    'exam_completed' => ['Completed', 'bg-violet-50 text-violet-700 ring-violet-100'],
+                                    default => ['Not ready', 'bg-gray-100 text-gray-600 ring-gray-200'],
                                 };
-                                $readinessCls = match($student->exam_readiness_status ?? 'not_ready') {
-                                    'teacher_approved' => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200',
-                                    'needs_practice' => 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200',
-                                    'student_requested' => 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200',
-                                    'exam_completed' => 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200',
-                                    default => 'bg-slate-100 text-slate-700 dark:bg-zinc-800 dark:text-slate-300',
-                                };
+                                $editUrl = $isIct
+                                    ? route('students.edit-ict', $student->id)
+                                    : ($student->program_type === 'codeclub' && config('features.code_club', false) ? route('students.edit-codeclub', $student->id) : route('students.edit', $student->id));
                             @endphp
-                            <tr class="hover:bg-orange-50/40 dark:hover:bg-orange-950/10">
-                                <td class="px-3 py-2.5">
-                                    <input type="checkbox" value="{{ $student->id }}" wire:model.live="selected"
-                                        class="rounded border-slate-300 text-blue-600 shadow-sm">
+                            <tr wire:key="student-{{ $student->id }}" class="group transition-colors {{ $isSelected ? 'bg-orange-50/60 dark:bg-orange-500/5' : 'hover:bg-gray-50/80 dark:hover:bg-zinc-800/40' }}">
+                                <td class="py-3 pl-4 pr-2">
+                                    <input type="checkbox" value="{{ $student->id }}" wire:model.live="selected" aria-label="Select {{ $student->full_name }}"
+                                        class="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-zinc-600 dark:bg-zinc-800">
                                 </td>
-                                <td class="px-3 py-2.5">
-                                    <p class="text-sm font-semibold text-slate-900 dark:text-white">{{ $student->full_name }}</p>
-                                    <p class="text-xs text-slate-500">{{ $student->student_id }}</p>
-                                    @if(!$isIct && $enrollmentCount > 0)
-                                        <span class="mt-0.5 inline-flex rounded-full bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
-                                            {{ $enrollmentCount }} enrolled
+                                <td class="px-4 py-3">
+                                    <a href="{{ route('students.show', $student->id) }}" wire:navigate class="flex items-center gap-3">
+                                        <span class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ $avatar }} text-sm font-bold text-white">
+                                            {{ $initials ?: '?' }}
+                                            @if(! $student->is_active)
+                                                <span class="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-gray-400 ring-2 ring-white dark:ring-zinc-900" title="Inactive"></span>
+                                            @endif
                                         </span>
+                                        <span class="min-w-0">
+                                            <span class="block truncate text-sm font-bold text-gray-900 group-hover:text-orange-600 dark:text-white">{{ $student->full_name }}</span>
+                                            <span class="mt-0.5 flex items-center gap-1.5">
+                                                <span class="font-mono text-[11px] text-gray-400">{{ $student->student_id }}</span>
+                                                @if($showProgramColumn && isset($programBadge[$student->program_type]))
+                                                    <span class="rounded-full px-1.5 py-px text-[10px] font-bold ring-1 {{ $programBadge[$student->program_type][1] }}">{{ $programBadge[$student->program_type][0] }}</span>
+                                                @endif
+                                            </span>
+                                        </span>
+                                    </a>
+                                </td>
+                                <td class="px-4 py-3">
+                                    @if($student->class_grade)
+                                        <span class="rounded-lg bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700 dark:bg-zinc-800 dark:text-zinc-300">{{ $student->class_grade }}</span>
+                                    @else
+                                        <span class="text-xs text-gray-300 dark:text-zinc-600">—</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">{{ $student->class_grade ?: '—' }}</td>
 
                                 @if($isIct)
-                                    <td class="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
+                                    <td class="px-4 py-3">
                                         @if($moduleTitles->isNotEmpty())
-                                            <span class="inline-block max-w-[140px] truncate rounded bg-slate-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800"
-                                                  title="{{ $moduleTitles->implode(', ') }}">
-                                                {{ $moduleTitles->first() }}
-                                            </span>
-                                            @if($moduleTitles->count() > 1)
-                                                <span class="text-xs text-slate-400">+{{ $moduleTitles->count() - 1 }}</span>
-                                            @endif
+                                            <p class="max-w-[180px] truncate text-sm font-medium text-gray-700 dark:text-zinc-300" title="{{ $moduleTitles->implode(', ') }}">
+                                                {{ $moduleTitles->first() }}@if($moduleTitles->count() > 1)<span class="text-gray-400"> +{{ $moduleTitles->count() - 1 }}</span>@endif
+                                            </p>
+                                            <div class="mt-1.5 flex items-center gap-2">
+                                                <div class="h-1.5 w-24 overflow-hidden rounded-full bg-gray-100 dark:bg-zinc-800"><div class="h-full rounded-full bg-sky-500" style="width: {{ $avgProgress }}%"></div></div>
+                                                <span class="text-[11px] font-semibold text-gray-500">{{ $avgProgress }}%</span>
+                                            </div>
                                         @else
-                                            <span class="text-xs text-slate-400">Not enrolled</span>
+                                            <span class="text-xs text-gray-400">Not enrolled</span>
                                         @endif
                                     </td>
-                                    <td class="px-3 py-2.5 text-right text-sm font-semibold text-slate-900 dark:text-white">{{ $avgProgress }}%</td>
-                                    <td class="px-3 py-2.5">
-                                        <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {{ $readinessCls }}">
-                                            {{ $readinessLabel }}
-                                        </span>
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ring-1 {{ $readinessCls }}">{{ $readinessLabel }}</span>
                                     </td>
-                                    <td class="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-400">
-                                        {{ ucfirst(str_replace('_', ' ', $student->exam_request_status ?? 'not requested')) }}
-                                    </td>
-                                    <td class="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-400">
-                                        {{ ucfirst(str_replace('_', ' ', $student->exam_payment_status ?? 'not submitted')) }}
+                                    <td class="px-4 py-3 text-xs text-gray-500">
+                                        <p><span class="text-gray-400">Request:</span> {{ ucfirst(str_replace('_', ' ', $student->exam_request_status ?? 'not requested')) }}</p>
+                                        <p class="mt-0.5"><span class="text-gray-400">Payment:</span> {{ ucfirst(str_replace('_', ' ', $student->exam_payment_status ?? 'not submitted')) }}</p>
                                     </td>
                                 @else
-                                    <td class="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
-                                        @if($isCodeClubView ?? false)
+                                    <td class="px-4 py-3">
+                                        @if($codeClubView)
                                             @if($activeClub)
-                                                <span class="inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
-                                                    {{ $activeClub->name }}
+                                                <span class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>{{ $activeClub->name }}
                                                 </span>
                                             @else
-                                                <span class="text-xs text-slate-400">—</span>
+                                                <span class="text-xs text-gray-300 dark:text-zinc-600">—</span>
                                             @endif
                                         @elseif($currentCamp)
-                                            <span class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium
-                                                {{ $currentCamp->status === 'active' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200' : 'bg-slate-100 text-slate-700 dark:bg-zinc-800 dark:text-slate-300' }}">
-                                                {{ $currentCamp->name }}
+                                            <span class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold {{ $currentCamp->status === 'active' ? 'bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300' : 'bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-300' }}">
+                                                <span class="h-1.5 w-1.5 rounded-full {{ $currentCamp->status === 'active' ? 'bg-sky-500' : 'bg-gray-400' }}"></span>{{ $currentCamp->name }}
                                             </span>
                                         @else
-                                            <span class="text-xs text-slate-400">—</span>
+                                            <span class="text-xs text-gray-300 dark:text-zinc-600">—</span>
                                         @endif
                                     </td>
-                                    <td class="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-400">
+                                    <td class="px-4 py-3">
                                         @if($enrollmentCount > 0)
-                                            <span class="text-xs text-slate-700 dark:text-slate-300">{{ $enrollmentCount }} course{{ $enrollmentCount !== 1 ? 's' : '' }}</span>
-                                            <span class="block text-xs text-slate-400">avg {{ $avgProgress }}%</span>
+                                            <p class="text-sm font-semibold text-gray-800 dark:text-zinc-200">{{ $enrollmentCount }} {{ \Illuminate\Support\Str::plural('course', $enrollmentCount) }}</p>
+                                            <div class="mt-1.5 flex items-center gap-2" title="{{ $moduleTitles->implode(', ') }}">
+                                                <div class="h-1.5 w-24 overflow-hidden rounded-full bg-gray-100 dark:bg-zinc-800"><div class="h-full rounded-full {{ $avgProgress >= 80 ? 'bg-emerald-500' : 'bg-orange-500' }}" style="width: {{ $avgProgress }}%"></div></div>
+                                                <span class="text-[11px] font-semibold text-gray-500">{{ $avgProgress }}%</span>
+                                            </div>
                                         @else
-                                            <span class="text-xs text-slate-400">None</span>
+                                            <span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500 dark:bg-zinc-800">Not enrolled</span>
                                         @endif
                                     </td>
-                                    <td class="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-400">
-                                        {{ $student->parent_guardian_contact ?: '—' }}
+                                    <td class="px-4 py-3 text-sm">
+                                        @if($student->parent_guardian_contact)
+                                            <a href="tel:{{ preg_replace('/[^0-9+]/', '', $student->parent_guardian_contact) }}" class="inline-flex items-center gap-1.5 text-gray-600 hover:text-orange-600 dark:text-zinc-300">
+                                                <flux:icon name="phone" variant="micro" class="size-3.5 text-gray-400" />{{ $student->parent_guardian_contact }}
+                                            </a>
+                                            @if($student->parent_guardian_name)
+                                                <p class="mt-0.5 truncate text-[11px] text-gray-400">{{ $student->parent_guardian_name }}</p>
+                                            @endif
+                                        @else
+                                            <span class="text-xs text-gray-300 dark:text-zinc-600">—</span>
+                                        @endif
                                     </td>
-                                    @if(!($isCodeClubView ?? false))
-                                    <td class="px-3 py-2.5">
-                                        <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium
-                                            {{ $student->uniform_paid ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200' }}">
-                                            {{ $student->uniform_paid ? 'Paid' : 'Pending' }}
-                                        </span>
-                                    </td>
-                                    @endif
+                                    @unless($codeClubView)
+                                        <td class="px-4 py-3">
+                                            <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 {{ $student->uniform_paid ? 'bg-emerald-50 text-emerald-700 ring-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20' : 'bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20' }}">
+                                                {{ $student->uniform_paid ? 'Paid' : 'Pending' }}
+                                            </span>
+                                        </td>
+                                    @endunless
                                 @endif
 
-                                <td class="px-3 py-2.5 text-right">
-                                    @if($isIct)
-                                        <div x-data="{ open: false }" class="inline-block">
-                                            <button type="button" @click="open = true"
-                                                class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300">
-                                                Actions
-                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                                                </svg>
-                                            </button>
-                                            <div x-show="open" x-cloak class="fixed inset-0 z-50">
-                                                <div class="absolute inset-0 bg-black/40" @click="open = false"></div>
-                                                <div class="absolute inset-0 flex items-center justify-center p-4">
-                                                    <div class="w-full max-w-xs rounded-xl border border-slate-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
-                                                        <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-zinc-700">
-                                                            <p class="text-sm font-semibold text-slate-900 dark:text-white">{{ $student->full_name }}</p>
-                                                            <button @click="open = false" class="text-slate-400 hover:text-slate-600">✕</button>
-                                                        </div>
-                                                        <div class="space-y-1 p-3">
-                                                            <a href="{{ route('students.show', $student->id) }}" wire:navigate class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-zinc-800">View Profile</a>
-                                                            <a href="{{ route('students.print-credentials', $student->id) }}" target="_blank" class="block rounded-lg px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30">Print Credentials</a>
-                                                            <a href="{{ route('students.edit-ict', $student->id) }}" wire:navigate class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-zinc-800">Edit</a>
-                                                            <button type="button" @click="open = false" wire:click="markExamReady({{ $student->id }})"
-                                                                onclick="return confirm('Mark student as ICDL Test Ready?')"
-                                                                class="block w-full rounded-lg px-3 py-2 text-left text-sm text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30">Mark Ready</button>
-                                                            <button type="button" @click="open = false" wire:click="markNeedsPractice({{ $student->id }})"
-                                                                class="block w-full rounded-lg px-3 py-2 text-left text-sm text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30">Needs Practice</button>
-                                                            <button type="button" @click="open = false" wire:click="requestExamSession({{ $student->id }})"
-                                                                onclick="return confirm('Request exam session?')"
-                                                                class="block w-full rounded-lg px-3 py-2 text-left text-sm text-teal-700 hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/30">Request Exam</button>
-                                                            <button type="button" @click="open = false" wire:click="submitExamPayment({{ $student->id }})"
-                                                                onclick="return confirm('Submit exam payment?')"
-                                                                class="block w-full rounded-lg px-3 py-2 text-left text-sm text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30">Submit Payment</button>
-                                                            <button type="button" @click="open = false" wire:click="removeStudent({{ $student->id }})"
-                                                                onclick="return confirm('Remove this student from active list?')"
-                                                                class="block w-full rounded-lg px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30">Remove</button>
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center justify-end gap-1">
+                                        <a href="{{ route('students.show', $student->id) }}" wire:navigate title="View profile"
+                                           class="rounded-lg p-2 text-gray-400 transition hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-500/10">
+                                            <flux:icon name="eye" variant="mini" class="size-4" />
+                                        </a>
+                                        <a href="{{ $editUrl }}" wire:navigate title="Edit"
+                                           class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
+                                            <flux:icon name="pencil-square" variant="mini" class="size-4" />
+                                        </a>
+                                        @if($isIct)
+                                            <div x-data="{ open: false }" class="inline-block">
+                                                <button type="button" @click="open = true" title="More actions"
+                                                    class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-zinc-800">
+                                                    <flux:icon name="ellipsis-horizontal" variant="mini" class="size-4" />
+                                                </button>
+                                                <div x-show="open" x-cloak class="fixed inset-0 z-50" @keydown.escape.window="open = false">
+                                                    <div class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" @click="open = false"></div>
+                                                    <div class="absolute inset-0 flex items-center justify-center p-4">
+                                                        <div class="w-full max-w-xs overflow-hidden rounded-2xl bg-white text-left shadow-2xl ring-1 ring-gray-100 dark:bg-zinc-900 dark:ring-zinc-800">
+                                                            <div class="flex items-center gap-3 border-b border-gray-100 px-4 py-3 dark:border-zinc-800">
+                                                                <span class="flex h-9 w-9 items-center justify-center rounded-xl {{ $avatar }} text-xs font-bold text-white">{{ $initials ?: '?' }}</span>
+                                                                <p class="min-w-0 flex-1 truncate text-sm font-bold text-gray-900 dark:text-white">{{ $student->full_name }}</p>
+                                                                <button type="button" @click="open = false" class="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"><flux:icon name="x-mark" variant="mini" class="size-4" /></button>
+                                                            </div>
+                                                            @php $menuItem = 'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium transition'; @endphp
+                                                            <div class="space-y-0.5 p-2">
+                                                                <a href="{{ route('students.print-credentials', $student->id) }}" target="_blank" class="{{ $menuItem }} text-gray-700 hover:bg-gray-50 dark:text-zinc-300 dark:hover:bg-zinc-800"><flux:icon name="printer" variant="mini" class="size-4 text-gray-400" />Print credentials</a>
+                                                                <button type="button" @click="open = false" wire:click="markExamReady({{ $student->id }})" wire:confirm="Mark student as ICDL Test Ready?" class="{{ $menuItem }} text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-500/10"><flux:icon name="check-badge" variant="mini" class="size-4" />Mark exam ready</button>
+                                                                <button type="button" @click="open = false" wire:click="markNeedsPractice({{ $student->id }})" class="{{ $menuItem }} text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-500/10"><flux:icon name="arrow-path" variant="mini" class="size-4" />Needs practice</button>
+                                                                <button type="button" @click="open = false" wire:click="requestExamSession({{ $student->id }})" wire:confirm="Request exam session?" class="{{ $menuItem }} text-sky-700 hover:bg-sky-50 dark:text-sky-400 dark:hover:bg-sky-500/10"><flux:icon name="calendar-days" variant="mini" class="size-4" />Request exam</button>
+                                                                <button type="button" @click="open = false" wire:click="submitExamPayment({{ $student->id }})" wire:confirm="Submit exam payment?" class="{{ $menuItem }} text-teal-700 hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-500/10"><flux:icon name="banknotes" variant="mini" class="size-4" />Submit payment</button>
+                                                                <div class="my-1 border-t border-gray-100 dark:border-zinc-800"></div>
+                                                                <button type="button" @click="open = false" wire:click="removeStudent({{ $student->id }})" wire:confirm="Remove this student from the active list?" class="{{ $menuItem }} text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"><flux:icon name="user-minus" variant="mini" class="size-4" />Remove from list</button>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    @else
-                                        <div class="flex items-center justify-end gap-2">
-                                            <a href="{{ route('students.show', $student->id) }}" wire:navigate
-                                                class="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">View</a>
-                                            <a href="{{ $student->program_type === 'codeclub' && config('features.code_club', false) ? route('students.edit-codeclub', $student->id) : route('students.edit', $student->id) }}" wire:navigate
-                                                class="text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400">Edit</a>
-                                        </div>
-                                    @endif
+                                        @endif
+                                    </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ $isIct ? 10 : (($isCodeClubView ?? false) ? 8 : 9) }}" class="px-4 py-10 text-center text-sm text-slate-500">
-                                    No students found.
-                                    @if($hasFilters)
-                                        <button wire:click="clearFilters" class="ml-2 text-blue-600 hover:underline">Clear filters</button>
-                                    @endif
+                                <td colspan="10" class="px-4 py-16">
+                                    <div class="mx-auto flex max-w-sm flex-col items-center text-center">
+                                        <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-500 dark:bg-orange-500/10">
+                                            <flux:icon name="user-group" variant="outline" class="size-7" />
+                                        </div>
+                                        <p class="mt-4 text-base font-bold text-gray-900 dark:text-white">{{ $hasFilters ? 'No students match these filters' : 'No students yet' }}</p>
+                                        <p class="mt-1 text-sm text-gray-500">{{ $hasFilters ? 'Try a different search or clear the filters.' : 'Add your first student to get started.' }}</p>
+                                        <div class="mt-4">
+                                            @if($hasFilters)
+                                                <button type="button" wire:click="clearFilters" class="rounded-xl px-4 py-2 text-sm font-semibold text-orange-600 ring-1 ring-orange-200 hover:bg-orange-50">Clear filters</button>
+                                            @else
+                                                <a href="{{ $addUrl }}" wire:navigate class="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white hover:bg-orange-600">Add student</a>
+                                            @endif
+                                        </div>
+                                    </div>
                                 </td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-        </div>
 
-        @if($students->hasPages())
-            <div>{{ $students->links() }}</div>
-        @endif
+            @if($students->hasPages())
+                <div class="border-t border-gray-100 px-4 py-3 dark:border-zinc-800">{{ $students->links() }}</div>
+            @endif
+        </section>
     </div>
 
-    {{-- Assign to Course modal --}}
-    @if($showAssignModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div class="w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
-                <div class="border-b border-slate-200 px-5 py-4 dark:border-zinc-700">
-                    <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ $isIct ? 'Enroll in Module' : 'Assign to Course' }}</h2>
-                    <p class="mt-0.5 text-xs text-slate-500">{{ count($selected) }} student(s) selected</p>
-                </div>
-                <div class="space-y-4 p-5">
-                    <div>
-                        <flux:select wire:model.live="selectedCourseId" label="{{ $isIct ? 'Module' : 'Course' }}">
-                            <option value="">Select {{ $isIct ? 'a module' : 'a course' }}</option>
-                            @foreach($courses as $course)
-                                <option value="{{ $course->id }}">{{ $course->title }}</option>
-                            @endforeach
-                        </flux:select>
-                        @error('selectedCourseId')
-                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                        @enderror
+    {{-- Floating bulk bar --}}
+    @if($selectedCount > 0)
+        @php
+            $canDeactivate = auth()->user()->isAdmin() || auth()->user()->isSupervisor() || auth()->user()->isOperationsManager();
+            $canDelete = auth()->user()->isAdmin() || auth()->user()->isSupervisor();
+            $barBtn = 'inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition';
+        @endphp
+        <div class="fixed inset-x-0 bottom-5 z-40 flex justify-center px-4">
+            <div class="flex max-w-full flex-wrap items-center gap-2 rounded-2xl bg-cau-deep px-3 py-2.5 text-white shadow-2xl shadow-gray-900/30 ring-1 ring-white/10">
+                <span class="flex items-center gap-2 pl-1 pr-2 text-sm font-semibold">
+                    <span class="flex h-7 min-w-7 items-center justify-center rounded-lg bg-orange-500 px-1.5 text-xs font-extrabold">{{ $selectedCount }}</span>
+                    selected
+                </span>
+                <span class="hidden h-6 w-px bg-white/15 sm:block"></span>
+                <button type="button" wire:click="openAssignModal" class="{{ $barBtn }} bg-orange-500 hover:bg-orange-600">
+                    <flux:icon name="academic-cap" variant="mini" class="size-4" />{{ $isIct ? 'Enrol in module' : 'Assign course' }}
+                </button>
+                @if($codeClubView)
+                    <button type="button" wire:click="openBulkClassModal" class="{{ $barBtn }} hover:bg-white/10"><flux:icon name="rectangle-group" variant="mini" class="size-4" />Set class</button>
+                @endif
+                <button type="button" wire:click="exportSelectedCsv" class="{{ $barBtn }} hover:bg-white/10"><flux:icon name="arrow-down-tray" variant="mini" class="size-4" />Export CSV</button>
+                <button type="button" wire:click="printSelectedCredentials" class="{{ $barBtn }} hover:bg-white/10"><flux:icon name="printer" variant="mini" class="size-4" />Print logins</button>
+
+                @if($codeClubView || ($canBulkAdminActions && ($canDeactivate || $canDelete)))
+                    <div x-data="{ open: false }" class="relative" @click.outside="open = false">
+                        <button type="button" @click="open = !open" class="{{ $barBtn }} hover:bg-white/10">
+                            More <flux:icon name="chevron-up" variant="micro" class="size-3.5 transition" ::class="open ? '' : 'rotate-180'" />
+                        </button>
+                        <div x-show="open" x-cloak x-transition.origin.bottom
+                             class="absolute bottom-full right-0 mb-2 w-64 overflow-hidden rounded-2xl bg-white p-1.5 text-gray-700 shadow-2xl ring-1 ring-gray-100 dark:bg-zinc-900 dark:text-zinc-200 dark:ring-zinc-800">
+                            @if($codeClubView)
+                                <button type="button" @click="open = false" wire:click="bulkRemoveFromClub" wire:confirm="Remove selected students from the club? They will stay in the system."
+                                    class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium hover:bg-amber-50 hover:text-amber-700 dark:hover:bg-amber-500/10">
+                                    <flux:icon name="arrow-right-start-on-rectangle" variant="mini" class="size-4 text-amber-500" />Remove from club
+                                </button>
+                            @endif
+                            @if($canBulkAdminActions)
+                                <p class="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Danger zone · export a backup first</p>
+                                @if($canDeactivate)
+                                    <button type="button" @click="open = false" wire:click="bulkDeactivateStudents" wire:confirm="Deactivate selected students? They will no longer be able to sign in."
+                                        class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium hover:bg-gray-50 dark:hover:bg-zinc-800">
+                                        <flux:icon name="no-symbol" variant="mini" class="size-4 text-gray-400" />Deactivate accounts
+                                    </button>
+                                @endif
+                                @if($canDelete)
+                                    <button type="button" @click="open = false" wire:click="bulkDeleteStudents" wire:confirm="Permanently remove selected students from the system? Profiles will be deleted, login accounts deactivated, and this action will appear in Audit Logs. Export a CSV backup first if needed."
+                                        class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10">
+                                        <flux:icon name="trash" variant="mini" class="size-4" />Delete from system
+                                    </button>
+                                @endif
+                            @endif
+                        </div>
                     </div>
-                    <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                        <input type="checkbox" wire:model.live="notifyStudents"
-                            class="rounded border-slate-300 text-blue-600 shadow-sm">
-                        Send notification to students
+                @endif
+
+                <button type="button" wire:click="clearSelection" title="Clear selection" class="rounded-xl p-2 text-white/60 transition hover:bg-white/10 hover:text-white">
+                    <flux:icon name="x-mark" variant="mini" class="size-4" />
+                </button>
+            </div>
+        </div>
+    @endif
+
+    {{-- Assign to course --}}
+    @if($showAssignModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4 backdrop-blur-sm" wire:keydown.escape="closeAssignModal">
+            <div class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-gray-100 dark:bg-zinc-900 dark:ring-zinc-800">
+                <div class="flex items-start gap-3 px-6 pt-6">
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10"><flux:icon name="academic-cap" variant="outline" class="size-5" /></div>
+                    <div>
+                        <h2 class="text-base font-bold text-gray-900 dark:text-white">{{ $isIct ? 'Enrol in module' : 'Assign to course' }}</h2>
+                        <p class="mt-0.5 text-sm text-gray-500">{{ $selectedCount }} {{ \Illuminate\Support\Str::plural('student', $selectedCount) }} selected. Existing enrolments are kept.</p>
+                    </div>
+                </div>
+                <div class="space-y-4 px-6 py-5">
+                    <flux:select wire:model.live="selectedCourseId" label="{{ $isIct ? 'Module' : 'Course' }}">
+                        <option value="">Select {{ $isIct ? 'a module' : 'a course' }}</option>
+                        @foreach($courses as $course)
+                            <option value="{{ $course->id }}">{{ $course->title }}</option>
+                        @endforeach
+                    </flux:select>
+                    @error('selectedCourseId') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                    @error('selected') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                    <label class="flex items-center gap-2.5 rounded-xl bg-gray-50 px-3 py-2.5 text-sm text-gray-700 dark:bg-zinc-800 dark:text-zinc-300">
+                        <input type="checkbox" wire:model.live="notifyStudents" class="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500">
+                        Notify students about the new course
                     </label>
                 </div>
-                <div class="flex justify-end gap-3 border-t border-slate-200 px-5 py-4 dark:border-zinc-700">
-                    <flux:button variant="ghost" wire:click="closeAssignModal">Cancel</flux:button>
-                    <flux:button class="!bg-blue-600 !text-white hover:!bg-blue-700" wire:click="assignSelectedToCourse">Assign</flux:button>
+                <div class="flex justify-end gap-2 border-t border-gray-100 bg-gray-50/60 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+                    <button type="button" wire:click="closeAssignModal" class="rounded-xl px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 dark:text-zinc-300 dark:hover:bg-zinc-800">Cancel</button>
+                    <button type="button" wire:click="assignSelectedToCourse" wire:loading.attr="disabled" class="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-orange-600 disabled:opacity-60">Assign</button>
                 </div>
             </div>
         </div>
     @endif
 
+    {{-- Set class --}}
     @if($showBulkClassModal ?? false)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div class="w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
-                <div class="border-b border-slate-200 px-5 py-4 dark:border-zinc-700">
-                    <h2 class="text-base font-semibold text-slate-900 dark:text-white">Set class for {{ count($selected) }} student(s)</h2>
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4 backdrop-blur-sm" wire:keydown.escape="closeBulkClassModal">
+            <div class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-gray-100 dark:bg-zinc-900 dark:ring-zinc-800">
+                <div class="flex items-start gap-3 px-6 pt-6">
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10"><flux:icon name="rectangle-group" variant="outline" class="size-5" /></div>
+                    <div>
+                        <h2 class="text-base font-bold text-gray-900 dark:text-white">Set class</h2>
+                        <p class="mt-0.5 text-sm text-gray-500">Applies to {{ $selectedCount }} selected {{ \Illuminate\Support\Str::plural('student', $selectedCount) }}.</p>
+                    </div>
                 </div>
-                <div class="p-5">
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Class / Grade</label>
-                    <input type="text" wire:model="bulkClassGrade" placeholder="e.g. P.3, P.2"
-                        class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
+                <div class="px-6 py-5">
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-zinc-300">Class / grade</label>
+                    <input type="text" wire:model="bulkClassGrade" placeholder="e.g. P.3"
+                        class="mt-1.5 w-full rounded-xl border-0 bg-gray-50 px-3 py-2.5 text-sm ring-1 ring-gray-200 focus:bg-white focus:ring-2 focus:ring-orange-500/50 dark:bg-zinc-800 dark:text-white dark:ring-zinc-700" />
                     @error('bulkClassGrade') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
-                <div class="flex justify-end gap-3 border-t border-slate-200 px-5 py-4 dark:border-zinc-700">
-                    <flux:button variant="ghost" wire:click="closeBulkClassModal">Cancel</flux:button>
-                    <flux:button class="!bg-emerald-600 !text-white hover:!bg-emerald-700" wire:click="applyBulkClassGrade">Apply to Selected</flux:button>
+                <div class="flex justify-end gap-2 border-t border-gray-100 bg-gray-50/60 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+                    <button type="button" wire:click="closeBulkClassModal" class="rounded-xl px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 dark:text-zinc-300 dark:hover:bg-zinc-800">Cancel</button>
+                    <button type="button" wire:click="applyBulkClassGrade" class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-700">Apply</button>
                 </div>
             </div>
         </div>

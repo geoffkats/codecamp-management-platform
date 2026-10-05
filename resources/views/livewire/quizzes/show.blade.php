@@ -33,7 +33,7 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <span>{{ $assessment->questions ? $assessment->questions->count() : 0 }} questions</span>
+                        <span>{{ $assessment->questionsPerAttemptFor($assessment->questions?->count() ?? 0) }} questions</span>
                     </div>
                     @if($assessment->passing_score)
                         <div class="flex items-center gap-2">
@@ -113,7 +113,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <p class="text-sm text-gray-600 dark:text-gray-400">Questions</p>
-                <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ $assessment->questions ? $assessment->questions->count() : 0 }}</p>
+                <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ $assessment->questionsPerAttemptFor($assessment->questions?->count() ?? 0) }}</p>
             </div>
             @if($assessment->time_limit_minutes)
                 <div>
@@ -172,7 +172,7 @@
                             <div class="text-right">
                                 @if($attempt->completed_at)
                                     <p class="text-lg font-bold {{ $attempt->is_passed ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                                        {{ number_format($attempt->percentage_score, 1) }}%
+                                        {{ number_format(($attempt->scorePercentage() ?? 0), 1) }}%
                                     </p>
                                     <p class="text-xs text-gray-600 dark:text-gray-400">
                                         {{ $attempt->is_passed ? 'Passed ✓' : 'Failed' }}
@@ -190,7 +190,7 @@
 
     {{-- Actions --}}
     <div class="flex items-center gap-4">
-        @if($hasTaken && $bestAttempt && $bestAttempt->is_passed && $bestAttempt->percentage_score >= 100)
+        @if($hasTaken && $bestAttempt && $bestAttempt->is_passed && ($bestAttempt->scorePercentage() ?? 0) >= 100)
             <div class="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4 text-center">
                 <p class="font-semibold">Perfect Score! ⭐</p>
                 <p class="text-sm text-green-100 mt-1">Congratulations on achieving 100%</p>

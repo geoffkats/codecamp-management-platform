@@ -94,7 +94,7 @@
                             <p class="text-sm font-semibold text-gray-900 dark:text-white">Task {{ $index + 1 }}</p>
                             <span class="text-xs text-gray-500">{{ $question->points }} pts · {{ str_replace('_', ' ', $question->question_type) }}</span>
                         </div>
-                        <x-rich-text :content="$question->question_text" />
+                        <x-question-text :text="$question->question_text" />
                         @if(str_replace(' ', '_', strtolower($question->question_type)) === 'file_upload')
                             <p class="mt-2 text-xs font-semibold text-orange-600 dark:text-orange-400">📎 You will upload a file when you start this assignment.</p>
                         @elseif(str_replace(' ', '_', strtolower($question->question_type)) === 'code_submission')
@@ -196,7 +196,7 @@
                         @foreach($submissions as $submission)
                             @php
                                 $pct = $submission->score !== null && $maxScore > 0
-                                    ? min(round(($submission->score / $maxScore) * 100, 1), 100)
+                                    ? round($submission->scorePercentage() ?? 0, 1)
                                     : null;
                                 $isPending = $submission->score === null;
                             @endphp
@@ -290,7 +290,7 @@
                 @php
                     $isPendingGrade = $assessment->assessment_type === 'assignment' && $attempt->score === null;
                     $pct = (!$isPendingGrade && $attempt->score !== null && $maxScore > 0)
-                        ? min(round(($attempt->score / $maxScore) * 100, 1), 100)
+                        ? round($attempt->scorePercentage() ?? 0, 1)
                         : null;
                 @endphp
                 <div class="flex items-center gap-4 px-6 py-4">

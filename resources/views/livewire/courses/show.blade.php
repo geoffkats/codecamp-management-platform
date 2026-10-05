@@ -1,402 +1,295 @@
-<div class="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
-    <div class="flex flex-col gap-6 p-6">
-        {{-- Course Header --}}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+@php
+    $readable = fn (?string $text) => $text !== null && $text === mb_strtoupper($text) && preg_match('/\p{L}{4,}/u', $text)
+        ? \Illuminate\Support\Str::title(mb_strtolower($text))
+        : $text;
+@endphp
+<div class="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
+    @if(session()->has('message'))
+        <div class="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-300">
+            <flux:icon.check-circle class="size-5 shrink-0" />
+            {{ session('message') }}
+        </div>
+    @endif
+    @if(session()->has('error'))
+        <div class="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300">
+            <flux:icon.exclamation-circle class="size-5 shrink-0" />
+            {{ session('error') }}
+        </div>
+    @endif
+
+    {{-- Header --}}
+    <header class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 dark:border-zinc-700 dark:bg-zinc-900">
+        <a href="{{ route('courses.index') }}" wire:navigate class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-orange-600 dark:text-zinc-400">
+            <flux:icon.arrow-left class="size-3.5" /> All courses
+        </a>
+
+        <div class="mt-3 flex flex-col gap-5 lg:flex-row lg:items-start">
             @if($course->featured_image)
-                <div class="relative h-64 w-full overflow-hidden">
-                    <img src="{{ asset('storage/' . $course->featured_image) }}" 
-                         alt="{{ $course->title }}" 
-                         class="w-full h-full object-cover">
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                </div>
+                <img src="{{ asset('storage/' . $course->featured_image) }}" alt="" class="size-20 shrink-0 rounded-2xl object-cover ring-1 ring-gray-200 dark:ring-zinc-700">
             @else
-                <div class="h-64 w-full bg-gradient-to-br from-blue-500 via-purple-600 to-pink-600 flex items-center justify-center relative overflow-hidden">
-                    <div class="absolute inset-0 bg-black/20"></div>
-                    <span class="relative z-10 text-8xl font-bold text-white opacity-90">{{ substr($course->title, 0, 1) }}</span>
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+                <div class="flex size-20 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-3xl font-bold text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
+                    {{ strtoupper(mb_substr($course->title, 0, 1)) }}
                 </div>
             @endif
 
-            <div class="p-6">
-                <div class="flex items-start justify-between">
-                    <div class="flex-1">
-                        <div class="flex items-center gap-2 mb-2 flex-wrap">
-                            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">{{ $course->title }}</h1>
-                            @if($course->is_featured)
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                                    ⭐ Featured
-                                </span>
-                            @endif
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $course->approval_status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : ($course->approval_status === 'pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400') }}">
-                                {{ ucfirst($course->approval_status) }}
-                            </span>
-                        </div>
-                        <p class="text-lg text-gray-600 dark:text-gray-400 mt-2">{{ $course->short_description }}</p>
-                        
-                        <div class="flex flex-wrap items-center gap-4 mt-4 text-sm text-gray-600 dark:text-gray-400">
-                            <div class="flex items-center gap-2">
-                                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                                    <svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                    </svg>
-                                </div>
-                                <span class="font-medium">{{ $course->instructor->name }}</span>
-                            </div>
-                            <span class="text-gray-300 dark:text-gray-600">•</span>
-                            <div class="flex items-center gap-2">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                </svg>
-                                <span>{{ $course->difficulty_level }}</span>
-                            </div>
-                            <span class="text-gray-300 dark:text-gray-600">•</span>
-                            <div class="flex items-center gap-2">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span>{{ $course->estimated_duration }} hours</span>
-                            </div>
-                            @if($course->price > 0)
-                                <span class="text-gray-300 dark:text-gray-600">•</span>
-                                <div class="flex items-center gap-2">
-                                    <span class="text-2xl font-bold text-gray-900 dark:text-white">${{ number_format($course->price, 2) }}</span>
-                                </div>
-                            @else
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Free</span>
-                            @endif
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col gap-2 ml-4">
-                        @if(auth()->check() && (auth()->user()->hasAnyRole(['admin', 'supervisor']) || (auth()->user()->hasRole('teacher') && $course->instructor_id === auth()->id())))
-                            {{-- Preview Lessons button — for ALL instructors/admins --}}
-                            <a href="{{ route('courses.preview', $course) }}"
-                               class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors shadow-sm">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                                </svg>
-                                Preview Lessons
-                            </a>
-
-                            {{-- Teacher/Admin/Supervisor Actions --}}
-                            @if(auth()->user()->hasRole('teacher') && $course->instructor_id === auth()->id())
-                                <flux:button href="{{ route('courses.edit', $course) }}" variant="outline" wire:navigate>
-                                    Edit Course
-                                </flux:button>
-                                <flux:button href="{{ route('curriculum.builder', $course) }}" variant="primary" wire:navigate>
-                                    Curriculum Builder
-                                </flux:button>
-                            @endif
-                            
-                            {{-- Enrollment Management Button (for all admins, supervisors, and course instructor) --}}
-                            @if(in_array($course->enrollment_type ?? 'open', ['invite_only', 'approval_required']))
-                                <flux:button href="{{ route('courses.enrollments', $course) }}" variant="ghost" wire:navigate>
-                                    <svg class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                                    </svg>
-                                    Manage Enrollments
-                                </flux:button>
-                            @endif
-
-                            {{-- Admin/Supervisor Quick Actions --}}
-                            @if(auth()->user()->hasAnyRole(['admin', 'supervisor']))
-                                <flux:button href="{{ route('courses.edit', $course) }}" variant="outline" wire:navigate>
-                                    <svg class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </svg>
-                                    Edit Course
-                                </flux:button>
-                                <flux:button href="{{ route('courses.enrollments', $course) }}" variant="primary" wire:navigate>
-                                    <svg class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                                    </svg>
-                                    View All Enrollments
-                                </flux:button>
-                            @endif
-                        @elseif(!$enrolled && auth()->check())
-                            @php
-                                $enrollmentType = $course->enrollment_type ?? 'invite_only';
-                            @endphp
-                            
-                            @if($enrollmentType === 'invite_only')
-                                {{-- Check if user has an invitation --}}
-                                @php
-                                    $hasInvitation = \App\Models\CourseInvitation::where('course_id', $course->id)
-                                        ->where('user_id', auth()->id())
-                                        ->activePending()
-                                        ->exists();
-                                @endphp
-                                
-                                @if($hasInvitation)
-                                    <flux:button wire:click="enroll" variant="primary" class="px-6 py-3 text-base font-medium">
-                                        Accept Invitation & Enroll
-                                    </flux:button>
-                                @else
-                                    <div class="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                                        <svg class="w-8 h-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                        </svg>
-                                        <p class="text-sm font-medium text-gray-900 dark:text-white">Invitation Required</p>
-                                        <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">This course requires an invitation from the instructor to enroll</p>
-                                    </div>
-                                @endif
-                            @elseif($enrollmentType === 'approval_required')
-                                @php
-                                    $hasPendingRequest = \App\Models\EnrollmentRequest::where('course_id', $course->id)
-                                        ->where('user_id', auth()->id())
-                                        ->where('status', 'pending')
-                                        ->exists();
-                                @endphp
-                                
-                                @if($hasPendingRequest)
-                                    <div class="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                                        <svg class="w-8 h-8 text-yellow-600 dark:text-yellow-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        <p class="text-sm font-medium text-gray-900 dark:text-white">Request Pending</p>
-                                        <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">Waiting for instructor approval</p>
-                                    </div>
-                                @else
-                                    <flux:button wire:click="enroll" variant="primary" class="px-6 py-3 text-base font-medium">
-                                        Request to Enroll
-                                    </flux:button>
-                                @endif
-                            @else
-                                <flux:button wire:click="enroll" variant="primary" class="px-6 py-3 text-base font-medium">
-                                    Enroll Now
-                                </flux:button>
-                            @endif
-                        @elseif($enrolled)
-                            <span class="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">✓ Enrolled</span>
-                            <flux:button href="{{ route('courses.learn', $course) }}" variant="primary" class="px-6 py-3 text-base font-medium" wire:navigate>
-                                Continue Learning
-                            </flux:button>
-                        @elseif(!auth()->check())
-                            <flux:button href="{{ route('login') }}" variant="primary" class="px-6 py-3 text-base font-medium" wire:navigate>
-                                Sign In to Enroll
-                            </flux:button>
+            <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                    <h1 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">{{ $readable($course->title) }}</h1>
+                    @if($canManage || $isOversight)
+                        @if(! $course->is_published)
+                            <span class="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700 dark:bg-zinc-800 dark:text-zinc-300">Not published</span>
                         @endif
-                    </div>
+                        @if($course->approval_status === 'pending')
+                            <span class="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">Waiting for approval</span>
+                        @elseif($course->approval_status === 'rejected')
+                            <span class="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">Changes requested</span>
+                        @elseif($course->is_published)
+                            <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">Live</span>
+                        @endif
+                    @endif
                 </div>
+
+                @if($course->short_description)
+                    <p class="mt-1.5 line-clamp-2 max-w-3xl text-sm text-gray-600 dark:text-zinc-400">{{ $course->short_description }}</p>
+                @endif
+
+                <dl class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-600 dark:text-zinc-400">
+                    @if($course->instructor)
+                        <div class="flex items-center gap-1.5"><flux:icon.user-circle class="size-4 text-gray-400" /><dt class="sr-only">Instructor</dt><dd>{{ $course->instructor->name }}</dd></div>
+                    @endif
+                    @if($course->difficulty_level)
+                        <div class="flex items-center gap-1.5"><flux:icon.signal class="size-4 text-gray-400" /><dt class="sr-only">Level</dt><dd>{{ ucfirst($course->difficulty_level) }}</dd></div>
+                    @endif
+                    <div class="flex items-center gap-1.5"><flux:icon.squares-2x2 class="size-4 text-gray-400" /><dd>{{ $modules->count() }} {{ \Illuminate\Support\Str::plural('module', $modules->count()) }} · {{ $lessonCount }} {{ \Illuminate\Support\Str::plural('lesson', $lessonCount) }}</dd></div>
+                    @if($quizCount)
+                        <div class="flex items-center gap-1.5"><flux:icon.clipboard-document-check class="size-4 text-gray-400" /><dd>{{ $quizCount }} {{ \Illuminate\Support\Str::plural('quiz', $quizCount) }}</dd></div>
+                    @endif
+                    @if($course->estimated_duration)
+                        <div class="flex items-center gap-1.5"><flux:icon.clock class="size-4 text-gray-400" /><dd>{{ $course->estimated_duration }} hours</dd></div>
+                    @endif
+                    @if($canManage || $isOversight)
+                        <div class="flex items-center gap-1.5"><flux:icon.users class="size-4 text-gray-400" /><dd>{{ $studentCount }} {{ \Illuminate\Support\Str::plural('student', $studentCount) }}</dd></div>
+                    @endif
+                </dl>
+            </div>
+
+            {{-- Actions --}}
+            <div class="flex shrink-0 flex-wrap items-center gap-2 lg:max-w-xs lg:justify-end">
+                @if($canManage)
+                    <a href="{{ route('curriculum.builder', $course) }}" wire:navigate
+                       class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-orange-600">
+                        <flux:icon.wrench-screwdriver class="size-4" /> Open builder
+                    </a>
+                    <a href="{{ route('courses.preview', $course) }}"
+                       class="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+                        <flux:icon.eye class="size-4" /> Preview
+                    </a>
+                    <a href="{{ route('courses.edit', $course) }}" wire:navigate
+                       class="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+                        <flux:icon.pencil-square class="size-4" /> Settings
+                    </a>
+                    <a href="{{ route('courses.enrollments', $course) }}" wire:navigate
+                       class="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+                        <flux:icon.users class="size-4" /> Students
+                    </a>
+                @elseif($enrolled)
+                    <a href="{{ route('courses.learn', $course) }}" wire:navigate
+                       class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-orange-600">
+                        <flux:icon.play class="size-4" /> Continue learning
+                    </a>
+                @elseif(! auth()->check())
+                    <a href="{{ route('login') }}" wire:navigate class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-orange-600">Sign in to enroll</a>
+                @elseif($enrollmentType === 'invite_only' && ! $hasInvitation)
+                    <p class="max-w-xs rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:bg-zinc-800 dark:text-zinc-300">
+                        <span class="font-semibold text-gray-900 dark:text-white">Invitation only.</span> Ask the instructor to invite you.
+                    </p>
+                @elseif($enrollmentType === 'approval_required' && $hasPendingRequest)
+                    <p class="max-w-xs rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                        <span class="font-semibold">Request sent.</span> Waiting for the instructor to approve it.
+                    </p>
+                @else
+                    <button type="button" wire:click="enroll" wire:loading.attr="disabled"
+                            class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-orange-600 disabled:opacity-60">
+                        {{ match (true) {
+                            $enrollmentType === 'invite_only' => 'Accept invitation',
+                            $enrollmentType === 'approval_required' => 'Request to enroll',
+                            default => 'Enroll',
+                        } }}
+                    </button>
+                @endif
             </div>
         </div>
+    </header>
 
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            {{-- Main Content --}}
-            <div class="lg:col-span-2 space-y-6">
-                {{-- Description --}}
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
-                        <h2 class="text-xl font-bold text-gray-900 dark:text-white">About This Course</h2>
-                    </div>
-                    <div class="p-6 prose dark:prose-invert max-w-none">
-                        {!! nl2br(e($course->description)) !!}
-                    </div>
-                </div>
-
-                {{-- What You'll Learn --}}
-                @if(count($course->what_you_learn ?? []) > 0)
-                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                        <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20">
-                            <h2 class="text-xl font-bold text-gray-900 dark:text-white">What You'll Learn</h2>
-                        </div>
-                        <div class="p-6">
-                            <ul class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                @foreach($course->what_you_learn as $outcome)
-                                    <li class="flex items-start gap-2">
-                                        <svg class="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                        </svg>
-                                        <span class="text-gray-900 dark:text-white">{{ $outcome }}</span>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        </div>
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {{-- Course content --}}
+        <section class="lg:col-span-2" x-data>
+            <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Course content</h2>
+                @if($modules->count() > 1)
+                    <div class="flex gap-3 text-xs font-medium text-gray-500 dark:text-zinc-400">
+                        <button type="button" class="hover:text-orange-600" @click="$dispatch('course-modules', true)">Expand all</button>
+                        <button type="button" class="hover:text-orange-600" @click="$dispatch('course-modules', false)">Collapse all</button>
                     </div>
                 @endif
-
-                {{-- Course Content --}}
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20">
-                        <h2 class="text-xl font-bold text-gray-900 dark:text-white">Course Content</h2>
-                    </div>
-                    <div class="p-6">
-                        @if($modules->count() > 0)
-                            <div class="space-y-4">
-                                @foreach($modules as $module)
-                                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-                                        <div class="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4">
-                                            <div class="flex items-center justify-between">
-                                                <div class="flex-1">
-                                                    <h3 class="font-semibold text-gray-900 dark:text-white">{{ $module->title }}</h3>
-                                                    @if($module->description)
-                                                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ $module->description }}</p>
-                                                    @endif
-                                                </div>
-                                                <span class="text-xs text-gray-500 dark:text-gray-400 ml-4">{{ $module->lessons->count() }} lessons</span>
-                                            </div>
-                                        </div>
-                                        @if($module->lessons->count() > 0)
-                                            @if($enrolled)
-                                                {{-- Show full lesson details for enrolled students --}}
-                                                <div class="p-4 space-y-2">
-                                                    @foreach($module->lessons as $lesson)
-                                                        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
-                                                            <div class="flex items-center gap-3">
-                                                                <svg class="h-5 w-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                                </svg>
-                                                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $lesson->title }}</span>
-                                                            </div>
-                                                            <span class="text-xs text-gray-500 dark:text-gray-400">{{ $lesson->duration_minutes }} min</span>
-                                                        </div>
-                                                    @endforeach
-                                                </div>
-                                            @else
-                                                {{-- Show preview for non-enrolled students (first 2 lessons only) --}}
-                                                <div class="p-4 space-y-2">
-                                                    @foreach($module->lessons->take(2) as $lesson)
-                                                        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                                                            <div class="flex items-center gap-3">
-                                                                <svg class="h-5 w-5 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                                                </svg>
-                                                                <span class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ $lesson->title }}</span>
-                                                            </div>
-                                                            <span class="text-xs text-gray-400 dark:text-gray-600">{{ $lesson->duration_minutes }} min</span>
-                                                        </div>
-                                                    @endforeach
-                                                    @if($module->lessons->count() > 2)
-                                                        <div class="flex items-center justify-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-2 border-dashed border-blue-200 dark:border-blue-800">
-                                                            <div class="text-center">
-                                                                <svg class="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                                                </svg>
-                                                                <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $module->lessons->count() - 2 }} more lessons</p>
-                                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Enroll to unlock all content</p>
-                                                            </div>
-                                                        </div>
-                                                    @endif
-                                                </div>
-                                            @endif
-                                        @endif
-                                    </div>
-                                @endforeach
-                            </div>
-                        @else
-                            <p class="text-gray-600 dark:text-gray-400">Course content coming soon...</p>
-                        @endif
-                    </div>
-                </div>
             </div>
 
-            {{-- Sidebar --}}
-            <div class="space-y-6">
-                {{-- Course Stats --}}
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20">
-                        <h3 class="font-bold text-gray-900 dark:text-white">Course Statistics</h3>
-                    </div>
-                    <div class="p-6 space-y-3">
-                        <div class="flex justify-between items-center">
-                            <span class="text-sm text-gray-600 dark:text-gray-400">Enrollments</span>
-                            <span class="font-bold text-gray-900 dark:text-white">{{ $course->enrollments()->count() }}</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-sm text-gray-600 dark:text-gray-400">Lessons</span>
-                            <span class="font-bold text-gray-900 dark:text-white">{{ $course->lessons()->count() }}</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-sm text-gray-600 dark:text-gray-400">Modules</span>
-                            <span class="font-bold text-gray-900 dark:text-white">{{ $course->modules()->count() }}</span>
-                        </div>
-                    </div>
+            @if($modules->isEmpty())
+                <div class="rounded-2xl border border-dashed border-gray-300 p-10 text-center text-sm text-gray-500 dark:border-zinc-700 dark:text-zinc-400">
+                    No lessons yet.
+                    @if($canManage)
+                        <a href="{{ route('curriculum.builder', $course) }}" wire:navigate class="font-medium text-orange-600 hover:underline">Add some in the builder</a>.
+                    @endif
                 </div>
-
-                {{-- Requirements --}}
-                @if(count($course->requirements ?? []) > 0)
-                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                        <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20">
-                            <h3 class="font-bold text-gray-900 dark:text-white">Requirements</h3>
-                        </div>
-                        <div class="p-6">
-                            <ul class="space-y-2">
-                                @foreach($course->requirements as $requirement)
-                                    <li class="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
-                                        <svg class="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                        </svg>
-                                        <span>{{ $requirement }}</span>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        </div>
-                    </div>
-                @endif
-
-                {{-- Tags --}}
-                @if(count($course->tags ?? []) > 0)
-                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                        <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-                            <h3 class="font-bold text-gray-900 dark:text-white">Tags</h3>
-                        </div>
-                        <div class="p-6">
-                            <div class="flex flex-wrap gap-2">
-                                @foreach($course->tags as $tag)
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                        {{ $tag }}
+            @else
+                <ol class="space-y-3">
+                    @foreach($modules as $module)
+                        @php
+                            $visibleLessons = $showAllLessons ? $module->lessons : $module->lessons->take(2);
+                            $moduleQuizCount = $module->lessons->sum(fn ($l) => ($quizzesByLesson[$l->id] ?? collect())->count());
+                        @endphp
+                        <li wire:key="module-{{ $module->id }}"
+                            x-data="{ open: {{ $loop->first ? 'true' : 'false' }} }"
+                            @course-modules.window="open = $event.detail"
+                            class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                            <button type="button" @click="open = ! open" :aria-expanded="open"
+                                    class="flex w-full items-center gap-4 px-4 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-zinc-800/60">
+                                <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-sm font-semibold text-gray-700 dark:bg-zinc-800 dark:text-zinc-300">{{ $loop->iteration }}</span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate font-semibold text-gray-900 dark:text-white">{{ $readable($module->title) }}</span>
+                                    <span class="block text-xs text-gray-500 dark:text-zinc-400">
+                                        {{ $module->lessons->count() }} {{ \Illuminate\Support\Str::plural('lesson', $module->lessons->count()) }}@if($moduleQuizCount) · {{ $moduleQuizCount }} {{ \Illuminate\Support\Str::plural('quiz', $moduleQuizCount) }}@endif
                                     </span>
-                                @endforeach
-                            </div>
-                        </div>
-                    </div>
-                @endif
-            </div>
-        </div>
+                                </span>
+                                <flux:icon.chevron-down class="size-4 shrink-0 text-gray-400 transition-transform" x-bind:class="open && 'rotate-180'" />
+                            </button>
 
-        {{-- Similar Courses --}}
-        @if($similarCourses->count() > 0)
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20">
-                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">Similar Courses</h2>
-                </div>
-                <div class="p-6">
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        @foreach($similarCourses as $similarCourse)
-                            <a href="{{ route('courses.show', $similarCourse) }}" class="block group" wire:navigate>
-                                <div class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-xl transition-all duration-300">
-                                    @if($similarCourse->featured_image)
-                                        <img src="{{ asset('storage/' . $similarCourse->featured_image) }}" 
-                                             alt="{{ $similarCourse->title }}" 
-                                             class="h-32 w-full object-cover group-hover:scale-110 transition-transform duration-300">
-                                    @else
-                                        <div class="h-32 w-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-                                            <span class="text-4xl font-bold text-white opacity-80">{{ substr($similarCourse->title, 0, 1) }}</span>
-                                        </div>
+                            <div x-show="open" x-collapse x-cloak class="border-t border-gray-100 dark:border-zinc-800">
+                                @if($module->description)
+                                    <p class="px-4 pt-3 text-sm text-gray-600 dark:text-zinc-400">{{ $module->description }}</p>
+                                @endif
+
+                                @if($module->lessons->isEmpty())
+                                    <p class="px-4 py-3 text-sm text-gray-500 dark:text-zinc-400">No lessons in this module yet.</p>
+                                @else
+                                    <ul class="divide-y divide-gray-100 py-1 dark:divide-zinc-800">
+                                        @foreach($visibleLessons as $lesson)
+                                            @php
+                                                $lessonUrl = $canManage || auth()->user()?->isTeacher()
+                                                    ? route('lessons.view', $lesson->id)
+                                                    : ($enrolled ? route('courses.learn', $course) : null);
+                                                $icon = match ($lesson->lesson_type) {
+                                                    'video' => 'play-circle',
+                                                    'interactive' => 'cursor-arrow-rays',
+                                                    'scratch' => 'puzzle-piece',
+                                                    'quiz' => 'clipboard-document-check',
+                                                    default => 'document-text',
+                                                };
+                                            @endphp
+                                            <li class="px-4">
+                                                <div class="flex items-center gap-3 py-2.5">
+                                                    <flux:icon :name="$icon" class="size-4 shrink-0 text-gray-400" />
+                                                    @if($lessonUrl)
+                                                        <a href="{{ $lessonUrl }}" wire:navigate class="min-w-0 flex-1 truncate text-sm text-gray-800 hover:text-orange-600 dark:text-zinc-200">{{ $lesson->title }}</a>
+                                                    @else
+                                                        <span class="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-zinc-200">{{ $lesson->title }}</span>
+                                                    @endif
+                                                    @if($canManage && $lesson->is_locked)
+                                                        <flux:icon.lock-closed class="size-3.5 shrink-0 text-amber-500" title="Locked for students" />
+                                                    @endif
+                                                    @if($lesson->duration_minutes)
+                                                        <span class="shrink-0 text-xs text-gray-400">{{ $lesson->duration_minutes }} min</span>
+                                                    @endif
+                                                </div>
+                                                @foreach(($quizzesByLesson[$lesson->id] ?? collect()) as $quiz)
+                                                    <div class="mb-2 ml-7 flex items-center gap-2 rounded-lg bg-orange-50/70 px-3 py-1.5 text-xs text-orange-800 dark:bg-orange-900/15 dark:text-orange-300">
+                                                        <flux:icon.clipboard-document-check class="size-3.5 shrink-0" />
+                                                        @if($canManage)
+                                                            <a href="{{ route('assessments.show', $quiz->id) }}" wire:navigate class="truncate hover:underline">{{ $quiz->title }}</a>
+                                                        @else
+                                                            <span class="truncate">{{ $quiz->title }}</span>
+                                                        @endif
+                                                    </div>
+                                                @endforeach
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                    @if(! $showAllLessons && $module->lessons->count() > 2)
+                                        <p class="flex items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-xs text-gray-500 dark:border-zinc-800 dark:text-zinc-400">
+                                            <flux:icon.lock-closed class="size-3.5" /> {{ $module->lessons->count() - 2 }} more {{ \Illuminate\Support\Str::plural('lesson', $module->lessons->count() - 2) }} after you enroll
+                                        </p>
                                     @endif
-                                    <div class="p-4">
-                                        <h3 class="font-semibold text-gray-900 dark:text-white line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{{ $similarCourse->title }}</h3>
-                                        <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">{{ $similarCourse->instructor->name }}</p>
-                                    </div>
-                                </div>
-                            </a>
+                                @endif
+                            </div>
+                        </li>
+                    @endforeach
+                </ol>
+            @endif
+
+            @if(($quizzesByLesson[0] ?? collect())->isNotEmpty())
+                <div class="mt-3 rounded-2xl border border-gray-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Course quizzes</h3>
+                    <ul class="mt-2 space-y-1.5">
+                        @foreach($quizzesByLesson[0] as $quiz)
+                            <li class="flex items-center gap-2 text-sm text-gray-700 dark:text-zinc-300">
+                                <flux:icon.clipboard-document-check class="size-4 shrink-0 text-orange-500" />
+                                @if($canManage)
+                                    <a href="{{ route('assessments.show', $quiz->id) }}" wire:navigate class="truncate hover:text-orange-600">{{ $quiz->title }}</a>
+                                @else
+                                    <span class="truncate">{{ $quiz->title }}</span>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+        </section>
+
+        {{-- About --}}
+        <aside class="space-y-4 lg:pt-10">
+            <div class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-white">About this course</h2>
+                @if($course->description)
+                    <div x-data="{ more: false }" class="mt-2">
+                        <p class="whitespace-pre-line text-sm leading-relaxed text-gray-600 dark:text-zinc-400" :class="more ? '' : 'line-clamp-5'">{{ $course->description }}</p>
+                        @if(mb_strlen($course->description) > 280)
+                            <button type="button" @click="more = ! more" class="mt-1 text-xs font-medium text-orange-600 hover:underline" x-text="more ? 'Show less' : 'Read more'">Read more</button>
+                        @endif
+                    </div>
+                @else
+                    <p class="mt-2 text-sm text-gray-500 dark:text-zinc-400">No description yet.</p>
+                @endif
+
+                @if(count($course->what_you_learn ?? []) > 0)
+                    <h3 class="mt-5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-400">You will learn</h3>
+                    <ul class="mt-2 space-y-1.5">
+                        @foreach($course->what_you_learn as $outcome)
+                            <li class="flex gap-2 text-sm text-gray-700 dark:text-zinc-300">
+                                <flux:icon.check class="mt-0.5 size-4 shrink-0 text-emerald-500" /> {{ $outcome }}
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+
+                @if(count($course->requirements ?? []) > 0)
+                    <h3 class="mt-5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-400">You will need</h3>
+                    <ul class="mt-2 space-y-1.5">
+                        @foreach($course->requirements as $requirement)
+                            <li class="flex gap-2 text-sm text-gray-700 dark:text-zinc-300">
+                                <span class="mt-2 size-1.5 shrink-0 rounded-full bg-gray-400"></span> {{ $requirement }}
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+
+                @if(count($course->tags ?? []) > 0)
+                    <div class="mt-5 flex flex-wrap gap-1.5">
+                        @foreach($course->tags as $tag)
+                            <span class="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600 dark:bg-zinc-800 dark:text-zinc-300">#{{ $tag }}</span>
                         @endforeach
                     </div>
-                </div>
+                @endif
             </div>
-        @endif
+        </aside>
     </div>
 </div>
-
-@if(session()->has('message'))
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // You can replace this with a toast notification library
-            setTimeout(() => {
-                alert('{{ session('message') }}');
-            }, 100);
-        });
-    </script>
-@endif

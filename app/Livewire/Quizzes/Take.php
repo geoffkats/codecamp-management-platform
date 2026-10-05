@@ -22,6 +22,8 @@ class Take extends Component
     public $score = 0;
     public $isPassed = false;
 
+    protected ?\Illuminate\Support\Collection $questionCache = null;
+
     public function mount(Assessment $assessment)
     {
         // Ensure this is a quiz type assessment
@@ -225,7 +227,7 @@ class Take extends Component
 
         $this->attempt->update([
             'answers' => $this->answers,
-            'score' => $this->score,
+            'score' => round($earnedPoints, 2),
             'is_passed' => $this->isPassed,
             'completed_at' => now(),
             'status' => 'completed',
@@ -302,17 +304,18 @@ class Take extends Component
 
     protected function getQuestions()
     {
-        $questions = $this->assessment->questions;
-        
-        // If no questions loaded, return empty collection
-        if (!$questions || $questions->isEmpty()) {
+        // Query through the relation method: after a Livewire round trip the hydrated model's
+        // `questions` property can come back empty.
+        $questions = $this->questionCache ??= $this->assessment->questions()->with('options')->get();
+
+        if ($questions->isEmpty()) {
             return collect([]);
         }
-        
+
         if ($this->assessment->is_randomized) {
-            return $questions->shuffle();
+            return $questions->shuffle(crc32((string) $this->attempt?->id));
         }
-        
+
         return $questions;
     }
 

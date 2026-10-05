@@ -21,7 +21,7 @@ class ExportService
     public function exportAssessmentResults(Assessment $assessment, $format = 'pdf')
     {
         $attempts = AssessmentAttempt::where('assessment_id', $assessment->id)
-            ->with(['user', 'assessment'])
+            ->with(['user', 'assessment.questions', 'questionSet'])
             ->orderBy('completed_at', 'desc')
             ->get();
 
@@ -32,7 +32,7 @@ class ExportService
                 'total_attempts' => $attempts->count(),
                 'passed' => $attempts->where('is_passed', true)->count(),
                 'failed' => $attempts->where('is_passed', false)->count(),
-                'average_score' => $attempts->avg('score') ?? 0,
+                'average_score' => $attempts->map(fn ($a) => $a->scorePercentage())->filter(fn ($p) => $p !== null)->avg() ?? 0,
             ],
         ];
 
@@ -130,12 +130,7 @@ class ExportService
         if ($firstItem instanceof AssessmentAttempt) {
             $csvData[] = ['Student', 'Score', 'Percentage', 'Passed', 'Completed At'];
             foreach ($data as $attempt) {
-                $maxScore = $attempt->assessment->questions 
-                    ? $attempt->assessment->questions->sum('points') 
-                    : 100;
-                $percentage = $maxScore > 0 
-                    ? ($attempt->score / $maxScore) * 100 
-                    : 0;
+                $percentage = $attempt->scorePercentage() ?? 0;
                     
                 $csvData[] = [
                     $attempt->user->name ?? 'N/A',

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -35,6 +36,7 @@ class Assessment extends Model
         'show_results_immediately',
         'is_randomized',
         'shuffle_options',
+        'questions_per_attempt',
         'show_correct_answers',
         'allow_review',
         'is_locked',
@@ -60,6 +62,7 @@ class Assessment extends Model
             'show_results_immediately' => 'boolean',
             'is_randomized' => 'boolean',
             'shuffle_options' => 'boolean',
+            'questions_per_attempt' => 'integer',
             'show_correct_answers' => 'boolean',
             'allow_review' => 'boolean',
             'is_locked' => 'boolean',
@@ -83,9 +86,42 @@ class Assessment extends Model
         return $this->hasMany(AssessmentAttempt::class);
     }
 
-    public function questions(): HasMany
+    /**
+     * Questions pinned to this assessment, in assessment order. A question can belong to many
+     * assessments; questions.assessment_id only records where it was first written.
+     */
+    public function questions(): BelongsToMany
     {
-        return $this->hasMany(Question::class);
+        return $this->belongsToMany(Question::class, 'assessment_question')
+            ->withPivot('position')
+            ->withTimestamps()
+            ->orderByPivot('position')
+            ->orderBy('questions.id');
+    }
+
+    /**
+     * Pin bank questions to the end of this assessment, skipping ones already included.
+     *
+     * @param  iterable<int>  $questionIds
+     */
+    public function pinQuestions(iterable $questionIds): int
+    {
+        $existing = $this->questions()->pluck('questions.id')->map(fn ($id) => (int) $id)->all();
+        $position = (int) \Illuminate\Support\Facades\DB::table('assessment_question')
+            ->where('assessment_id', $this->id)
+            ->max('position');
+
+        $attach = [];
+        foreach ($questionIds as $id) {
+            $id = (int) $id;
+            if ($id > 0 && ! in_array($id, $existing, true) && ! isset($attach[$id])) {
+                $attach[$id] = ['position' => ++$position];
+            }
+        }
+
+        $this->questions()->attach($attach);
+
+        return count($attach);
     }
 
     // The 'questions' DB column (JSON) and the questions() relationship share the same name.
@@ -113,6 +149,22 @@ class Assessment extends Model
     public function approvals(): MorphMany
     {
         return $this->morphMany(ContentApproval::class, 'approvable');
+    }
+
+    /**
+     * How many questions one attempt receives. A smaller number than the pool size means every
+     * attempt draws a fresh random subset.
+     */
+    public function questionsPerAttemptFor(int $poolSize): int
+    {
+        $limit = (int) $this->questions_per_attempt;
+
+        return $limit > 0 ? min($limit, $poolSize) : $poolSize;
+    }
+
+    public function drawsFromPool(int $poolSize): bool
+    {
+        return $this->questionsPerAttemptFor($poolSize) < $poolSize;
     }
 
     public function getMaxPointsAttribute(): int

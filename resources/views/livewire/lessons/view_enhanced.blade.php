@@ -637,7 +637,7 @@
                                                             <span>⏱️ {{ $assessment->time_limit_minutes }} min</span>
                                                         @endif
                                                         @if($assessment->questions && $assessment->questions->count() > 0)
-                                                            <span>❓ {{ $assessment->questions->count() }} questions</span>
+                                                            <span>❓ {{ $assessment->questionsPerAttemptFor($assessment->questions->count()) }} questions</span>
                                                         @endif
                                                         <span>⭐ {{ $assessment->xp_reward }} XP</span>
                                                     </div>
@@ -649,11 +649,9 @@
                                                     <div class="flex items-center justify-between">
                                                         <span class="text-gray-600 dark:text-gray-400">Best Score:</span>
                                                         @php
-                                                            $maxScore = ($assessment->questions && $assessment->questions->count() > 0) 
-                                                                ? $assessment->questions->sum('points') 
-                                                                : 100;
+                                                            $maxScore = $bestAttempt->maxScore();
                                                             $attemptScore = $bestAttempt->score ?? 0;
-                                                            $percentage = min($maxScore > 0 ? ($attemptScore / $maxScore) * 100 : 0, 100);
+                                                            $percentage = $bestAttempt->scorePercentage() ?? 0;
                                                         @endphp
                                                         <span class="font-bold {{ $bestAttempt->is_passed ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
                                                             {{ number_format($percentage, 1) }}%

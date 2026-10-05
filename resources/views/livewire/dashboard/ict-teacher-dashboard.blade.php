@@ -202,11 +202,9 @@
                 @forelse($recentAssessmentResults as $attempt)
                     @php
                         $assessment = $attempt->assessment;
-                        $maxScore = ($assessment?->questions && $assessment->questions->count() > 0)
-                            ? $assessment->questions->sum('points')
-                            : 100;
+                        $maxScore = $attempt->maxScore();
                         $attemptScore = $attempt->score ?? 0;
-                        $percentage = min($maxScore > 0 ? ($attemptScore / $maxScore) * 100 : 0, 100);
+                        $percentage = $attempt->scorePercentage() ?? 0;
                     @endphp
                     <div class="flex flex-wrap items-center justify-between gap-3 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                         <div>

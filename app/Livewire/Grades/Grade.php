@@ -6,6 +6,7 @@ use App\Models\AssignmentSubmission;
 use App\Models\AssessmentAttempt;
 use App\Models\Grade as GradeModel;
 use App\Services\AssessmentAttemptReview;
+use App\Services\Assessments\AttemptGradeRecorder;
 use App\Services\TrainerSubmissionQueue;
 use App\Support\SubmissionAccess;
 use Illuminate\Support\Facades\Auth;
@@ -160,11 +161,7 @@ class Grade extends Component
             if ($this->submissionType === 'assignment') {
                 $this->maxScore = $assignment->max_points ?? 100;
             } else {
-                // For assessments, calculate max from questions or use default
-                $this->maxScore = $assignment->max_points ?? 100;
-                if ($this->assessmentQuestions->count() > 0) {
-                    $this->maxScore = $this->assessmentQuestions->sum('points') ?: 100;
-                }
+                $this->maxScore = $this->submission->maxScore();
             }
         }
 
@@ -305,33 +302,26 @@ class Grade extends Component
             $feedbackData['rubric_scores'] = $this->rubricScores;
         }
 
-        // Determine gradeable type
-        $gradeableType = $this->submissionType === 'assignment' 
-            ? AssignmentSubmission::class 
-            : AssessmentAttempt::class;
-
-        // Update or create grade
-        GradeModel::updateOrCreate(
-            [
-                'user_id' => $this->submission->user_id,
-                'course_id' => $assignment->course_id,
-                'gradeable_type' => $gradeableType,
-                'gradeable_id' => $this->submission->id,
-            ],
-            [
-                'score' => $this->totalScore,
-                'max_score' => $this->maxScore,
-                'percentage' => $this->percentage,
-                'letter_grade' => $this->letterGrade,
-                'feedback' => json_encode($feedbackData),
-                'graded_by' => Auth::id(),
-                'graded_at' => now(),
-                'is_final' => true,
-            ]
-        );
-
-        // Update submission based on type
         if ($this->submissionType === 'assignment') {
+            GradeModel::updateOrCreate(
+                [
+                    'user_id' => $this->submission->user_id,
+                    'course_id' => $assignment->course_id,
+                    'gradeable_type' => AssignmentSubmission::class,
+                    'gradeable_id' => $this->submission->id,
+                ],
+                [
+                    'score' => $this->totalScore,
+                    'max_score' => $this->maxScore,
+                    'percentage' => $this->percentage,
+                    'letter_grade' => $this->letterGrade,
+                    'feedback' => json_encode($feedbackData),
+                    'graded_by' => Auth::id(),
+                    'graded_at' => now(),
+                    'is_final' => true,
+                ]
+            );
+
             $this->submission->update([
                 'points_earned' => $this->totalScore,
                 'feedback' => $this->feedback,
@@ -340,27 +330,15 @@ class Grade extends Component
                 'graded_by' => Auth::id(),
             ]);
         } else {
-            // For AssessmentAttempt, update answers JSON with feedback and grade
-            $answers = $this->submission->answers ?? [];
-            $answers['feedback'] = $this->feedback;
-            $answers['graded_at'] = now()->toIso8601String();
-            $answers['graded_by'] = Auth::id();
-            if ($this->questionScores !== []) {
-                $answers['question_scores'] = $this->questionScores;
-            }
-
-            $isPassed = $this->percentage >= ($assignment->passing_score ?? 70);
-
-            $this->submission->update([
-                'score' => (float) $this->totalScore, // always points
-                'is_passed' => $isPassed,
-                'answers' => $answers,
-                'auto_scored' => false,
-                'is_locked' => true,
-                'teacher_id' => Auth::id(),
-                'status' => 'completed',
-                'completed_at' => $this->submission->completed_at ?? now(),
-            ]);
+            app(AttemptGradeRecorder::class)->record(
+                $this->submission,
+                (float) $this->totalScore,
+                $this->feedback,
+                Auth::user(),
+                $this->questionScores !== [] ? $this->questionScores : null,
+                (float) $this->maxScore,
+                array_diff_key($feedbackData, ['feedback' => true]),
+            );
         }
 
         // Award XP once when first passed (avoid re-awarding on grade edits)

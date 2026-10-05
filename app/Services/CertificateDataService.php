@@ -626,10 +626,9 @@ class CertificateDataService
         $progress = (float) ($enrollment->progress_percentage ?? 0);
         $minProgress = $this->minProgressPercent();
 
-        $hasCertificate = Certificate::query()
-            ->where('user_id', $user->id)
-            ->when($course, fn ($q) => $q->where('course_id', $course->id))
-            ->exists();
+        $hasCertificate = $course
+            ? $this->certificateCovering($user, $course->id) !== null
+            : Certificate::where('user_id', $user->id)->exists();
 
         $isReady = $enrollment->completed_at !== null
             || $completedModules > 0
@@ -649,6 +648,166 @@ class CertificateDataService
         ];
     }
 
+    /**
+     * Course ids a certificate lists. Certificates issued before multi-course support only cover course_id.
+     *
+     * @return list<int>
+     */
+    public function coursesOn(Certificate $certificate): array
+    {
+        $ids = data_get($certificate->completion_data, 'course_ids') ?: [$certificate->course_id];
+
+        return array_values(array_unique(array_map('intval', $ids)));
+    }
+
+    public function isSeparate(Certificate $certificate): bool
+    {
+        return (bool) data_get($certificate->completion_data, 'separate', false);
+    }
+
+    /**
+     * Module rows on a certificate, each tagged with the course it came from.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function modulesOn(Certificate $certificate): array
+    {
+        return collect(data_get($certificate->completion_data, 'modules', []))
+            ->map(fn ($row) => $row + ['course_id' => $certificate->course_id])
+            ->values()
+            ->all();
+    }
+
+    public function certificateCovering(User $user, int $courseId): ?Certificate
+    {
+        return Certificate::where('user_id', $user->id)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get()
+            ->first(fn (Certificate $c) => in_array($courseId, $this->coursesOn($c), true));
+    }
+
+    /**
+     * Modules the student has finished in one course; falls back to the course itself as a single row.
+     *
+     * @return list<array{name: string, version: string, date: string}>
+     */
+    public function modulesForCourse(User $user, Course $course): array
+    {
+        $enrollment = CourseEnrollment::where('user_id', $user->id)->where('course_id', $course->id)->first();
+        $date = $enrollment?->completed_at ?? now();
+
+        $rows = $this->completedCourseModuleRows($user, $course, $date);
+
+        return $rows !== [] ? $rows : [[
+            'name' => $course->title,
+            'version' => config('certificate.default_module_version', '1.0'),
+            'date' => $date->format('Y-m-d'),
+        ]];
+    }
+
+    /**
+     * Students across the staff member's courses who are ready for a certificate, one row per student.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function certificateCandidates(User $staff, ?int $courseId = null, string $search = '', string $status = 'pending'): Collection
+    {
+        $courses = $this->coursesForGenerator($staff)->keyBy('id');
+        $courseIds = $courseId ? array_values(array_intersect([$courseId], $courses->keys()->all())) : $courses->keys()->all();
+
+        if ($courseIds === []) {
+            return collect();
+        }
+
+        $minProgress = $this->minProgressPercent();
+
+        $enrollments = CourseEnrollment::query()
+            ->whereIn('course_id', $courseIds)
+            ->where(fn ($q) => $q->whereNotNull('completed_at')->orWhere('progress_percentage', '>=', $minProgress))
+            ->when($search !== '', function ($q) use ($search) {
+                $term = '%'.$search.'%';
+                $q->whereHas('user', fn ($u) => $u->where('name', 'like', $term)
+                    ->orWhere('email', 'like', $term)
+                    ->orWhereHas('studentProfile', fn ($p) => $p->where('full_name', 'like', $term)->orWhere('student_id', 'like', $term)));
+            })
+            ->with('user.studentProfile')
+            ->get();
+
+        $certificates = Certificate::whereIn('user_id', $enrollments->pluck('user_id')->unique())
+            ->orderBy('created_at')
+            ->get()
+            ->groupBy('user_id');
+
+        return $enrollments->groupBy('user_id')
+            ->map(function (Collection $rows, $userId) use ($courses, $certificates) {
+                $user = $rows->first()->user;
+                if (! $user) {
+                    return null;
+                }
+
+                $userCertificates = $certificates->get($userId, collect());
+                $covered = $userCertificates->flatMap(fn (Certificate $c) => $this->coursesOn($c))->unique()->all();
+
+                $readyCourses = $rows->map(fn (CourseEnrollment $e) => [
+                    'id' => (int) $e->course_id,
+                    'title' => $courses[$e->course_id]->title ?? 'Course',
+                    'progress' => round((float) $e->progress_percentage),
+                    'completed' => $e->completed_at !== null,
+                    'covered' => in_array((int) $e->course_id, $covered, true),
+                ])->sortBy('title')->values()->all();
+
+                $pending = collect($readyCourses)->where('covered', false)->count();
+
+                return [
+                    'user_id' => (int) $userId,
+                    'name' => $user->studentProfile?->full_name ?? $user->name,
+                    'student_id' => $user->studentProfile?->student_id ?? ('STU-'.$user->id),
+                    'courses' => $readyCourses,
+                    'pending' => $pending,
+                    'status' => $userCertificates->isEmpty() ? 'new' : ($pending > 0 ? 'update' : 'issued'),
+                    'certificates' => $userCertificates->map(fn (Certificate $c) => [
+                        'id' => $c->id,
+                        'number' => $c->certificate_number,
+                        'modules' => count(data_get($c->completion_data, 'modules', [])),
+                        'courses' => count($this->coursesOn($c)),
+                        'separate' => $this->isSeparate($c),
+                    ])->values()->all(),
+                ];
+            })
+            ->filter()
+            ->when($status === 'pending', fn ($c) => $c->whereIn('status', ['new', 'update']))
+            ->when(in_array($status, ['new', 'update', 'issued'], true), fn ($c) => $c->where('status', $status))
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+    }
+
+    private function uniqueCertificateNumber(string $base, int $courseId, bool $preferSuffix): string
+    {
+        $candidates = $preferSuffix
+            ? ["{$base}-C{$courseId}"]
+            : [$base, "{$base}-C{$courseId}"];
+
+        foreach ($candidates as $candidate) {
+            if (! Certificate::where('certificate_number', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        do {
+            $candidate = $base.'-'.strtoupper(\Illuminate\Support\Str::random(4));
+        } while (Certificate::where('certificate_number', $candidate)->exists());
+
+        return $candidate;
+    }
+
+    /**
+     * Put a course's modules on the student's certificate.
+     *
+     * Merge mode (default) adds the course to the certificate that already covers it, or else to the
+     * student's main certificate, so one certificate lists every course. Separate mode keeps a
+     * certificate dedicated to this course. Re-issuing a course replaces only that course's rows.
+     */
     public function createOrUpdateCertificate(
         User $user,
         Course $course,
@@ -659,6 +818,32 @@ class CertificateDataService
         $issuedAt ??= now();
         $profile = $user->studentProfile;
         $issuer = $meta['issuer'] ?? null;
+        $separate = ($meta['mode'] ?? 'merge') === 'separate';
+
+        $existingCertificates = Certificate::where('user_id', $user->id)->orderBy('created_at')->orderBy('id')->get();
+        $target = $separate
+            ? $existingCertificates->first(fn (Certificate $c) => $this->isSeparate($c) && $this->coursesOn($c) === [$course->id])
+            : ($existingCertificates->first(fn (Certificate $c) => in_array($course->id, $this->coursesOn($c), true))
+                ?? $existingCertificates->first(fn (Certificate $c) => ! $this->isSeparate($c)));
+
+        $courseRows = collect($modules)
+            ->filter(fn ($row) => trim((string) ($row['name'] ?? '')) !== '')
+            ->map(fn ($row) => [
+                'name' => $row['name'],
+                'version' => $row['version'] ?? config('certificate.default_module_version', '1.0'),
+                'date' => $row['date'] ?? $issuedAt->format('Y-m-d'),
+                'course_id' => $course->id,
+                'course_title' => $course->title,
+            ])
+            ->values()
+            ->all();
+
+        $keptRows = $target
+            ? array_values(array_filter($this->modulesOn($target), fn ($row) => (int) $row['course_id'] !== $course->id))
+            : [];
+        $courseIds = array_values(array_unique(array_merge($target ? $this->coursesOn($target) : [], [$course->id])));
+        $courseTitles = Course::whereIn('id', $courseIds)->pluck('title', 'id');
+        $titles = collect($courseIds)->map(fn ($id) => $courseTitles[$id] ?? null)->filter()->implode('", "');
         $signatoryKey = $this->resolveSignatoryKey(
             $course,
             $user,
@@ -668,14 +853,16 @@ class CertificateDataService
             ? $meta['custom_signatory']
             : $this->signatoryLine($signatoryKey);
 
-        $completionData = [
-            'modules' => $modules,
+        $completionData = array_merge($target?->completion_data ?? [], [
+            'modules' => array_merge($keptRows, $courseRows),
+            'course_ids' => $courseIds,
+            'separate' => $target ? $this->isSeparate($target) : $separate,
             'generated_at' => now()->toIso8601String(),
             'signatory' => [
                 'profile' => $signatoryKey,
                 'name_line' => $signatoryLine,
             ],
-        ];
+        ]);
 
         if ($issuer instanceof User) {
             $completionData['issued_by'] = [
@@ -687,33 +874,29 @@ class CertificateDataService
         }
 
         $payload = [
-            'certificate_number' => $profile?->student_id
-                ?? ('CERT-' . strtoupper(substr(md5($user->id . '-' . $course->id), 0, 8))),
             'title' => 'CODE Profile Certificate',
             'description' => 'This certifies that ' . ($profile?->full_name ?? $user->name)
-                . ' has successfully completed modules in "' . $course->title . '".',
+                . ' has successfully completed modules in "' . $titles . '".',
             'issued_at' => $issuedAt,
             'expires_at' => null,
             'is_verified' => true,
             'completion_data' => $completionData,
         ];
 
-        $existing = Certificate::query()
-            ->where('user_id', $user->id)
-            ->where('course_id', $course->id)
-            ->first();
-
-        if ($existing) {
-            $existing->update($payload);
-            $certificate = $existing->fresh();
+        if ($target) {
+            $target->update($payload);
+            $certificate = $target->fresh();
 
             app(NotificationService::class)->notifyCertificateIssued($user, $certificate, $course, false);
 
             return $certificate;
         }
 
+        $base = $profile?->student_id ?: ('CERT-' . strtoupper(substr(md5((string) $user->id), 0, 8)));
+
         $certificate = Certificate::create([
             ...$payload,
+            'certificate_number' => $this->uniqueCertificateNumber($base, $course->id, $separate && $existingCertificates->isNotEmpty()),
             'user_id' => $user->id,
             'course_id' => $course->id,
         ]);

@@ -22,7 +22,7 @@ class Dashboard extends Component
 
         if ($user->hasRole('teacher')) {
             return $this->renderTeacherAnalytics($user);
-        } elseif ($user->hasRole('admin')) {
+        } elseif ($user->hasAnyRole(['admin', 'supervisor', 'operations_manager'])) {
             return $this->renderAdminAnalytics();
         } else {
             return $this->renderStudentAnalytics($user);

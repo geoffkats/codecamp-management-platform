@@ -51,9 +51,23 @@ class CertificatePdfService
         return $this->renderWithDomPdf($view, $data, $filename, $download);
     }
 
-    private function renderWithDomPdf(string $view, array $viewData, string $filename, bool $download)
+    public function output(Certificate $certificate): string
     {
-        $pdf = Pdf::loadView($view, $viewData)
+        $view = config('certificate.html_template', 'certificates.profile');
+
+        return $this->domPdf($view, $this->dataService->resolve($certificate) + ['certificate' => $certificate])->output();
+    }
+
+    public function filename(Certificate $certificate): string
+    {
+        $name = $certificate->user?->studentProfile?->full_name ?? $certificate->user?->name ?? 'student';
+
+        return 'certificate_'.str($name)->slug().'_'.str($certificate->certificate_number ?? $certificate->id)->slug().'.pdf';
+    }
+
+    private function domPdf(string $view, array $viewData): \Barryvdh\DomPDF\PDF
+    {
+        return Pdf::loadView($view, $viewData)
             ->setPaper('a4', 'portrait')
             ->setOptions([
                 'isHtml5ParserEnabled' => true,
@@ -61,6 +75,11 @@ class CertificatePdfService
                 'defaultFont'          => 'DejaVu Sans',
                 'dpi'                  => 150,
             ]);
+    }
+
+    private function renderWithDomPdf(string $view, array $viewData, string $filename, bool $download)
+    {
+        $pdf = $this->domPdf($view, $viewData);
 
         return $download ? $pdf->download($filename) : $pdf->stream($filename);
     }

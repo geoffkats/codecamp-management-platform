@@ -58,7 +58,7 @@ class Edit extends Component
         $this->type            = $dailyChallenge->type;
         $this->reward_points   = $dailyChallenge->reward_points ?? 100;
         $this->date            = $dailyChallenge->date ? $dailyChallenge->date->format('Y-m-d') : '';
-        $this->is_active       = $dailyChallenge->is_active;
+        $this->is_active       = (bool) $dailyChallenge->is_active;
         $this->difficulty_level= strtolower($dailyChallenge->difficulty_level ?? 'medium');
         $this->category        = $dailyChallenge->category ?? '';
         $this->course_id       = $dailyChallenge->course_id;

@@ -1,0 +1,28 @@
+.question-code .hljs-keyword,
+.question-code .hljs-selector-tag,
+.question-code .hljs-doctag { color: #c792ea; }
+.question-code .hljs-string,
+.question-code .hljs-regexp { color: #c3e88d; }
+.question-code .hljs-number,
+.question-code .hljs-literal { color: #f78c6c; }
+.question-code .hljs-comment,
+.question-code .hljs-quote { color: #7f8ba6; font-style: italic; }
+.question-code .hljs-title,
+.question-code .hljs-title.function_,
+.question-code .hljs-title.class_,
+.question-code .hljs-section { color: #82aaff; }
+.question-code .hljs-built_in,
+.question-code .hljs-type,
+.question-code .hljs-attr,
+.question-code .hljs-attribute,
+.question-code .hljs-variable.language_ { color: #ffcb6b; }
+.question-code .hljs-tag,
+.question-code .hljs-name,
+.question-code .hljs-selector-class,
+.question-code .hljs-selector-id { color: #f07178; }
+.question-code .hljs-meta,
+.question-code .hljs-operator,
+.question-code .hljs-punctuation { color: #89ddff; }
+.question-code .hljs-params { color: #e2e8f0; }
+
+[data-scratch] svg { max-width: none; }

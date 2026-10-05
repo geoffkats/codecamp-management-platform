@@ -5,6 +5,8 @@ namespace App\View\Components\Navigation;
 use App\Models\User;
 use App\Services\TrainerSubmissionQueue;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 use Illuminate\View\Component;
 
 class Sidebar extends Component
@@ -37,71 +39,23 @@ class Sidebar extends Component
     public $pendingSubmissionsCount;
     public $unreadNotificationsCount;
 
-    /** @var array<int, array<string, mixed>> */
-    public array $adminPrimaryNav = [];
+    /**
+     * Sections shown to this user, in order, each with resolved items.
+     *
+     * @var array<int, array{key: string, label: string, icon: string, active: bool, badge: int, items: array<int, array<string, mixed>>}>
+     */
+    public array $sections = [];
 
-    /** @var array<int, array<string, mixed>> */
-    public array $adminProgramsNav = [];
-
-    /** @var array<int, array<string, mixed>> */
-    public array $adminMoreNav = [];
-
-    /** @var array<int, array<string, mixed>> */
-    public array $codecampTeacherNav = [];
-
-    /** @var array<int, array<string, mixed>> */
-    public array $ictTeacherNav = [];
-
-    /** @var array<int, array<string, mixed>> */
-    public array $supervisorNav = [];
-
-    /** @var array<int, array<string, mixed>> */
-    public array $operationsManagerNav = [];
-
-    /** @var array<int, array<string, mixed>> */
-    public array $codecampStudentNav = [];
-
-    public array $codeclubFacilitatorNav = [];
-
-    /** @var array<int, array<string, mixed>> */
-    public array $codeclubStudentNav = [];
-
-    /** @var array<int, array<string, mixed>> */
-    public array $ictStudentNav = [];
+    public string $roleLabel = 'Member';
 
     public function __construct(User $user)
     {
         $this->user = $user;
-        $this->loadNavigationConfig();
-        
-        // Cache user roles to avoid repeated hasRole() calls
-        $this->isAdmin = Cache::remember("user_{$user->id}_is_admin", 3600, fn() => $user->isAdmin());
-        $this->isSupervisor = Cache::remember("user_{$user->id}_is_supervisor", 3600, fn() => $user->isSupervisor());
-        $this->isTeacher = Cache::remember("user_{$user->id}_is_teacher", 3600, fn() => $user->isTeacher());
-        $this->isIctTeacher = Cache::remember("user_{$user->id}_is_ict_teacher", 3600, fn() => $user->isIctTeacher());
-        $this->isCodecampTrainer = Cache::remember("user_{$user->id}_is_codecamp_trainer", 3600, fn() => $user->isCodecampTrainer());
-        $this->isStudent = Cache::remember("user_{$user->id}_is_student", 3600, fn() => $user->isStudent());
-        $this->isIctStudent = Cache::remember("user_{$user->id}_is_ict_student", 3600, fn() => $user->isIctStudent());
-        $this->isCodecampStudent = Cache::remember("user_{$user->id}_is_codecamp_student", 3600, fn() => $user->isCodecampStudent());
-        $this->isCodeClubStudent = Cache::remember("user_{$user->id}_is_codeclub_student", 3600, fn() => $user->isCodeClubStudent());
-        $this->activeProgramContext = $user->activeProgramContext();
+
+        foreach (self::visibility($user) as $flag => $value) {
+            $this->{$flag} = $value;
+        }
         $this->showDualProgramSwitcher = $user->hasDualProgramAccess();
-        
-        $this->showStudentSection = $this->isStudent && !$this->isAdmin && !$this->isTeacher;
-        $this->showIctStudentSection = $this->showStudentSection && $this->isIctStudent;
-        $this->showCodeClubStudentSection = $this->showStudentSection && $this->isCodeClubStudent && config('features.code_club', false);
-        $this->showCodecampStudentSection = $this->showStudentSection && $this->isCodecampStudent && !$this->isCodeClubStudent;
-        $this->showTeacherSection = $this->isTeacher && !$this->isAdmin;
-        $this->showIctTeacherSection = $this->isIctTeacher && !$this->isAdmin;
-        $this->showCodeClubFacilitatorSection = config('features.code_club', false)
-            && $user->hasCodeClubAccess()
-            && !$this->isAdmin
-            && !$this->isIctTeacher
-            && (!$this->isCodecampTrainer || $this->activeProgramContext === 'codeclub');
-        $this->showCodecampTeacherSection = $this->showTeacherSection
-            && !$this->isIctTeacher
-            && (!$user->hasCodeClubAccess() || ($this->isCodecampTrainer && $this->activeProgramContext === 'codecamp'));
-        $this->showSupervisorSection = $this->isSupervisor && !$this->isAdmin;
         
         // Cache expensive counts with 5-minute TTL
         $this->pendingInvitationsCount = Cache::remember(
@@ -132,6 +86,101 @@ class Sidebar extends Component
         if ($this->isAdmin || $this->isSupervisor || $this->showCodecampTeacherSection || $this->showCodeClubFacilitatorSection) {
             $this->pendingSubmissionsCount = app(TrainerSubmissionQueue::class)->cachedPendingCount($user);
         }
+
+        $this->roleLabel = match (true) {
+            (bool) $this->isAdmin => 'Administrator',
+            (bool) $this->isSupervisor => 'Supervisor',
+            (bool) $this->isIctTeacher => 'ICT Teacher',
+            (bool) $this->showCodeClubFacilitatorSection => 'Club Facilitator',
+            (bool) $this->isTeacher => 'Teacher',
+            $user->hasRole('operations_manager') => 'Operations',
+            (bool) $this->isStudent => 'Student',
+            default => 'Member',
+        };
+
+        $this->sections = $this->buildSections();
+    }
+
+    /**
+     * Role flags and which menu sections apply. Role checks are cached because the sidebar renders on every page.
+     *
+     * @return array<string, mixed>
+     */
+    public static function visibility(User $user): array
+    {
+        $is = fn (string $key, \Closure $check) => Cache::remember("user_{$user->id}_{$key}", 3600, $check);
+
+        $v = [
+            'isAdmin' => $is('is_admin', fn () => $user->isAdmin()),
+            'isSupervisor' => $is('is_supervisor', fn () => $user->isSupervisor()),
+            'isTeacher' => $is('is_teacher', fn () => $user->isTeacher()),
+            'isIctTeacher' => $is('is_ict_teacher', fn () => $user->isIctTeacher()),
+            'isCodecampTrainer' => $is('is_codecamp_trainer', fn () => $user->isCodecampTrainer()),
+            'isStudent' => $is('is_student', fn () => $user->isStudent()),
+            'isIctStudent' => $is('is_ict_student', fn () => $user->isIctStudent()),
+            'isCodecampStudent' => $is('is_codecamp_student', fn () => $user->isCodecampStudent()),
+            'isCodeClubStudent' => $is('is_codeclub_student', fn () => $user->isCodeClubStudent()),
+            'activeProgramContext' => $user->activeProgramContext(),
+        ];
+
+        $v['showStudentSection'] = $v['isStudent'] && ! $v['isAdmin'] && ! $v['isTeacher'];
+        $v['showIctStudentSection'] = $v['showStudentSection'] && $v['isIctStudent'];
+        $v['showCodeClubStudentSection'] = $v['showStudentSection'] && $v['isCodeClubStudent'] && config('features.code_club', false);
+        $v['showCodecampStudentSection'] = $v['showStudentSection'] && $v['isCodecampStudent'] && ! $v['isCodeClubStudent'];
+        $v['showTeacherSection'] = $v['isTeacher'] && ! $v['isAdmin'];
+        $v['showIctTeacherSection'] = $v['isIctTeacher'] && ! $v['isAdmin'];
+        $v['showCodeClubFacilitatorSection'] = config('features.code_club', false)
+            && $user->hasCodeClubAccess()
+            && ! $v['isAdmin']
+            && ! $v['isIctTeacher']
+            && (! $v['isCodecampTrainer'] || $v['activeProgramContext'] === 'codeclub');
+        $v['showCodecampTeacherSection'] = $v['showTeacherSection']
+            && ! $v['isIctTeacher']
+            && (! $user->hasCodeClubAccess() || ($v['isCodecampTrainer'] && $v['activeProgramContext'] === 'codecamp'));
+        $v['showSupervisorSection'] = $v['isSupervisor'] && ! $v['isAdmin'];
+
+        return $v;
+    }
+
+    /**
+     * The config/navigation.php role keys whose menus this user gets, in display order.
+     *
+     * @return array<int, string>
+     */
+    public static function roleKeysFor(User $user): array
+    {
+        $v = self::visibility($user);
+        $roleKeys = [];
+
+        if ($v['showStudentSection'] && $user->studentProfile) {
+            $roleKeys[] = match (true) {
+                (bool) $v['showIctStudentSection'] => 'ict_student',
+                (bool) $v['showCodeClubStudentSection'] => 'codeclub_student',
+                default => 'codecamp_student',
+            };
+        }
+
+        if ($v['showIctTeacherSection']) {
+            $roleKeys[] = 'ict_teacher';
+        } elseif ($v['showCodeClubFacilitatorSection']) {
+            $roleKeys[] = 'codeclub_facilitator';
+        } elseif ($v['showCodecampTeacherSection']) {
+            $roleKeys[] = 'codecamp_teacher';
+        }
+
+        if ($v['isAdmin']) {
+            $roleKeys[] = 'admin';
+        }
+
+        if (! $v['isAdmin'] && $user->hasRole('operations_manager')) {
+            $roleKeys[] = 'operations_manager';
+        }
+
+        if ($v['showSupervisorSection']) {
+            $roleKeys[] = 'supervisor';
+        }
+
+        return $roleKeys;
     }
 
     private function getPendingInvitationsCount()
@@ -168,23 +217,6 @@ class Sidebar extends Component
             ->count();
     }
 
-    private function loadNavigationConfig(): void
-    {
-        $nav = $this->resolveNavigationConfig();
-
-        $this->adminPrimaryNav = $this->navItems($nav, 'admin.primary');
-        $this->adminProgramsNav = $this->navItems($nav, 'admin.programs');
-        $this->adminMoreNav = $this->navItems($nav, 'admin.more');
-        $this->codecampTeacherNav = $this->navItems($nav, 'codecamp_teacher');
-        $this->ictTeacherNav = $this->navItems($nav, 'ict_teacher');
-        $this->supervisorNav = $this->navItems($nav, 'supervisor');
-        $this->operationsManagerNav = $this->navItems($nav, 'operations_manager');
-        $this->codecampStudentNav = $this->navItems($nav, 'codecamp_student');
-        $this->codeclubStudentNav = $this->navItems($nav, 'codeclub_student');
-        $this->ictStudentNav = $this->navItems($nav, 'ict_student');
-        $this->codeclubFacilitatorNav = $this->navItems($nav, 'codeclub_facilitator');
-    }
-
     /**
      * @return array<string, mixed>
      */
@@ -208,42 +240,107 @@ class Sidebar extends Component
     }
 
     /**
-     * @param  array<string, mixed>  $nav
      * @return array<int, array<string, mixed>>
      */
-    private function navItems(array $nav, string $key): array
+    private function buildSections(): array
     {
-        $items = data_get($nav, $key, []);
-        $items = is_array($items) ? array_values(array_filter($items, 'is_array')) : [];
+        $nav = $this->resolveNavigationConfig();
+        $roleKeys = self::roleKeysFor($this->user);
 
-        return array_values(array_filter($items, function (array $item) {
-            if (($item['feature'] ?? null) === 'code_club' && ! config('features.code_club', false)) {
-                return false;
-            }
+        $badges = [
+            'pending_approvals' => (int) $this->pendingApprovalCount,
+            'pending_feedback' => (int) $this->pendingFeedbackCount,
+            'pending_submissions' => (int) $this->pendingSubmissionsCount,
+        ];
 
-            if (! empty($item['roles'])) {
-                $allowed = false;
-                foreach ($item['roles'] as $role) {
-                    if ($role === 'admin' && $this->user->isAdmin()) {
-                        $allowed = true;
-                    }
-                    if ($role === 'supervisor' && $this->user->isSupervisor()) {
-                        $allowed = true;
-                    }
+        $seenHrefs = [];
+        $sections = [];
+
+        foreach ($roleKeys as $roleKey) {
+            foreach ((array) ($nav[$roleKey] ?? []) as $section) {
+                if (! is_array($section) || empty($section['items'])) {
+                    continue;
                 }
-                if (! $allowed) {
-                    return false;
+
+                $items = [];
+                foreach ($section['items'] as $item) {
+                    $resolved = is_array($item) ? $this->resolveItem($item, $badges) : null;
+                    if (! $resolved || isset($seenHrefs[$resolved['href']])) {
+                        continue;
+                    }
+                    $seenHrefs[$resolved['href']] = true;
+                    $items[] = $resolved;
+                }
+
+                if ($items === []) {
+                    continue;
+                }
+
+                $label = (string) ($section['label'] ?? 'Menu');
+                $key = Str::slug($label);
+
+                if (isset($sections[$key])) {
+                    $sections[$key]['items'] = array_merge($sections[$key]['items'], $items);
+                } else {
+                    $sections[$key] = [
+                        'key' => $key,
+                        'label' => __($label),
+                        'icon' => (string) ($section['icon'] ?? 'squares-2x2'),
+                        'items' => $items,
+                    ];
                 }
             }
+        }
 
-            $route = $item['route'] ?? null;
+        return array_values(array_map(function (array $section) {
+            $sectionWord = Str::lower($section['label']);
+            $section['items'] = array_map(fn (array $item) => [...$item, 'keywords' => $item['keywords'].' '.$sectionWord], $section['items']);
+            $section['active'] = collect($section['items'])->contains('active', true);
+            $section['badge'] = (int) collect($section['items'])->sum('badge');
 
-            if (! empty($item['url'])) {
-                return true;
+            return $section;
+        }, $sections));
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @param  array<string, int>  $badges
+     * @return array<string, mixed>|null
+     */
+    private function resolveItem(array $item, array $badges): ?array
+    {
+        if (($item['feature'] ?? null) === 'code_club' && ! config('features.code_club', false)) {
+            return null;
+        }
+
+        if (! empty($item['roles'])) {
+            $allowed = (in_array('admin', $item['roles'], true) && $this->isAdmin)
+                || (in_array('supervisor', $item['roles'], true) && $this->isSupervisor);
+            if (! $allowed) {
+                return null;
             }
+        }
 
-            return ! $route || \Illuminate\Support\Facades\Route::has($route);
-        }));
+        $route = $item['route'] ?? null;
+        $href = ($route && Route::has($route))
+            ? route($route)
+            : (! empty($item['url']) ? url($item['url']) : null);
+        $label = (string) ($item['label'] ?? '');
+
+        if (! $href || $label === '') {
+            return null;
+        }
+
+        $match = $item['match'] ?? $route;
+
+        return [
+            'label' => __($label),
+            'href' => $href,
+            'icon' => (string) ($item['icon'] ?? 'link'),
+            'active' => $match ? request()->routeIs($match) : false,
+            'badge' => ! empty($item['badge']) ? (int) ($badges[$item['badge']] ?? 0) : 0,
+            'keywords' => Str::lower($label.' '.($item['keywords'] ?? '')),
+        ];
     }
 
     public function render()

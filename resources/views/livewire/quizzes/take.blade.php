@@ -88,9 +88,7 @@
                                 <flux:badge variant="primary">Question {{ $currentQuestionIndex + 1 }}</flux:badge>
                                 <flux:badge variant="ghost">{{ $currentQuestion->points }} points</flux:badge>
                             </div>
-                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                                {{ $currentQuestion->question_text }}
-                            </h2>
+                            <x-question-text :text="$currentQuestion->question_text" :scratch-scale="0.85" class="mb-4 text-xl font-semibold text-gray-900 dark:text-white" />
                         </div>
                     </div>
 

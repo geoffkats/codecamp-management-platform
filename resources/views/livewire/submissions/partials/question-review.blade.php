@@ -22,9 +22,7 @@
                             </span>
                             <span class="text-[11px] text-gray-500">{{ number_format((float) $row['points'], 1) }} pts</span>
                         </div>
-                        <p class="text-sm font-semibold text-gray-900 dark:text-white">
-                            {{ \Illuminate\Support\Str::limit(strip_tags((string) $row['question']), 220) }}
-                        </p>
+                        <x-question-text :text="(string) $row['question']" class="text-sm font-semibold text-gray-900 dark:text-white" />
                     </div>
 
                     @if($row['needs_manual'])

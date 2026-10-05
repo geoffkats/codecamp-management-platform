@@ -73,6 +73,7 @@
         .modules-overlay td.col-name { width: 66mm; font-weight: bold; color: {{ $brandColor ?? '#1546c0' }}; }
         .modules-overlay td.col-version { width: 58mm; }
         .modules-overlay td.col-date { text-align: left; white-space: nowrap; }
+        .modules-overlay.dense td { font-size: 8pt; padding: 1.1mm 0; }
 
         .field-signature {
             position: absolute;
@@ -138,6 +139,7 @@
         .modules-table th { font-size: 9pt; font-weight: bold; color: #111; text-align: left; padding-bottom: 3mm; }
         .modules-table th:nth-child(2), .modules-table td:nth-child(2) { padding-left: 10mm; }
         .modules-table td { font-size: 9pt; color: #333; padding: 2.5mm 0; }
+        .modules-table.dense td { font-size: 8pt; padding: 1.2mm 0; }
         .footer-block { position: absolute; left: 16mm; right: 16mm; bottom: 16mm; border-top: 0.6mm solid {{ $brandColor ?? '#1546c0' }}; padding-top: 4mm; }
         .footer-signature { height: 10mm; margin-bottom: 1mm; line-height: 0; }
         .footer-signature img { height: 10mm; width: auto; max-width: 55mm; display: block; }
@@ -155,7 +157,7 @@
             <div class="field-name">{{ $candidateName }}</div>
             <div class="field-no">{{ $candidateNo }}</div>
 
-            <table class="modules-overlay">
+            <table class="modules-overlay {{ count($modules) > 8 ? 'dense' : '' }}">
                 @foreach($modules as $module)
                     <tr>
                         <td class="col-name">{{ $module['name'] }}</td>
@@ -212,7 +214,7 @@
 
             <div class="subtitle">has successfully completed the following modules:</div>
 
-            <table class="modules-table">
+            <table class="modules-table {{ count($modules) > 8 ? 'dense' : '' }}">
                 <thead>
                     <tr><th>Module Name</th><th>Version/Syllabus</th><th>Date</th></tr>
                 </thead>

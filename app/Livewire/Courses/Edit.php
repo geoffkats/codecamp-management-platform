@@ -57,8 +57,8 @@ class Edit extends Component
         $this->tags = $course->tags ?? [];
         $this->requirements = $course->requirements ?? [];
         $this->what_you_learn = $course->what_you_learn ?? [];
-        $this->is_featured = $course->is_featured;
-        $this->is_published = $course->is_published;
+        $this->is_featured = (bool) $course->is_featured;
+        $this->is_published = (bool) $course->is_published;
         $this->enrollment_type = $course->enrollment_type ?? 'open';
         $this->max_students = $course->max_students;
     }

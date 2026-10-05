@@ -467,37 +467,18 @@ class View extends Component
 
     private function generateCertificate()
     {
-        // Check if certificate already exists
-        $existing = \App\Models\Certificate::where('user_id', Auth::id())
-            ->where('course_id', $this->course->id)
-            ->first();
+        $dataService = app(\App\Services\CertificateDataService::class);
 
-        if ($existing) {
-            return; // Certificate already exists
+        if ($dataService->certificateCovering(Auth::user(), $this->course->id)) {
+            return;
         }
 
-        // Generate certificate with module profile data
-        $dataService = app(\App\Services\CertificateDataService::class);
-        $modules = $dataService->buildModulesForUser(Auth::user(), $this->course->id);
-
-        \App\Models\Certificate::create([
-            'user_id' => Auth::id(),
-            'course_id' => $this->course->id,
-            'certificate_number' => Auth::user()->studentProfile?->student_id
-                ?? ('CERT-' . strtoupper(substr(md5(time() . $this->course->id . Auth::id()), 0, 8)) . '-' . date('Y')),
-            'title' => 'CODE Profile Certificate',
-            'description' => 'This certifies that ' . Auth::user()->name . ' has successfully completed modules in "' . $this->course->title . '".',
-            'issued_at' => now(),
-            'expires_at' => null,
-            'is_verified' => true,
-            'completion_data' => [
-                'progress_percentage' => $this->enrollment->progress_percentage,
-                'completion_date' => $this->enrollment->completed_at?->format('Y-m-d'),
-                'lessons_completed' => $this->enrollment->lessons_completed ?? 0,
-                'instructor' => $this->course->instructor->name ?? 'System',
-                'modules' => $modules,
-            ],
-        ]);
+        $dataService->createOrUpdateCertificate(
+            Auth::user(),
+            $this->course,
+            $dataService->modulesForCourse(Auth::user(), $this->course),
+            now(),
+        );
 
         // Check certificate badge
         $badge = \App\Models\Badge::where('slug', 'course-master')->first();

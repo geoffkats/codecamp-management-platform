@@ -76,7 +76,10 @@ class Index extends Component
             if (!empty($quizIds)) {
             $attempts = \App\Models\AssessmentAttempt::where('user_id', Auth::id())
                 ->whereIn('assessment_id', $quizIds)
+                ->whereNotNull('score')
+                ->with(['assessment.questions', 'questionSet'])
                 ->get()
+                ->sortBy(fn ($a) => $a->scorePercentage() ?? -1)
                 ->keyBy('assessment_id');
             }
         }
@@ -115,9 +118,12 @@ class Index extends Component
             $completedQuizzes = $allAttempts->groupBy('assessment_id')->keys();
             $stats['completed'] = $completedQuizzes->count();
             
-            if ($allAttempts->isNotEmpty()) {
-                $stats['average_score'] = round($allAttempts->avg('score'), 1);
-                $stats['perfect_scores'] = $allAttempts->where('score', 100)->groupBy('assessment_id')->count();
+            $percents = $allAttempts->load(['assessment.questions', 'questionSet'])
+                ->map(fn ($a) => ['assessment_id' => $a->assessment_id, 'pct' => $a->scorePercentage()])
+                ->filter(fn ($row) => $row['pct'] !== null);
+            if ($percents->isNotEmpty()) {
+                $stats['average_score'] = round($percents->avg('pct'), 1);
+                $stats['perfect_scores'] = $percents->where('pct', '>=', 100)->unique('assessment_id')->count();
             }
         } elseif (Auth::user()->hasRole('teacher')) {
             $stats['total'] = Assessment::where('assessment_type', 'quiz')

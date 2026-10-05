@@ -127,7 +127,7 @@
                                         @endphp
                                         <div class="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
                                             <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                {{ Str::limit($question->question_text, 100) }}
+                                                {{ \App\Support\QuestionText::preview($question->question_text, 100)['text'] }}
                                             </p>
                                             <div class="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">
                                                 {{ is_string($answerValue) ? $answerValue : json_encode($answerValue, JSON_PRETTY_PRINT) }}

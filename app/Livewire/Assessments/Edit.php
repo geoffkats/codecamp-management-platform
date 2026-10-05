@@ -4,11 +4,13 @@ namespace App\Livewire\Assessments;
 
 use App\Models\Assessment;
 use App\Models\AssessmentAttempt;
+use App\Models\Course;
 use App\Models\Question;
-use App\Models\QuestionOption;
+use App\Models\Tag;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
@@ -31,39 +33,33 @@ class Edit extends Component
     public $show_results_immediately = true;
     public $is_randomized = false;
     public $shuffle_options = false;
+    public $questions_per_attempt = null;
     public $show_correct_answers = true;
     public $allow_review = true;
     
-    // Question editor state
+    // Question editor (hosted QuestionEditor component)
     public $showQuestionModal = false;
     public $editingQuestionId = null;
-    public $questionFormData = [
-        'question_text' => '',
-        'question_type' => 'multiple_choice',
-        'points' => 10,
-        'order' => 0,
-        'explanation' => '',
-        'image_url' => '',
-        'settings' => [],
-    ];
-    public $questionOptions = [];
-    
-    // File uploads
-    public $questionImage = null;
-    public $optionImages = []; // Array to track option images by index
-    public $tempOptionImages = []; // Temporary storage for option image uploads
-    
+    public int $questionEditorKey = 0;
+
+    // Add from Question Bank
+    public bool $showBankPicker = false;
+    public string $bankSearch = '';
+    public string $bankType = '';
+    public string $bankDifficulty = '';
+    public string $bankTag = '';
+    public string $bankCourse = 'this';
+    public bool $bankUnusedOnly = false;
+    public int $bankLimit = 50;
+    /** @var array<int, int|string> */
+    public array $bankSelected = [];
+
     // Student submissions view
     public $showSubmissions = false;
+
+    /** questions | settings | submissions */
+    public string $tab = 'questions';
     public $selectedAttempt = null;
-    
-    // Question type specific data
-    public $rubricCriteria = []; // For rubric_criteria question type
-    public $matchingPairs = []; // For matching question type
-    public $orderingItems = []; // For ordering question type
-    public $ratingScaleSettings = []; // For rating question type
-    public $fillBlankSettings = []; // For fill_blank question type
-    public $codeSubmissionSettings = []; // For code_submission question type
 
     // Assignment-specific fields
     public string $assignment_instructions = '';
@@ -83,6 +79,7 @@ class Edit extends Component
         'time_limit_minutes' => 'nullable|integer|min:1',
         'passing_score' => 'nullable|integer|min:0|max:100',
         'xp_reward' => 'nullable|integer|min:0',
+        'questions_per_attempt' => 'nullable|integer|min:1|max:500',
     ];
 
     public function mount(Assessment $assessment, $attempt = null)
@@ -99,7 +96,7 @@ class Edit extends Component
             abort(403, 'You can only edit assessments for your own courses.');
         }
 
-        $this->assessment = $assessment->load('questions.options');
+        $this->assessment = $assessment;
         $this->title = $assessment->title;
         $this->description = $assessment->description;
         $this->assessment_type = $assessment->assessment_type;
@@ -107,10 +104,11 @@ class Edit extends Component
         $this->time_limit_minutes = $assessment->time_limit_minutes;
         $this->passing_score = $assessment->passing_score;
         $this->xp_reward = $assessment->xp_reward;
-        $this->is_required = $assessment->is_required;
-        $this->show_results_immediately = $assessment->show_results_immediately;
+        $this->is_required = (bool) $assessment->is_required;
+        $this->show_results_immediately = (bool) $assessment->show_results_immediately;
         $this->is_randomized = $assessment->is_randomized ?? false;
         $this->shuffle_options = $assessment->shuffle_options ?? false;
+        $this->questions_per_attempt = $assessment->questions_per_attempt;
         $this->show_correct_answers = $assessment->show_correct_answers ?? true;
         $this->allow_review = $assessment->allow_review ?? true;
 
@@ -124,12 +122,41 @@ class Edit extends Component
             $this->assignment_allow_text = (bool) ($assignmentData['allow_text'] ?? true);
             $this->assignment_allow_files = (bool) ($assignmentData['allow_files'] ?? true);
             $this->assignment_existing_attachments = $assessment->assignmentAttachments();
+            $this->tab = 'settings';
         }
         
         // Auto-open attempt if provided
         if ($attempt) {
+            $this->tab = 'submissions';
             $this->startGrading($attempt);
         }
+    }
+
+    public function setTab(string $tab): void
+    {
+        if (in_array($tab, ['questions', 'settings', 'submissions'], true)) {
+            $this->tab = $tab;
+            $this->showSubmissions = $tab === 'submissions';
+        }
+    }
+
+    public function toggleLock(): void
+    {
+        $this->assessment->update(['is_locked' => ! $this->assessment->is_locked]);
+        session()->flash('message', $this->assessment->is_locked
+            ? 'Locked: students can no longer open this assessment.'
+            : 'Unlocked: students can open this assessment.');
+    }
+
+    public function savePool(?int $count = null): void
+    {
+        $this->questions_per_attempt = $count;
+        $this->validateOnly('questions_per_attempt');
+
+        $this->assessment->update(['questions_per_attempt' => $this->questions_per_attempt ?: null]);
+        session()->flash('message', $this->questions_per_attempt
+            ? "Each attempt now draws {$this->questions_per_attempt} random questions from the pool."
+            : 'Every attempt now gets all questions.');
     }
 
     public function updateAssessment()
@@ -165,6 +192,7 @@ class Edit extends Component
             'show_results_immediately' => $this->show_results_immediately,
             'is_randomized' => $this->is_randomized,
             'shuffle_options' => $this->shuffle_options,
+            'questions_per_attempt' => $this->questions_per_attempt ?: null,
             'show_correct_answers' => $this->show_correct_answers,
             'allow_review' => $this->allow_review,
             'approval_status' => 'approved',
@@ -229,203 +257,159 @@ class Edit extends Component
 
     public function openQuestionModal($questionId = null)
     {
-        if ($questionId) {
-            $question = Question::with('options')->find($questionId);
-            $this->editingQuestionId = $questionId;
-            $settings = $question->settings ?? [];
-            if (!is_array($settings)) {
-                $settings = json_decode($settings, true) ?? [];
-            }
-            $this->questionFormData = [
-                'question_text' => $question->question_text,
-                'question_type' => $question->question_type,
-                'points' => $question->points,
-                'order' => $question->order,
-                'explanation' => $question->explanation,
-                'image_url' => $question->image_url,
-                'settings' => $settings,
-            ];
-            $this->questionOptions = $question->options->map(function ($option) {
-                return [
-                    'id' => $option->id,
-                    'option_text' => $option->option_text,
-                    'is_correct' => $option->is_correct,
-                    'order' => $option->order,
-                    'image_url' => $option->image_url,
-                ];
-            })->toArray();
-            
-            // Load type-specific data from settings
-            $settings = $question->settings ?? [];
-            if (!is_array($settings)) {
-                $settings = json_decode($settings, true) ?? [];
-            }
-            
-            $this->rubricCriteria = $settings['rubric_criteria'] ?? [];
-            $this->matchingPairs = $settings['matching_pairs'] ?? [];
-            $this->orderingItems = $settings['ordering_items'] ?? [];
-            $this->ratingScaleSettings = $settings['rating_scale'] ?? ['min' => 1, 'max' => 5, 'labels' => []];
-            $this->fillBlankSettings = $settings['fill_blank'] ?? ['blanks' => []];
-            $this->codeSubmissionSettings = $settings['code_submission'] ?? ['language' => 'javascript', 'template' => ''];
-        } else {
-            $this->resetQuestionForm();
+        if ($questionId && ! $this->assessment->questions()->whereKey($questionId)->exists()) {
+            return;
         }
-        
-        // Reset file uploads
-        $this->questionImage = null;
-        $this->tempOptionImages = [];
-        
+
+        $this->editingQuestionId = $questionId;
+        $this->questionEditorKey++;
         $this->showQuestionModal = true;
     }
 
+    #[On('question-editor-cancelled')]
     public function closeQuestionModal()
     {
         $this->showQuestionModal = false;
         $this->editingQuestionId = null;
-        $this->resetQuestionForm();
     }
 
-    public function resetQuestionForm()
+    #[On('question-saved')]
+    public function questionSaved(): void
     {
-        $nextOrder = $this->assessment->questions()->max('order') + 1 ?? 1;
-        $this->questionFormData = [
-            'question_text' => '',
-            'question_type' => $this->getDefaultQuestionType(),
-            'points' => 10,
-            'order' => $nextOrder,
-            'explanation' => '',
-            'image_url' => '',
-            'settings' => [],
-        ];
-        $this->questionOptions = [];
-        $this->questionImage = null;
-        $this->tempOptionImages = [];
-        
-        // Reset type-specific data
-        $this->rubricCriteria = [];
-        $this->matchingPairs = [];
-        $this->orderingItems = [];
-        $this->ratingScaleSettings = ['min' => 1, 'max' => 5, 'labels' => []];
-        $this->fillBlankSettings = ['blanks' => []];
-        $this->codeSubmissionSettings = ['language' => 'javascript', 'template' => ''];
+        $this->closeQuestionModal();
+        $this->assessment->unsetRelation('questions');
+        session()->flash('message', 'Question saved successfully!');
     }
-    
-    public function updatedQuestionFormDataQuestionType()
+
+    public function openBankPicker(): void
     {
-        // Clear options when changing question type (some types don't need options)
-        if (!in_array($this->questionFormData['question_type'], ['multiple_choice', 'multiple_select', 'true_false', 'choice', 'matching'])) {
-            $this->questionOptions = [];
-        }
-        
-        // Reset type-specific data when switching types
-        $this->rubricCriteria = [];
-        $this->matchingPairs = [];
-        $this->orderingItems = [];
-        $this->ratingScaleSettings = ['min' => 1, 'max' => 5, 'labels' => []];
-        $this->fillBlankSettings = ['blanks' => []];
-        $this->codeSubmissionSettings = ['language' => 'javascript', 'template' => ''];
+        $this->reset(['bankSearch', 'bankType', 'bankDifficulty', 'bankTag', 'bankSelected', 'bankUnusedOnly', 'bankLimit']);
+        $this->bankCourse = 'this';
+        $this->showBankPicker = true;
     }
-    
-    // Rubric Criteria Methods
-    public function addRubricCriterion()
+
+    public function clearBankFilters(): void
     {
-        $this->rubricCriteria[] = [
-            'name' => '',
-            'description' => '',
-            'max_points' => 0,
-            'weight' => 1,
-            'performance_levels' => [
-                ['level' => 'Excellent', 'points' => 100, 'description' => ''],
-                ['level' => 'Good', 'points' => 75, 'description' => ''],
-                ['level' => 'Satisfactory', 'points' => 50, 'description' => ''],
-                ['level' => 'Needs Improvement', 'points' => 25, 'description' => ''],
-            ],
-        ];
+        $this->reset(['bankSearch', 'bankType', 'bankDifficulty', 'bankTag', 'bankUnusedOnly', 'bankLimit']);
     }
-    
-    public function removeRubricCriterion($index)
+
+    public function showMoreBank(): void
     {
-        unset($this->rubricCriteria[$index]);
-        $this->rubricCriteria = array_values($this->rubricCriteria);
+        $this->bankLimit += 50;
     }
-    
-    // Matching Pairs Methods
-    public function addMatchingPair()
+
+    /**
+     * Selects every question currently listed, or clears them if they are all selected already.
+     */
+    public function toggleAllBank(): void
     {
-        $this->matchingPairs[] = [
-            'left_item' => '',
-            'right_item' => '',
-        ];
+        $listed = $this->bankQuery()->latest('questions.id')->limit($this->bankLimit)->pluck('questions.id')->map(fn ($id) => (string) $id)->all();
+        $selected = array_map('strval', $this->bankSelected);
+
+        $this->bankSelected = array_diff($listed, $selected) === []
+            ? array_values(array_diff($selected, $listed))
+            : array_values(array_unique(array_merge($selected, $listed)));
     }
-    
-    public function removeMatchingPair($index)
+
+    public function updated($property): void
     {
-        unset($this->matchingPairs[$index]);
-        $this->matchingPairs = array_values($this->matchingPairs);
-    }
-    
-    // Ordering Items Methods
-    public function addOrderingItem()
-    {
-        $this->orderingItems[] = [
-            'item_text' => '',
-            'correct_order' => count($this->orderingItems) + 1,
-        ];
-    }
-    
-    public function removeOrderingItem($index)
-    {
-        unset($this->orderingItems[$index]);
-        $this->orderingItems = array_values($this->orderingItems);
-        // Reorder
-        foreach ($this->orderingItems as $i => $item) {
-            $this->orderingItems[$i]['correct_order'] = $i + 1;
+        if (in_array($property, ['bankSearch', 'bankType', 'bankDifficulty', 'bankTag', 'bankCourse', 'bankUnusedOnly'], true)) {
+            $this->bankLimit = 50;
         }
     }
-    
-    // Fill Blank Methods
-    public function addFillBlank()
+
+    public function closeBankPicker(): void
     {
-        $this->fillBlankSettings['blanks'][] = [
-            'position' => '',
-            'correct_answer' => '',
-            'case_sensitive' => false,
-            'alternative_answers' => [],
-        ];
+        $this->showBankPicker = false;
+        $this->bankSelected = [];
     }
-    
-    public function removeFillBlank($index)
+
+    /**
+     * Questions this user may add here, before any picker filter or course scope.
+     */
+    protected function bankBaseQuery()
     {
-        unset($this->fillBlankSettings['blanks'][$index]);
-        $this->fillBlankSettings['blanks'] = array_values($this->fillBlankSettings['blanks']);
+        return Question::query()
+            ->visibleTo(Auth::user())
+            ->active()
+            ->whereNull('questions.quiz_id')
+            ->whereNotIn('questions.id', $this->assessment->questions()->pluck('questions.id'))
+            ->whereIn('question_type', array_keys($this->getAvailableQuestionTypes()));
     }
-    
-    public function addAlternativeAnswer($blankIndex)
+
+    /**
+     * "this" = the course being edited, "all" = every course the user can see, or a course id.
+     */
+    protected function scopeBankToCourse($query, string $scope)
     {
-        if (!isset($this->fillBlankSettings['blanks'][$blankIndex]['alternative_answers'])) {
-            $this->fillBlankSettings['blanks'][$blankIndex]['alternative_answers'] = [];
+        $courseId = $scope === 'this' ? $this->assessment->course_id : (is_numeric($scope) ? (int) $scope : null);
+
+        return $query->when($courseId, fn ($q) => $q->where(fn ($w) => $w
+            ->whereHas('placements', fn ($p) => $p->where('course_id', $courseId))
+            ->orWhereHas('assessments', fn ($a) => $a->where('assessments.course_id', $courseId))));
+    }
+
+    protected function bankQuery()
+    {
+        return $this->scopeBankToCourse($this->bankBaseQuery(), $this->bankCourse)
+            ->when($this->bankSearch !== '', fn ($q) => $q->where('question_text', 'like', '%'.$this->bankSearch.'%'))
+            ->when($this->bankType !== '', fn ($q) => $q->where('question_type', $this->bankType))
+            ->when($this->bankDifficulty !== '', fn ($q) => $q->where('difficulty', $this->bankDifficulty))
+            ->when($this->bankTag !== '', fn ($q) => $q->whereHas('tags', fn ($t) => $t->where('tags.id', $this->bankTag)))
+            ->when($this->bankUnusedOnly, fn ($q) => $q->whereDoesntHave('assessments'));
+    }
+
+    public function addSelectedFromBank(): void
+    {
+        $ids = $this->bankQuery()->whereIn('questions.id', array_map('intval', $this->bankSelected))->pluck('questions.id');
+
+        if ($ids->isEmpty()) {
+            $this->addError('bankSelected', 'Select at least one question.');
+
+            return;
         }
-        $this->fillBlankSettings['blanks'][$blankIndex]['alternative_answers'][] = '';
+
+        $added = $this->assessment->pinQuestions($ids);
+        $this->assessment->unsetRelation('questions');
+        $this->closeBankPicker();
+        session()->flash('message', $added === 1 ? '1 question added from the bank.' : "{$added} questions added from the bank.");
     }
-    
-    public function removeQuestionImage()
+
+    /**
+     * Removes the question from this assessment only. The question stays in the bank and in any
+     * other assessment that uses it.
+     */
+    public function deleteQuestion($questionId)
     {
-        if ($this->questionFormData['image_url'] && Storage::disk('public')->exists($this->questionFormData['image_url'])) {
-            Storage::disk('public')->delete($this->questionFormData['image_url']);
+        $this->assessment->questions()->detach($questionId);
+        $this->assessment->unsetRelation('questions');
+        session()->flash('message', 'Question removed from this assessment. It is still in the Question Bank.');
+    }
+
+    public function moveQuestion(int $questionId, int $direction): void
+    {
+        $ids = $this->assessment->questions()->pluck('questions.id')->map(fn ($id) => (int) $id)->values()->all();
+        $index = array_search($questionId, $ids, true);
+        $target = $index === false ? false : $index + ($direction < 0 ? -1 : 1);
+
+        if ($target === false || ! isset($ids[$target])) {
+            return;
         }
-        $this->questionFormData['image_url'] = '';
-        $this->questionImage = null;
+
+        [$ids[$index], $ids[$target]] = [$ids[$target], $ids[$index]];
+        $this->reorderQuestions($ids);
     }
-    
-    public function removeOptionImage($index)
+
+    public function reorderQuestions($questionIds)
     {
-        if (isset($this->questionOptions[$index]['image_url']) && $this->questionOptions[$index]['image_url']) {
-            if (Storage::disk('public')->exists($this->questionOptions[$index]['image_url'])) {
-                Storage::disk('public')->delete($this->questionOptions[$index]['image_url']);
+        $current = $this->assessment->questions()->pluck('questions.id')->map(fn ($id) => (int) $id)->all();
+
+        foreach (array_values($questionIds) as $index => $questionId) {
+            if (in_array((int) $questionId, $current, true)) {
+                $this->assessment->questions()->updateExistingPivot((int) $questionId, ['position' => $index + 1]);
             }
-            $this->questionOptions[$index]['image_url'] = '';
         }
-        unset($this->tempOptionImages[$index]);
+        $this->assessment->unsetRelation('questions');
     }
 
     public function getDefaultQuestionType()
@@ -509,248 +493,6 @@ class Edit extends Component
         };
     }
 
-    public function addQuestionOption()
-    {
-        $this->questionOptions[] = [
-            'option_text' => '',
-            'is_correct' => false,
-            'order' => count($this->questionOptions) + 1,
-        ];
-    }
-
-    public function markCorrectOption(int $index): void
-    {
-        foreach ($this->questionOptions as $i => $option) {
-            $this->questionOptions[$i]['is_correct'] = $i === $index;
-        }
-    }
-
-    public function removeQuestionOption($index)
-    {
-        unset($this->questionOptions[$index]);
-        $this->questionOptions = array_values($this->questionOptions);
-        // Reorder
-        foreach ($this->questionOptions as $i => $option) {
-            $this->questionOptions[$i]['order'] = $i + 1;
-        }
-    }
-
-    public function saveQuestion()
-    {
-        $this->validate([
-            'questionFormData.question_text' => 'required|string',
-            'questionFormData.question_type' => 'required|string',
-            'questionFormData.points' => 'required|integer|min:0',
-            'questionImage' => 'nullable|image|max:5120', // 5MB max
-        ]);
-
-        // Handle question image upload
-        $questionImagePath = $this->questionFormData['image_url'];
-        if ($this->questionImage) {
-            // Delete old image if exists
-            if ($this->questionFormData['image_url'] && Storage::disk('public')->exists($this->questionFormData['image_url'])) {
-                Storage::disk('public')->delete($this->questionFormData['image_url']);
-            }
-            $questionImagePath = $this->questionImage->store('assessments/questions', 'public');
-        }
-
-        // Validate based on question type
-        switch ($this->questionFormData['question_type']) {
-            case 'multiple_choice':
-            case 'choice':
-            case 'true_false':
-                if (empty($this->questionOptions) || count(array_filter($this->questionOptions, fn($o) => !empty($o['option_text']))) === 0) {
-                    session()->flash('error', 'Please add at least one option for this question type.');
-                    return;
-                }
-                break;
-            case 'multiple_select':
-                $filled = array_filter($this->questionOptions, fn ($o) => ! empty($o['option_text']));
-                $correctCount = count(array_filter($filled, fn ($o) => ! empty($o['is_correct'])));
-                if (count($filled) < 2) {
-                    session()->flash('error', 'Multiple select needs at least two options.');
-                    return;
-                }
-                if ($correctCount < 2) {
-                    session()->flash('error', 'Tick at least two correct answers so students can select more than one.');
-                    return;
-                }
-                break;
-            case 'matching':
-                if (empty($this->matchingPairs) || count(array_filter($this->matchingPairs, fn($p) => !empty($p['left_item']) && !empty($p['right_item']))) === 0) {
-                    session()->flash('error', 'Please add at least one matching pair.');
-                    return;
-                }
-                break;
-            case 'ordering':
-                if (empty($this->orderingItems) || count($this->orderingItems) < 2 || count(array_filter($this->orderingItems, fn($i) => !empty($i['item_text']))) < 2) {
-                    session()->flash('error', 'Please add at least two items to order.');
-                    return;
-                }
-                break;
-            case 'rubric_criteria':
-                if (empty($this->rubricCriteria) || count(array_filter($this->rubricCriteria, fn($c) => !empty($c['name']))) === 0) {
-                    session()->flash('error', 'Please add at least one rubric criterion.');
-                    return;
-                }
-                break;
-            case 'fill_blank':
-                if (empty($this->fillBlankSettings['blanks']) || count(array_filter($this->fillBlankSettings['blanks'], fn($b) => !empty($b['correct_answer']))) === 0) {
-                    session()->flash('error', 'Please add at least one blank with a correct answer.');
-                    return;
-                }
-                break;
-        }
-
-        // Build settings based on question type
-        $settings = [];
-        
-        switch ($this->questionFormData['question_type']) {
-            case 'rubric_criteria':
-                $settings['rubric_criteria'] = $this->rubricCriteria;
-                break;
-            case 'matching':
-                $settings['matching_pairs'] = $this->matchingPairs;
-                break;
-            case 'ordering':
-                $settings['ordering_items'] = $this->orderingItems;
-                break;
-            case 'rating':
-                $settings['rating_scale'] = $this->ratingScaleSettings;
-                break;
-            case 'fill_blank':
-                $settings['fill_blank'] = $this->fillBlankSettings;
-                break;
-            case 'code_submission':
-                $settings['code_submission'] = $this->codeSubmissionSettings;
-                break;
-            case 'file_upload':
-                $settings['allowed_types'] = $this->questionFormData['settings']['allowed_types'] ?? 'html,htm,css,pdf,doc,docx,txt,jpg,jpeg,png,gif,zip';
-                $settings['max_size'] = $this->questionFormData['settings']['max_size'] ?? 10;
-                $settings['max_files'] = $this->questionFormData['settings']['max_files'] ?? 1;
-                break;
-            case 'essay':
-            case 'short_answer':
-                $settings['min_words'] = $this->questionFormData['settings']['min_words'] ?? null;
-                $settings['max_words'] = $this->questionFormData['settings']['max_words'] ?? null;
-                break;
-        }
-
-        $questionData = [
-            'assessment_id' => $this->assessment->id,
-            'question_text' => $this->questionFormData['question_text'],
-            'question_type' => $this->questionFormData['question_type'],
-            'points' => $this->questionFormData['points'],
-            'order' => $this->questionFormData['order'],
-            'explanation' => $this->questionFormData['explanation'] ?? null,
-            'image_url' => $questionImagePath,
-            'settings' => !empty($settings) ? $settings : null,
-        ];
-
-        if ($this->editingQuestionId) {
-            $question = Question::find($this->editingQuestionId);
-            $question->update($questionData);
-        } else {
-            $question = Question::create($questionData);
-        }
-
-        // Save options for question types that use them
-        if (in_array($this->questionFormData['question_type'], ['multiple_choice', 'multiple_select', 'true_false', 'choice'])) {
-            // Delete old options if editing
-            if ($this->editingQuestionId) {
-                // Delete old option images
-                foreach ($question->options as $oldOption) {
-                    if ($oldOption->image_url && Storage::disk('public')->exists($oldOption->image_url)) {
-                        Storage::disk('public')->delete($oldOption->image_url);
-                    }
-                }
-                $question->options()->delete();
-            }
-
-            foreach ($this->questionOptions as $index => $optionData) {
-                if (!empty($optionData['option_text'])) {
-                    // Handle option image upload
-                    $optionImagePath = $optionData['image_url'] ?? null;
-                    if (isset($this->tempOptionImages[$index]) && $this->tempOptionImages[$index]) {
-                        $optionImagePath = $this->tempOptionImages[$index]->store('assessments/options', 'public');
-                    }
-
-                    QuestionOption::create([
-                        'question_id' => $question->id,
-                        'option_text' => $optionData['option_text'],
-                        'is_correct' => $optionData['is_correct'] ?? false,
-                        'order' => $optionData['order'] ?? 0,
-                        'image_url' => $optionImagePath,
-                    ]);
-                }
-            }
-        }
-        
-        // Save matching pairs as options
-        if ($this->questionFormData['question_type'] === 'matching') {
-            if ($this->editingQuestionId) {
-                $question->options()->delete();
-            }
-            
-            foreach ($this->matchingPairs as $index => $pair) {
-                if (!empty($pair['left_item']) && !empty($pair['right_item'])) {
-                    QuestionOption::create([
-                        'question_id' => $question->id,
-                        'option_text' => $pair['left_item'] . '|' . $pair['right_item'], // Store as delimiter-separated
-                        'is_correct' => true, // All matching pairs are correct
-                        'order' => $index + 1,
-                    ]);
-                }
-            }
-        }
-        
-        // Save ordering items as options
-        if ($this->questionFormData['question_type'] === 'ordering') {
-            if ($this->editingQuestionId) {
-                $question->options()->delete();
-            }
-            
-            foreach ($this->orderingItems as $index => $item) {
-                if (!empty($item['item_text'])) {
-                    QuestionOption::create([
-                        'question_id' => $question->id,
-                        'option_text' => $item['item_text'],
-                        'is_correct' => true,
-                        'order' => $item['correct_order'] ?? ($index + 1),
-                    ]);
-                }
-            }
-        }
-
-        // Refresh assessment
-        $this->assessment->refresh();
-        $this->assessment->load('questions.options');
-        
-        // Reset file uploads
-        $this->questionImage = null;
-        $this->tempOptionImages = [];
-        
-        $this->closeQuestionModal();
-        session()->flash('message', 'Question saved successfully!');
-    }
-
-    public function deleteQuestion($questionId)
-    {
-        Question::find($questionId)->delete();
-        $this->assessment->refresh();
-        $this->assessment->load('questions.options');
-        session()->flash('message', 'Question deleted successfully!');
-    }
-
-    public function reorderQuestions($questionIds)
-    {
-        foreach ($questionIds as $index => $questionId) {
-            Question::where('id', $questionId)->update(['order' => $index + 1]);
-        }
-        $this->assessment->refresh();
-        $this->assessment->load('questions.options');
-    }
-
     public $gradingAttempt = false;
     public $attemptScore = 0;
     public $attemptFeedback = '';
@@ -758,7 +500,7 @@ class Edit extends Component
 
     public function viewAttempt($attemptId)
     {
-        $attempt = AssessmentAttempt::with(['user', 'assessment.questions.options'])
+        $attempt = AssessmentAttempt::with(['user', 'assessment'])
             ->find($attemptId);
         
         if ($attempt) {
@@ -803,45 +545,17 @@ class Edit extends Component
 
         $attempt = $this->selectedAttempt;
         $assessment = $attempt->assessment;
-        
-        // Calculate percentage
-        $percentage = ($this->attemptScore / $this->attemptMaxScore) * 100;
-        $passed = $percentage >= ($assessment->passing_score ?? 70);
-        
-        // Update attempt with grade
-        $answers = $attempt->answers ?? [];
-        $answers['feedback'] = $this->attemptFeedback;
-        $answers['graded_at'] = now()->toIso8601String();
-        $answers['graded_by'] = Auth::id();
-        
-        $attempt->update([
-            'score' => (float) $this->attemptScore,
-            'is_passed' => $passed,
-            'answers' => $answers,
-            'auto_scored' => false,
-            'is_locked' => true,
-            'teacher_id' => Auth::id(),
-        ]);
 
-        // Create Grade record
-        \App\Models\Grade::updateOrCreate(
-            [
-                'user_id' => $attempt->user_id,
-                'course_id' => $assessment->course_id,
-                'gradeable_type' => AssessmentAttempt::class,
-                'gradeable_id' => $attempt->id,
-            ],
-            [
-                'score' => $this->attemptScore,
-                'max_score' => $this->attemptMaxScore,
-                'percentage' => round($percentage, 2),
-                'letter_grade' => $this->calculateLetterGrade($percentage),
-                'feedback' => json_encode(['feedback' => $this->attemptFeedback]),
-                'graded_by' => Auth::id(),
-                'graded_at' => now(),
-                'is_final' => true,
-            ]
+        $result = app(\App\Services\Assessments\AttemptGradeRecorder::class)->record(
+            $attempt,
+            (float) $this->attemptScore,
+            $this->attemptFeedback,
+            Auth::user(),
+            null,
+            (float) $this->attemptMaxScore,
         );
+        $percentage = $result['percentage'];
+        $passed = $result['passed'];
 
         // Award XP if passed
         if ($passed && $assessment->xp_reward) {
@@ -874,23 +588,6 @@ class Edit extends Component
         $this->assessment->refresh();
     }
 
-    private function calculateLetterGrade($percentage)
-    {
-        if ($percentage >= 97) return 'A+';
-        if ($percentage >= 93) return 'A';
-        if ($percentage >= 90) return 'A-';
-        if ($percentage >= 87) return 'B+';
-        if ($percentage >= 83) return 'B';
-        if ($percentage >= 80) return 'B-';
-        if ($percentage >= 77) return 'C+';
-        if ($percentage >= 73) return 'C';
-        if ($percentage >= 70) return 'C-';
-        if ($percentage >= 67) return 'D+';
-        if ($percentage >= 63) return 'D';
-        if ($percentage >= 60) return 'D-';
-        return 'F';
-    }
-
     public function backToBuilder(): void
     {
         $this->dispatch('close-form')->to(\App\Livewire\Curriculum\NewBuilder::class);
@@ -898,22 +595,66 @@ class Edit extends Component
 
     public function render()
     {
-        $questions = $this->assessment->questions()->orderBy('order')->get();
+        $questions = $this->assessment->questions()
+            ->with(['options', 'tags'])
+            ->withCount('assessments')
+            ->get();
         $totalPoints = $questions->sum('points');
+
+        $bank = null;
+        if ($this->showBankPicker) {
+            $user = Auth::user();
+            $bank = [
+                'questions' => $this->bankQuery()
+                    ->with(['tags', 'options', 'placements.course:id,title', 'placements.module:id,title', 'creator:id,name'])
+                    ->withCount('assessments')
+                    ->latest('questions.id')
+                    ->limit($this->bankLimit)
+                    ->get(),
+                'total' => $this->bankQuery()->count(),
+                'thisCourseCount' => $this->scopeBankToCourse($this->bankBaseQuery(), 'this')->count(),
+                'allCount' => $this->bankBaseQuery()->count(),
+                'tags' => Tag::whereHas('questions', fn ($q) => $this->scopeBankToCourse($q->visibleTo($user), $this->bankCourse))->orderBy('name')->get(['id', 'name']),
+                'courses' => Course::query()
+                    ->when(! $user->isAdmin(), fn ($q) => $q->where(fn ($w) => $w
+                        ->where('instructor_id', $user->id)
+                        ->orWhereHas('collaborators', fn ($c) => $c->where('user_id', $user->id))))
+                    ->orderBy('title')
+                    ->get(['id', 'title']),
+            ];
+        }
         
         // Get all attempts for teachers/admins - scoped by visibility
-        $attempts = AssessmentAttempt::with('user')
+        $attempts = AssessmentAttempt::with(['user', 'questionSet'])
             ->visibleTo(Auth::user())
             ->where('assessment_id', $this->assessment->id)
             ->where('status', 'completed')
             ->orderBy('completed_at', 'desc')
             ->paginate(10);
-        
+
+        $finished = AssessmentAttempt::visibleTo(Auth::user())
+            ->where('assessment_id', $this->assessment->id)
+            ->where('status', 'completed');
+        $graded = (clone $finished)->whereNotNull('score')->with('questionSet')->get();
+        $percents = $graded->map(fn ($a) => $a->scorePercentage())->filter(fn ($p) => $p !== null);
+        $submissionStats = [
+            'total' => (clone $finished)->count(),
+            'pending' => (clone $finished)->whereNull('score')->count(),
+            'average' => $percents->isNotEmpty() ? (int) round($percents->avg()) : null,
+            'passRate' => $graded->isNotEmpty() ? (int) round($graded->where('is_passed', true)->count() / $graded->count() * 100) : null,
+        ];
+
         return view('livewire.assessments.edit', [
+            'submissionStats' => $submissionStats,
+            'typeMeta' => Manage::TYPES[$this->assessment_type] ?? ['label' => ucfirst(str_replace('_', ' ', (string) $this->assessment_type)), 'icon' => 'clipboard-document-check', 'tile' => 'bg-gray-100 text-gray-600'],
             'questions' => $questions,
             'totalPoints' => $totalPoints,
             'availableQuestionTypes' => $this->getAvailableQuestionTypes(),
+            'bank' => $bank,
             'attempts' => $attempts,
+            'selectedAttemptQuestions' => $this->selectedAttempt
+                ? app(\App\Services\Assessments\AttemptQuestionModels::class)->for($this->selectedAttempt)
+                : collect(),
         ]);
     }
 }

@@ -27,7 +27,7 @@ class BadgeForm extends Component
             $this->color = $badge->color;
             $this->criteria = $badge->criteria ?? [];
             $this->points_reward = $badge->points_reward;
-            $this->is_active = $badge->is_active;
+            $this->is_active = (bool) $badge->is_active;
         }
     }
 

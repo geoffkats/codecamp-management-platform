@@ -29,6 +29,7 @@ class Create extends Component
     public $show_results_immediately = true;
     public $is_randomized = false;
     public $shuffle_options = false;
+    public $questions_per_attempt = null;
     public $show_correct_answers = true;
     public $allow_review = true;
     public $is_locked = false;
@@ -78,6 +79,7 @@ class Create extends Component
         'show_results_immediately' => 'boolean',
         'is_randomized' => 'boolean',
         'shuffle_options' => 'boolean',
+        'questions_per_attempt' => 'nullable|integer|min:1|max:500',
         'show_correct_answers' => 'boolean',
         'allow_review' => 'boolean',
         'is_locked' => 'boolean',
@@ -206,6 +208,7 @@ class Create extends Component
             'show_results_immediately' => $this->show_results_immediately,
             'is_randomized' => $this->is_randomized,
             'shuffle_options' => $this->shuffle_options,
+            'questions_per_attempt' => $this->assessment_type === 'assignment' ? null : ($this->questions_per_attempt ?: null),
             'show_correct_answers' => $this->show_correct_answers,
             'allow_review' => $this->allow_review,
             'is_locked' => $this->is_locked,
@@ -294,16 +297,20 @@ class Create extends Component
             ? Lesson::where('course_id', $this->course_id)->get()
             : collect();
 
-        $assessmentTypes = [
-            'quiz' => 'Quiz',
-            'assignment' => 'Assignment',
-            'pre_project_test' => 'Pre-Project Test',
-            'post_project_test' => 'Post-Project Test',
-            'unit_survey' => 'Unit Survey',
-            'rubric_assessment' => 'Rubric Assessment',
-            'peer_review' => 'Peer Review',
-            'self_assessment' => 'Self-Assessment',
+        $descriptions = [
+            'quiz' => 'Auto-marked questions to check understanding',
+            'assignment' => 'Students submit text or files for you to grade',
+            'pre_project_test' => 'Baseline check before a project starts',
+            'post_project_test' => 'Knowledge check after a project',
+            'unit_survey' => 'Ratings and open questions, no marks',
+            'rubric_assessment' => 'Grade work against set criteria',
+            'peer_review' => 'Students review each other\'s work',
+            'self_assessment' => 'Students reflect on their own work',
         ];
+
+        $assessmentTypes = collect(Manage::TYPES)
+            ->map(fn ($meta, $key) => $meta + ['description' => $descriptions[$key] ?? ''])
+            ->all();
 
         return view('livewire.assessments.create', [
             'courses' => $courses,

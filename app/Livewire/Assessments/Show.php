@@ -48,17 +48,13 @@ class Show extends Component
         $this->hasTaken = $attemptCount > 0;
 
         if ($this->hasTaken) {
-            $maxScore = $assessment->assessment_type === 'assignment'
-                ? $assessment->max_points
-                : ($assessment->questions()->sum('points') ?: 100);
+            // Each attempt is measured against its own question set's maximum
+            $best = (clone $attemptQuery)->whereNotNull('score')->get()
+                ->map(fn (AssessmentAttempt $attempt) => $attempt->scorePercentage())
+                ->filter(fn ($percentage) => $percentage !== null)
+                ->max();
 
-            if ($assessment->assessment_type === 'assignment') {
-                $bestRaw = (clone $attemptQuery)->whereNotNull('score')->max('score');
-                $this->bestScore = $bestRaw !== null ? ($bestRaw / $maxScore) * 100 : null;
-            } else {
-                $bestRaw = (clone $attemptQuery)->max('score') ?? 0;
-                $this->bestScore = $maxScore > 0 ? ($bestRaw / $maxScore) * 100 : 0;
-            }
+            $this->bestScore = $assessment->assessment_type === 'assignment' ? $best : ($best ?? 0);
         }
 
         $this->attemptsRemaining = $assessment->max_attempts > 0
@@ -144,8 +140,14 @@ class Show extends Component
             return ['total_attempts' => 0, 'unique_students' => 0, 'average_score' => 0, 'pass_rate' => 0];
         }
 
-        $avgRaw    = (clone $query)->avg('score') ?? 0;
-        $avgPct    = $maxScore > 0 ? ($avgRaw / $maxScore) * 100 : 0;
+        // Each attempt is scored against its own frozen question set; pooled assessments differ per attempt.
+        $avgPct = $maxScore > 0 ? (float) ((clone $query)
+            ->whereNotNull('score')
+            ->selectRaw(
+                'AVG(score / COALESCE(NULLIF((SELECT SUM(aq.points) FROM assessment_attempt_questions aq WHERE aq.assessment_attempt_id = assessment_attempts.id), 0), ?)) * 100 AS avg_pct',
+                [$maxScore]
+            )
+            ->value('avg_pct') ?? 0) : 0;
         $passed    = (clone $query)->where('is_passed', true)->count();
         $unique    = (clone $query)->distinct('user_id')->count('user_id');
 

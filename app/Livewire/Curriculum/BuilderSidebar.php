@@ -199,6 +199,11 @@ class BuilderSidebar extends Component
         $this->dispatch('archive-lesson', lessonId: $lessonId)->to(NewBuilder::class);
     }
 
+    public function toggleLessonLock(int $lessonId): void
+    {
+        $this->dispatch('toggle-lesson-lock', lessonId: $lessonId)->to(NewBuilder::class);
+    }
+
     public function restoreModule(int $moduleId): void
     {
         $this->dispatch('restore-module', moduleId: $moduleId)->to(NewBuilder::class);

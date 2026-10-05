@@ -46,8 +46,8 @@ class Show extends Component
         if ($this->hasTaken) {
             $completedAttempts = $this->userAttempts->whereNotNull('completed_at');
             if ($completedAttempts->isNotEmpty()) {
-                $this->bestAttempt = $completedAttempts->sortByDesc('score')->first();
-                $this->bestScore = $this->bestAttempt->score;
+                $this->bestAttempt = $completedAttempts->sortByDesc(fn ($a) => $a->scorePercentage() ?? -1)->first();
+                $this->bestScore = $this->bestAttempt->scorePercentage();
             }
         }
 
@@ -133,7 +133,7 @@ class Show extends Component
 
         $totalAttempts = $allAttempts->count();
         $completedAttempts = $allAttempts->whereNotNull('completed_at');
-        $averageScore = $completedAttempts->avg('score') ?? 0;
+        $averageScore = $completedAttempts->map(fn ($a) => $a->scorePercentage())->filter(fn ($p) => $p !== null)->avg() ?? 0;
         $passedCount = $completedAttempts->where('is_passed', true)->count();
         $passRate = $completedAttempts->count() > 0 ? ($passedCount / $completedAttempts->count()) * 100 : 0;
         $completionRate = ($completedAttempts->count() / $totalAttempts) * 100;

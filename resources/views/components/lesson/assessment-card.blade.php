@@ -32,11 +32,9 @@
 
     // Calculate best percentage from the best attempt
     if ($bestAttempt) {
-        $questionCount = $assessment->questions()->count();
-        $maxScore = $questionCount > 0 ? $assessment->questions()->sum('points') : 100;
-        $maxScore = $maxScore ?: 100;
+        $maxScore = $bestAttempt->maxScore() ?: 100;
         $bestPct = $bestAttempt->auto_scored
-            ? min(round(($bestAttempt->score / $maxScore) * 100, 1), 100)
+            ? round($bestAttempt->scorePercentage() ?? 0, 1)
             : ($bestAttempt->score !== null ? min(round($bestAttempt->score, 1), 100) : null);
     } else {
         $bestPct = null;

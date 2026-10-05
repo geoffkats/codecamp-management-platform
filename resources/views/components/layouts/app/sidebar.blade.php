@@ -6,7 +6,7 @@
     </head>
     <body class="min-h-screen bg-white dark:bg-zinc-800">
         @include('partials.analytics.body')
-        <flux:sidebar sticky stashable class="border-e border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+        <flux:sidebar sticky stashable class="w-72 border-e border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
             <flux:sidebar.toggle class="lg:hidden" icon="x-mark" />
 
             {{-- Brand --}}
@@ -16,13 +16,13 @@
                 $logo = cache()->remember('logo_path', 86400, fn() => \App\Models\SystemSetting::get('logo'));
                 $logoDark = cache()->remember('logo_dark_path', 86400, fn() => \App\Models\SystemSetting::get('logo_dark'));
             @endphp
-            <div class="mb-4 px-1 pt-1">
-                <a href="{{ route('dashboard') }}" class="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-slate-50 dark:hover:bg-zinc-800" wire:navigate>
+            <div class="mb-3 px-1 pt-1">
+                <a href="{{ route('dashboard') }}" class="flex items-center gap-3 rounded-2xl px-2 py-2 transition hover:bg-zinc-50 dark:hover:bg-white/5" wire:navigate>
                     @if($logo || $logoDark)
-                        <img src="{{ asset('storage/' . ($logo ?: $logoDark)) }}" alt="{{ $appName }}" class="h-9 w-9 object-contain dark:hidden rounded-lg">
-                        <img src="{{ asset('storage/' . ($logoDark ?: $logo)) }}" alt="{{ $appName }}" class="hidden h-9 w-9 object-contain dark:block rounded-lg">
+                        <img src="{{ asset('storage/' . ($logo ?: $logoDark)) }}" alt="{{ $appName }}" class="h-10 w-10 object-contain dark:hidden rounded-xl">
+                        <img src="{{ asset('storage/' . ($logoDark ?: $logo)) }}" alt="{{ $appName }}" class="hidden h-10 w-10 object-contain dark:block rounded-xl">
                     @else
-                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-orange-600 text-sm font-bold text-white">
+                        <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 text-sm font-extrabold text-white shadow-md shadow-orange-500/30">
                             {{ strtoupper(substr($appShortName, 0, 2)) }}
                         </div>
                     @endif
@@ -37,8 +37,10 @@
                                 default => 'Member',
                             };
                         @endphp
-                        <p class="truncate text-sm font-bold text-slate-900 dark:text-white">{{ $appName }}</p>
-                        <p class="truncate text-xs font-medium text-orange-600 dark:text-orange-400">{{ $roleLabel }}</p>
+                        <p class="truncate text-sm font-extrabold tracking-tight text-zinc-900 dark:text-white">{{ $appName }}</p>
+                        <span class="mt-0.5 inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-orange-700 ring-1 ring-orange-100 dark:bg-orange-500/10 dark:text-orange-300 dark:ring-orange-500/20">
+                            <span class="h-1.5 w-1.5 rounded-full bg-orange-500"></span>{{ $roleLabel }}
+                        </span>
                     </div>
                 </a>
             </div>
@@ -47,19 +49,21 @@
 
             <x-navigation.sidebar :user="auth()->user()" />
 
-            <flux:spacer />
-
             {{-- User --}}
-            <div class="border-t border-zinc-200 px-2 py-3 dark:border-zinc-700">
+            <div class="border-t border-zinc-200 px-1 pt-3 dark:border-zinc-700">
                 <flux:dropdown class="w-full" position="top" align="start">
-                    <button type="button" class="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800" data-test="sidebar-menu-button">
-                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white">
+                    <button type="button" class="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-zinc-100 dark:hover:bg-white/5" data-test="sidebar-menu-button">
+                        <div class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-900 text-sm font-bold text-white dark:from-zinc-600 dark:to-zinc-700">
                             {{ auth()->user()->initials() }}
+                            <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-zinc-900"></span>
                         </div>
                         <div class="min-w-0 flex-1">
-                            <p class="truncate text-sm font-medium text-zinc-900 dark:text-white">{{ auth()->user()->name }}</p>
+                            <p class="truncate text-sm font-semibold text-zinc-900 dark:text-white">{{ auth()->user()->name }}</p>
                             <p class="truncate text-xs text-zinc-500 dark:text-zinc-400">{{ auth()->user()->loginIdentifier() }}</p>
                         </div>
+                        <svg class="h-4 w-4 shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/>
+                        </svg>
                     </button>
 
                 <flux:menu class="w-[220px]">
@@ -148,6 +152,8 @@
         </flux:header>
 
         {{ $slot }}
+
+        <x-help.edge-drawer />
 
         @livewireScripts
         <script>

@@ -1,271 +1,273 @@
-<div class="{{ $this->embedded ? 'bg-white dark:bg-gray-900' : 'max-w-4xl mx-auto p-6' }}">
+@php
+    $isAssignment = $assessment_type === 'assignment';
+    $backUrl = $isAssignment ? route('assignments.index') : route('assessments.manage');
+    $inputClass = 'w-full rounded-xl border-0 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 ring-1 ring-inset ring-gray-200 placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-500 dark:bg-gray-800 dark:text-white dark:ring-gray-700';
+    $labelClass = 'mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400';
+    $cardClass = 'rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100 dark:bg-gray-900 dark:ring-gray-800 sm:p-6';
+@endphp
 
-    {{-- Embedded header --}}
+<div class="{{ $this->embedded ? 'bg-gray-50 dark:bg-gray-950' : 'mx-auto max-w-5xl p-4 sm:p-6' }}">
+
     @if($this->embedded)
-    <div class="flex items-center gap-3 px-6 py-3 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10 bg-white dark:bg-gray-900">
-        <button wire:click="cancelEmbedded" type="button"
-                class="flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
-            </svg>
-            Back to Lesson
-        </button>
-        <div class="h-4 w-px bg-gray-200 dark:bg-gray-700"></div>
-        <span class="text-sm font-bold text-gray-800 dark:text-white">New Quiz / Assessment</span>
-    </div>
+        <div class="sticky top-0 z-10 flex items-center gap-3 border-b border-gray-200 bg-white px-6 py-3 dark:border-gray-700 dark:bg-gray-900">
+            <button wire:click="cancelEmbedded" type="button"
+                    class="flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-400">
+                <flux:icon name="chevron-left" variant="micro" class="size-4" /> Back to Lesson
+            </button>
+            <div class="h-4 w-px bg-gray-200 dark:bg-gray-700"></div>
+            <span class="text-sm font-bold text-gray-800 dark:text-white">New Quiz / Assessment</span>
+        </div>
+    @else
+        <div class="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-6 text-white shadow-lg">
+            <div class="pointer-events-none absolute -right-10 -top-16 size-48 rounded-full bg-white/10"></div>
+            <div class="pointer-events-none absolute right-24 -bottom-20 size-40 rounded-full bg-white/10"></div>
+            <div class="relative">
+                <a href="{{ $backUrl }}" wire:navigate class="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-widest text-orange-100 hover:text-white">
+                    <flux:icon name="arrow-left" variant="micro" class="size-3.5" /> {{ $isAssignment ? 'Assignments' : 'Assessments' }}
+                </a>
+                <h1 class="mt-1 text-2xl font-extrabold sm:text-3xl">{{ $isAssignment ? 'New assignment' : 'New assessment' }}</h1>
+                <p class="mt-1 text-sm text-orange-100">
+                    {{ $isAssignment ? 'Set the brief, due date and what students should hand in.' : 'Pick a type, set the rules, then add questions from the bank or write new ones.' }}
+                </p>
+            </div>
+        </div>
     @endif
 
-    <div class="{{ $this->embedded ? 'p-6 space-y-6' : 'space-y-6' }}">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            @if(!$this->embedded)
-            <div class="flex items-center justify-between mb-6">
-                <div>
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-                        {{ $assessment_type === 'assignment' ? 'Create New Assignment' : 'Create New Assessment' }}
-                    </h1>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        {{ $assessment_type === 'assignment'
-                            ? 'Set instructions, due date, and optional brief attachments for students'
-                            : 'Configure assessment settings and requirements' }}
-                    </p>
-                </div>
-                <a href="{{ $course_id ? route('curriculum.builder', $course_id) : ($assessment_type === 'assignment' ? route('assignments.index') : route('assessments.index')) }}" wire:navigate
-                   class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </a>
+    <form wire:submit="save" class="{{ $this->embedded ? 'space-y-5 p-6' : 'space-y-5' }}">
+
+        {{-- Type --}}
+        <section class="{{ $cardClass }}">
+            <h2 class="text-base font-extrabold text-gray-900 dark:text-white">What are you making?</h2>
+            <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">{{ $assessmentTypes[$assessment_type]['description'] ?? '' }}</p>
+            <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                @foreach($assessmentTypes as $value => $meta)
+                    @php $active = $assessment_type === $value; @endphp
+                    <button type="button" wire:click="$set('assessment_type', '{{ $value }}')" wire:key="type-{{ $value }}"
+                            @class([
+                                'group flex items-center gap-2.5 rounded-xl p-3 text-left ring-1 transition',
+                                'bg-orange-50 ring-2 ring-orange-500 dark:bg-orange-900/20' => $active,
+                                'bg-white ring-gray-200 hover:ring-orange-300 dark:bg-gray-900 dark:ring-gray-700' => ! $active,
+                            ])>
+                        <span class="flex size-9 shrink-0 items-center justify-center rounded-lg {{ $meta['tile'] }}">
+                            <flux:icon :name="$meta['icon']" class="size-5" />
+                        </span>
+                        <span class="min-w-0 text-sm font-bold {{ $active ? 'text-orange-700 dark:text-orange-300' : 'text-gray-800 dark:text-gray-200' }}">{{ $meta['label'] }}</span>
+                    </button>
+                @endforeach
             </div>
-            @else
-            <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">Fill in the basics. You can add questions right after creating it.</p>
+            @error('assessment_type') <p class="mt-2 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+        </section>
+
+        {{-- Basics --}}
+        <section class="{{ $cardClass }} space-y-4">
+            <h2 class="text-base font-extrabold text-gray-900 dark:text-white">Basics</h2>
+
+            @if(!$this->embedded)
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="{{ $labelClass }}">Course <span class="text-rose-500">*</span></label>
+                        <select wire:model.live="course_id" class="{{ $inputClass }}" required>
+                            <option value="">Select a course</option>
+                            @foreach($courses as $course)
+                                <option value="{{ $course->id }}">{{ $course->title }}</option>
+                            @endforeach
+                        </select>
+                        @error('course_id') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">Lesson</label>
+                        <select wire:model="lesson_id" class="{{ $inputClass }}" @disabled(! $course_id || $lessons->isEmpty())>
+                            <option value="">{{ $course_id && $lessons->isEmpty() ? 'No lessons yet — course level' : 'Course level (not tied to a lesson)' }}</option>
+                            @foreach($lessons as $lesson)
+                                <option value="{{ $lesson->id }}">{{ $lesson->title }}</option>
+                            @endforeach
+                        </select>
+                        @error('lesson_id') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+                    </div>
+                </div>
             @endif
 
-            <form wire:submit="save" class="space-y-5">
-                {{-- Course/Lesson selectors — only show when NOT embedded (they're pre-filled from the builder) --}}
-                @if(!$this->embedded)
-                <div class="space-y-4">
-                    <h2 class="text-base font-semibold text-gray-900 dark:text-white">Lesson</h2>
+            <div>
+                <label class="{{ $labelClass }}">Title <span class="text-rose-500">*</span></label>
+                <input type="text" wire:model="title" class="{{ $inputClass }} text-base font-semibold" placeholder="{{ $isAssignment ? 'e.g. Build your first web page' : 'e.g. Module 1 Quiz' }}" required @if($this->embedded) autofocus @endif>
+                @error('title') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+            </div>
+
+            <div>
+                <label class="{{ $labelClass }}">{{ $isAssignment ? 'Brief summary' : 'Description' }}</label>
+                <textarea wire:model="description" rows="3" class="{{ $inputClass }}"
+                          placeholder="{{ $isAssignment ? 'Short overview shown to students before they submit' : 'Optional — shown to students before they start' }}"></textarea>
+                @error('description') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+            </div>
+
+            @if(in_array($assessment_type, ['pre_project_test', 'post_project_test']))
+                <div>
+                    <label class="{{ $labelClass }}">Project platform</label>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach(['' => 'Not set', 'scratch' => 'Scratch 3', 'other' => 'Other / Custom'] as $value => $label)
+                            <button type="button" wire:click="$set('project_platform', {{ $value === '' ? 'null' : "'{$value}'" }})"
+                                    @class([
+                                        'rounded-full px-3.5 py-1.5 text-xs font-bold ring-1 transition',
+                                        'bg-orange-500 text-white ring-orange-500' => (string) $project_platform === $value,
+                                        'bg-white text-gray-600 ring-gray-200 hover:ring-orange-300 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700' => (string) $project_platform !== $value,
+                                    ])>{{ $label }}</button>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+        </section>
+
+        @if($isAssignment)
+            {{-- Assignment details --}}
+            <section class="{{ $cardClass }} space-y-4">
+                <h2 class="text-base font-extrabold text-gray-900 dark:text-white">Assignment details</h2>
+
+                <div>
+                    <label class="{{ $labelClass }}">Instructions for students</label>
+                    <textarea wire:model="assignment_instructions" rows="5" class="{{ $inputClass }}" placeholder="What should students do? Include steps, rubric notes or links."></textarea>
+                    @error('assignment_instructions') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
                     <div>
-                        <flux:field>
-                            <flux:label>Course</flux:label>
-                            <flux:select wire:model.live="course_id" placeholder="Select a course" required>
-                                @foreach($courses as $course)
-                                    <option value="{{ $course->id }}">{{ $course->title }}</option>
-                                @endforeach
-                            </flux:select>
-                            <flux:error name="course_id" />
-                        </flux:field>
+                        <label class="{{ $labelClass }}">Due date</label>
+                        <input type="date" wire:model="assignment_due_date" class="{{ $inputClass }}">
+                        @error('assignment_due_date') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
                     </div>
-                    @if($course_id && $lessons->count() > 0)
                     <div>
-                        <flux:field>
-                            <flux:label>Lesson (optional)</flux:label>
-                            <flux:select wire:model="lesson_id" placeholder="Course-level assessment (no lesson)">
-                                <option value="">Course-level — not tied to a lesson</option>
-                                @foreach($lessons as $lesson)
-                                    <option value="{{ $lesson->id }}">{{ $lesson->title }}</option>
-                                @endforeach
-                            </flux:select>
-                            <flux:description>Leave blank for a course-wide quiz or test.</flux:description>
-                            <flux:error name="lesson_id" />
-                        </flux:field>
+                        <label class="{{ $labelClass }}">Max points</label>
+                        <input type="number" wire:model="assignment_max_points" min="1" max="1000" class="{{ $inputClass }}" required>
+                        @error('assignment_max_points') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
                     </div>
-                    @elseif($course_id)
-                    <p class="text-sm text-gray-500 dark:text-gray-400">This course has no lessons yet. The assessment will be saved at course level.</p>
-                    @endif
                 </div>
-                @endif
 
-                {{-- Title --}}
                 <div>
-                    <flux:field>
-                        <flux:label>Assessment Title <span class="text-red-500">*</span></flux:label>
-                        <flux:input wire:model="title" placeholder="e.g., Module 1 Quiz" required autofocus="{{ $this->embedded ? 'true' : 'false' }}" />
-                        <flux:error name="title" />
-                    </flux:field>
-                </div>
-
-                {{-- Assessment Type --}}
-                <div>
-                    <flux:field>
-                        <flux:label>Assessment Type <span class="text-red-500">*</span></flux:label>
-                        <flux:select wire:model.live="assessment_type" required>
-                            @foreach($assessmentTypes as $value => $label)
-                                <option value="{{ $value }}">{{ $label }}</option>
-                            @endforeach
-                        </flux:select>
-                        <flux:error name="assessment_type" />
-                        <flux:description>
-                            @if($assessment_type === 'quiz') Traditional quiz with multiple-choice questions
-                            @elseif($assessment_type === 'assignment') Student assignment with file uploads
-                            @elseif($assessment_type === 'pre_project_test') Baseline test before a project
-                            @elseif($assessment_type === 'post_project_test') Knowledge test after a project
-                            @elseif($assessment_type === 'unit_survey') Survey with ratings and open questions
-                            @elseif($assessment_type === 'rubric_assessment') Criteria-based grading
-                            @elseif($assessment_type === 'peer_review') Students review each other's work
-                            @elseif($assessment_type === 'self_assessment') Students reflect on their own work
-                            @endif
-                        </flux:description>
-                    </flux:field>
-                </div>
-
-                {{-- Project Platform --}}
-                @if(in_array($assessment_type, ['pre_project_test', 'post_project_test']))
-                <div>
-                    <flux:field>
-                        <flux:label>Project Platform</flux:label>
-                        <flux:select wire:model="project_platform">
-                            <option value="">Select platform...</option>
-                            <option value="scratch">Scratch 3</option>
-                            <option value="other">Other / Custom</option>
-                        </flux:select>
-                        <flux:error name="project_platform" />
-                    </flux:field>
-                </div>
-                @endif
-
-                {{-- Description --}}
-                <div>
-                    <flux:field>
-                        <flux:label>{{ $assessment_type === 'assignment' ? 'Brief Summary' : 'Description' }}</flux:label>
-                        <flux:textarea wire:model="description" rows="3" placeholder="{{ $assessment_type === 'assignment' ? 'Short overview shown to students before they submit' : 'Optional description for students' }}" />
-                        <flux:error name="description" />
-                    </flux:field>
-                </div>
-
-                @if($assessment_type === 'assignment')
-                <div class="border border-purple-200 dark:border-purple-800 rounded-xl p-5 space-y-5 bg-purple-50/50 dark:bg-purple-900/10">
-                    <h2 class="text-base font-semibold text-gray-900 dark:text-white">Assignment Details</h2>
-
-                    <flux:field>
-                        <flux:label>Instructions for Students</flux:label>
-                        <flux:textarea wire:model="assignment_instructions" rows="5" placeholder="What should students do? Include steps, rubric notes, or links." />
-                        <flux:error name="assignment_instructions" />
-                    </flux:field>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <flux:field>
-                            <flux:label>Due Date (optional)</flux:label>
-                            <flux:input type="date" wire:model="assignment_due_date" />
-                            <flux:error name="assignment_due_date" />
-                        </flux:field>
-                        <flux:field>
-                            <flux:label>Max Points</flux:label>
-                            <flux:input type="number" wire:model="assignment_max_points" min="1" max="1000" required />
-                            <flux:error name="assignment_max_points" />
-                        </flux:field>
+                    <label class="{{ $labelClass }}">Students can hand in</label>
+                    <div class="grid gap-2.5 sm:grid-cols-2">
+                        @foreach(['assignment_allow_text' => ['Text response', 'Type their answer in the browser', 'pencil-square'], 'assignment_allow_files' => ['File upload', 'PDF, Word, images, ZIP (10MB max)', 'paper-clip']] as $field => [$label, $hint, $icon])
+                            <label class="flex cursor-pointer items-start gap-3 rounded-xl p-3 ring-1 ring-gray-200 transition has-[:checked]:bg-orange-50 has-[:checked]:ring-2 has-[:checked]:ring-orange-500 dark:ring-gray-700 dark:has-[:checked]:bg-orange-900/20">
+                                <input type="checkbox" wire:model="{{ $field }}" class="mt-0.5 size-4 rounded accent-orange-500">
+                                <span>
+                                    <span class="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white"><flux:icon :name="$icon" variant="micro" class="size-4 text-orange-500" />{{ $label }}</span>
+                                    <span class="block text-xs text-gray-500 dark:text-gray-400">{{ $hint }}</span>
+                                </span>
+                            </label>
+                        @endforeach
                     </div>
+                    @error('assignment_allow_files') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+                </div>
 
-                    <div class="flex flex-wrap gap-x-5 gap-y-2">
-                        <flux:checkbox wire:model="assignment_allow_text">Allow text response</flux:checkbox>
-                        <flux:checkbox wire:model="assignment_allow_files">Allow file uploads</flux:checkbox>
-                    </div>
-                    <flux:error name="assignment_allow_files" />
-
-                    <flux:field>
-                        <flux:label>Attach Brief Files (optional)</flux:label>
-                        <flux:input type="file" wire:model="assignmentBriefFiles" multiple accept=".pdf,.doc,.docx,.txt,.zip,.jpg,.jpeg,.png" />
-                        <flux:description>Worksheets, briefs, or reference images students can download (max 10MB each).</flux:description>
-                        <flux:error name="assignmentBriefFiles.*" />
-                    </flux:field>
+                <div>
+                    <label class="{{ $labelClass }}">Brief files (optional)</label>
+                    <label class="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-gray-200 px-4 py-6 text-center transition hover:border-orange-300 hover:bg-orange-50/50 dark:border-gray-700 dark:hover:bg-orange-900/10">
+                        <flux:icon name="cloud-arrow-up" class="size-7 text-orange-400" />
+                        <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">Click to attach worksheets or reference images</span>
+                        <span class="text-xs text-gray-400">Max 10MB each</span>
+                        <input type="file" wire:model="assignmentBriefFiles" multiple accept=".pdf,.doc,.docx,.txt,.zip,.jpg,.jpeg,.png" class="hidden">
+                    </label>
+                    <div wire:loading wire:target="assignmentBriefFiles" class="mt-2 text-xs font-semibold text-orange-600">Uploading…</div>
+                    @error('assignmentBriefFiles.*') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
 
                     @if(!empty($assignmentBriefFiles))
-                        <ul class="space-y-2">
+                        <ul class="mt-3 space-y-2">
                             @foreach($assignmentBriefFiles as $index => $file)
-                                <li class="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm">
-                                    <span class="truncate text-gray-700 dark:text-gray-300">{{ $file->getClientOriginalName() }}</span>
-                                    <button type="button" wire:click="removeAssignmentBriefFile({{ $index }})" class="text-red-600 hover:text-red-700 text-xs font-semibold">Remove</button>
+                                <li class="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2 text-sm dark:bg-gray-800">
+                                    <span class="flex min-w-0 items-center gap-2 text-gray-700 dark:text-gray-300"><flux:icon name="document" variant="micro" class="size-4 shrink-0 text-gray-400" /><span class="truncate">{{ $file->getClientOriginalName() }}</span></span>
+                                    <button type="button" wire:click="removeAssignmentBriefFile({{ $index }})" class="text-xs font-bold text-rose-600 hover:text-rose-700">Remove</button>
                                 </li>
                             @endforeach
                         </ul>
                     @endif
                 </div>
-                @endif
+            </section>
+        @endif
 
-                {{-- Settings (compact grid) --}}
-                @if($assessment_type !== 'assignment')
-                <div class="border-t border-gray-100 dark:border-gray-700 pt-5">
-                    <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Settings</h2>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <flux:field>
-                            <flux:label>Max Attempts</flux:label>
-                            <flux:input type="number" wire:model="max_attempts" min="1" required />
-                            <flux:error name="max_attempts" />
-                        </flux:field>
-                        <flux:field>
-                            <flux:label>Time Limit (min)</flux:label>
-                            <flux:input type="number" wire:model="time_limit_minutes" min="1" placeholder="None" />
-                            <flux:error name="time_limit_minutes" />
-                        </flux:field>
-                        <flux:field>
-                            <flux:label>Passing Score (%)</flux:label>
-                            <flux:input type="number" wire:model="passing_score" min="0" max="100" required />
-                            <flux:error name="passing_score" />
-                        </flux:field>
-                        <flux:field>
-                            <flux:label>XP Reward</flux:label>
-                            <flux:input type="number" wire:model="xp_reward" min="0" required />
-                            <flux:error name="xp_reward" />
-                        </flux:field>
+        {{-- Rules --}}
+        <section class="{{ $cardClass }} space-y-5">
+            <h2 class="text-base font-extrabold text-gray-900 dark:text-white">Rules</h2>
+
+            <div class="grid grid-cols-2 gap-3 {{ $isAssignment ? 'sm:grid-cols-3' : 'sm:grid-cols-4' }}">
+                @php
+                    $numbers = ['max_attempts' => ['Attempts', 'arrow-path', 1, null, ''], 'passing_score' => ['Pass mark %', 'check-badge', 0, 100, ''], 'xp_reward' => ['XP reward', 'star', 0, null, '']];
+                    if (! $isAssignment) {
+                        $numbers = ['max_attempts' => $numbers['max_attempts'], 'time_limit_minutes' => ['Time limit (min)', 'clock', 1, null, 'None']] + array_slice($numbers, 1, null, true);
+                    }
+                @endphp
+                @foreach($numbers as $field => [$label, $icon, $min, $max, $placeholder])
+                    <div class="rounded-xl bg-gray-50 p-3 ring-1 ring-gray-100 focus-within:ring-2 focus-within:ring-orange-500 dark:bg-gray-800 dark:ring-gray-700">
+                        <span class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400"><flux:icon :name="$icon" variant="micro" class="size-3.5 text-orange-500" />{{ $label }}</span>
+                        <input type="number" wire:model="{{ $field }}" min="{{ $min }}" @if($max) max="{{ $max }}" @endif placeholder="{{ $placeholder }}"
+                               class="mt-1 w-full border-0 bg-transparent p-0 text-2xl font-extrabold text-gray-900 placeholder:text-gray-300 focus:ring-0 dark:text-white">
+                        @error($field) <p class="text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
                     </div>
-                    <div class="mt-3 flex flex-wrap gap-x-5 gap-y-2">
-                        <flux:checkbox wire:model="is_required">Required</flux:checkbox>
-                        <flux:checkbox wire:model="show_results_immediately">Show Results Immediately</flux:checkbox>
-                        <flux:checkbox wire:model="is_randomized">Randomize Questions</flux:checkbox>
-                        <flux:checkbox wire:model="shuffle_options">Shuffle Answers</flux:checkbox>
-                        <flux:checkbox wire:model="show_correct_answers">Show Correct Answers</flux:checkbox>
-                        <flux:checkbox wire:model="allow_review">Allow Review</flux:checkbox>
+                @endforeach
+            </div>
+
+            @unless($isAssignment)
+                <div class="rounded-xl bg-orange-50/70 p-4 ring-1 ring-orange-100 dark:bg-orange-900/10 dark:ring-orange-900/40">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex items-start gap-3">
+                            <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white"><flux:icon name="arrows-right-left" class="size-5" /></span>
+                            <div>
+                                <p class="text-sm font-extrabold text-gray-900 dark:text-white">Random question pool</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">Add more questions than students answer — e.g. 20 in the pool, 10 per attempt. Every attempt draws a different random set in random order.</p>
+                            </div>
+                        </div>
+                        <div class="flex shrink-0 items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-orange-200 dark:bg-gray-900 dark:ring-orange-900/50">
+                            <span class="text-xs font-semibold text-gray-500">Questions per attempt</span>
+                            <input type="number" wire:model="questions_per_attempt" min="1" placeholder="All"
+                                   class="w-16 rounded-lg border-0 bg-gray-100 px-2 py-1 text-center text-sm font-extrabold text-gray-900 placeholder:font-semibold placeholder:text-gray-400 focus:ring-2 focus:ring-orange-500 dark:bg-gray-800 dark:text-white">
+                        </div>
                     </div>
+                    @error('questions_per_attempt') <p class="mt-2 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
                 </div>
+
+                <div class="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                    @foreach([
+                        'is_randomized' => ['Shuffle question order', 'Each student sees questions in a different order', 'queue-list'],
+                        'shuffle_options' => ['Shuffle answers', 'A, B, C, D appear in a different order', 'arrows-up-down'],
+                        'show_results_immediately' => ['Show score right away', 'Students see their result on submit', 'bolt'],
+                        'show_correct_answers' => ['Show correct answers', 'Reveal the answers after submitting', 'eye'],
+                        'allow_review' => ['Allow review', 'Students can look back at their answers', 'document-magnifying-glass'],
+                        'is_required' => ['Required', 'Must be completed to finish the lesson', 'flag'],
+                    ] as $field => [$label, $hint, $icon])
+                        <label class="flex cursor-pointer items-start gap-3 rounded-xl p-3 ring-1 ring-gray-200 transition has-[:checked]:bg-orange-50 has-[:checked]:ring-orange-300 dark:ring-gray-700 dark:has-[:checked]:bg-orange-900/20">
+                            <input type="checkbox" wire:model="{{ $field }}" class="mt-0.5 size-4 rounded accent-orange-500">
+                            <span>
+                                <span class="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white"><flux:icon :name="$icon" variant="micro" class="size-4 text-orange-500" />{{ $label }}</span>
+                                <span class="block text-xs text-gray-500 dark:text-gray-400">{{ $hint }}</span>
+                            </span>
+                        </label>
+                    @endforeach
+                </div>
+            @else
+                <label class="flex w-fit cursor-pointer items-start gap-3 rounded-xl p-3 ring-1 ring-gray-200 transition has-[:checked]:bg-orange-50 has-[:checked]:ring-orange-300 dark:ring-gray-700">
+                    <input type="checkbox" wire:model="is_required" class="mt-0.5 size-4 rounded accent-orange-500">
+                    <span>
+                        <span class="text-sm font-bold text-gray-900 dark:text-white">Required</span>
+                        <span class="block text-xs text-gray-500 dark:text-gray-400">Must be submitted to finish the lesson</span>
+                    </span>
+                </label>
+            @endunless
+        </section>
+
+        {{-- Actions --}}
+        <div class="sticky bottom-4 z-10 flex items-center justify-between gap-3 rounded-2xl bg-white/90 p-3 shadow-lg ring-1 ring-gray-100 backdrop-blur dark:bg-gray-900/90 dark:ring-gray-800">
+            <p class="hidden pl-2 text-xs text-gray-500 sm:block">
+                {{ $isAssignment ? 'Students can submit as soon as it is published.' : 'Next: add questions from the Question Bank or write new ones.' }}
+            </p>
+            <div class="ml-auto flex items-center gap-2">
+                @if($this->embedded)
+                    <button type="button" wire:click="cancelEmbedded" class="rounded-xl px-4 py-2.5 text-sm font-bold text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">Cancel</button>
                 @else
-                <div class="border-t border-gray-100 dark:border-gray-700 pt-5">
-                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <flux:field>
-                            <flux:label>Max Attempts</flux:label>
-                            <flux:input type="number" wire:model="max_attempts" min="1" required />
-                            <flux:error name="max_attempts" />
-                        </flux:field>
-                        <flux:field>
-                            <flux:label>Passing Score (%)</flux:label>
-                            <flux:input type="number" wire:model="passing_score" min="0" max="100" required />
-                            <flux:error name="passing_score" />
-                        </flux:field>
-                        <flux:field>
-                            <flux:label>XP Reward</flux:label>
-                            <flux:input type="number" wire:model="xp_reward" min="0" required />
-                            <flux:error name="xp_reward" />
-                        </flux:field>
-                    </div>
-                    <div class="mt-3">
-                        <flux:checkbox wire:model="is_required">Required</flux:checkbox>
-                    </div>
-                </div>
+                    <a href="{{ $backUrl }}" wire:navigate class="rounded-xl px-4 py-2.5 text-sm font-bold text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">Cancel</a>
                 @endif
-
-                {{-- Actions --}}
-                <div class="flex items-center justify-end gap-3 pt-2">
-                    @if($this->embedded)
-                        <button type="button" wire:click="cancelEmbedded"
-                                class="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                            Cancel
-                        </button>
-                        <button type="submit"
-                                class="px-5 py-2 text-sm font-bold bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors shadow-sm">
-                            Create &amp; Add Questions
-                        </button>
-                    @else
-                        <flux:button href="{{ $assessment_type === 'assignment' ? route('assignments.index') : route('assessments.index') }}" wire:navigate variant="ghost">Cancel</flux:button>
-                        <flux:button type="submit" variant="primary">{{ $assessment_type === 'assignment' ? 'Create Assignment' : 'Create Assessment' }}</flux:button>
-                    @endif
-                </div>
-            </form>
+                <button type="submit" wire:loading.attr="disabled" wire:target="save"
+                        class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:shadow-md disabled:opacity-60">
+                    <flux:icon :name="$isAssignment ? 'check' : 'arrow-right'" variant="micro" class="size-4" />
+                    {{ $isAssignment ? 'Create assignment' : 'Create & add questions' }}
+                </button>
+            </div>
         </div>
-    </div>
+    </form>
 </div>
-
-@if(session()->has('message') && !$this->embedded)
-    <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)"
-         class="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
-        {{ session('message') }}
-    </div>
-@endif

@@ -48,6 +48,12 @@ Route::post('program-context/switch', [\App\Http\Controllers\ProgramContextContr
     ->middleware(['auth'])
     ->name('program-context.switch');
 
+Route::middleware(['auth', 'verified'])->prefix('help')->name('help.')->controller(\App\Http\Controllers\HelpController::class)->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('/panel', 'panel')->name('panel');
+    Route::get('/{guide}', 'show')->where('guide', '[a-z0-9-]+')->name('show');
+});
+
 Route::prefix('register')->name('registration.')->group(function () {
     Route::get('/codecamp', [\App\Http\Controllers\RegistrationController::class, 'showCodecamp'])->name('codecamp');
     Route::post('/codecamp', [\App\Http\Controllers\RegistrationController::class, 'storeCodecamp'])->name('codecamp.store');
@@ -138,6 +144,7 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('assessments')->name('assessments.')->group(function () {
         Route::get('/', \App\Livewire\Assessments\Index::class)->name('index');
         Route::middleware(['can:edit_courses'])->group(function () {
+            Route::get('/manage', \App\Livewire\Assessments\Manage::class)->name('manage');
             Route::get('/create', \App\Livewire\Assessments\Create::class)->name('create');
             Route::get('/{assessment}/edit', \App\Livewire\Assessments\Edit::class)->name('edit');
         });
@@ -169,12 +176,10 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Questions Routes
-    Route::prefix('questions')->name('questions.')->group(function () {
+    Route::prefix('questions')->name('questions.')->middleware(['can:edit_courses'])->group(function () {
         Route::get('/', \App\Livewire\Questions\Index::class)->name('index');
-        Route::middleware(['can:edit_courses'])->group(function () {
-            Route::get('/create', \App\Livewire\Questions\Create::class)->name('create');
-            Route::get('/{question}/edit', \App\Livewire\Questions\Edit::class)->name('edit');
-        });
+        Route::get('/create', \App\Livewire\Questions\Create::class)->name('create');
+        Route::get('/{question}/edit', \App\Livewire\Questions\Edit::class)->name('edit');
     });
 
     // Assignments Routes
@@ -328,9 +333,19 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/xp-manager', \App\Livewire\Admin\XpManager::class)->name('xp-manager');
     });
 
-    // Admin Routes - Enrollment Management (Admin/Supervisor only)
-    Route::middleware(['can:manage_users'])->prefix('admin')->name('admin.')->group(function () {
+    Route::middleware(['can:manage_enrollments'])->prefix('admin')->name('admin.')->group(function () {
         Route::get('/enrollments', \App\Livewire\Admin\EnrollmentManagement::class)->name('enrollments');
+        Route::get('/registration-requests', \App\Livewire\Admin\RegistrationRequests::class)->name('registration-requests');
+        Route::get('/student-progress', \App\Livewire\Admin\StudentProgressReport::class)->name('student-progress.index');
+        Route::get('/student-progress/{student}', \App\Livewire\Admin\StudentProgressDetail::class)->name('student-progress.show');
+    });
+
+    Route::middleware(['can:review_daily_reports'])->prefix('admin/daily-reports')->name('admin.daily-reports.')->group(function () {
+        Route::get('/', \App\Livewire\Admin\DailyReports\Index::class)->name('index');
+        Route::get('/{report}', \App\Livewire\Admin\DailyReports\Show::class)->name('show');
+    });
+
+    Route::middleware(['can:manage_users'])->prefix('admin')->name('admin.')->group(function () {
         Route::get('/schools', \App\Livewire\Admin\SchoolManagement::class)->name('schools');
         Route::get('/schools/{school}', \App\Livewire\Admin\SchoolShow::class)->name('schools.show');
         Route::get('/schools/{school}/students', \App\Livewire\Admin\SchoolStudents::class)->name('schools.students');
@@ -347,13 +362,8 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('club-session-reports')->middleware('code_club.enabled')->name('club-session-reports.')->group(function () {
             Route::get('/', \App\Livewire\Admin\ClubSessionReports\Index::class)->name('index');
         });
-        
-        // Daily Reports Admin
-        Route::prefix('daily-reports')->name('daily-reports.')->group(function () {
-            Route::get('/', \App\Livewire\Admin\DailyReports\Index::class)->name('index');
-            Route::get('/{report}', \App\Livewire\Admin\DailyReports\Show::class)->name('show');
-        });
-        
+
+
         // Audit Log Routes
         Route::prefix('audit')->name('audit.')->group(function () {
             Route::get('/logs', [\App\Http\Controllers\Admin\AuditLogController::class, 'index'])->name('logs');
@@ -457,8 +467,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/club', \App\Livewire\Attendance\ClubAttendance::class)->name('club');
     });
 
-    // Attendance Routes - CodeCamp / operations (requires manage_users)
-    Route::middleware(['can:manage_users'])->prefix('attendance')->name('attendance.')->group(function () {
+    // Attendance Routes - CodeCamp / operations / supervisors
+    Route::middleware(['can:view_attendance'])->prefix('attendance')->name('attendance.')->group(function () {
         Route::get('/students', \App\Livewire\Attendance\StudentAttendance::class)->name('student');
         Route::get('/instructors', \App\Livewire\Attendance\InstructorAttendance::class)->name('instructor');
         Route::get('/records', \App\Livewire\Attendance\AttendanceRecords::class)->name('records');

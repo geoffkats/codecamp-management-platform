@@ -1,170 +1,202 @@
-<div class="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+<div class="mx-auto max-w-4xl space-y-6 px-4 py-6 sm:px-6">
+    @php
+        $passed = ! $isPending && $attempt->is_passed;
+        $rightCount = count($correctQuestions);
+        $wrongCount = count($incorrectQuestions);
+        $ring = 2 * M_PI * 52;
+        $ringFill = $isPending || $percentage === null ? 0 : $ring * min(max((float) $percentage, 0), 100) / 100;
+        $timeDisplay = null;
+        if ($attempt->time_spent && $attempt->time_spent < 1440) {
+            $mins = (int) $attempt->time_spent;
+            $timeDisplay = $mins >= 60 ? intdiv($mins, 60).'h'.($mins % 60 > 0 ? ' '.($mins % 60).'m' : '') : $mins.' min';
+        }
+    @endphp
 
-    {{-- ── Pass / Fail hero card ──────────────────────────────────────── --}}
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+    {{-- ── Score stage ─────────────────────────────────────────────── --}}
+    <div class="relative isolate overflow-hidden rounded-3xl bg-[#46178f] p-6 text-white shadow-xl sm:p-8">
+        <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10">
+            <div class="absolute -left-20 -top-20 size-64 rotate-12 rounded-[3rem] bg-white/5"></div>
+            <div class="absolute -bottom-24 -right-16 size-72 rounded-full bg-black/10"></div>
+            @if($passed)
+                <svg class="absolute left-[12%] top-8 size-5 rotate-12 fill-[#d89e00]" viewBox="0 0 32 32"><path d="M16 3 30 28H2Z"/></svg>
+                <svg class="absolute right-[18%] top-6 size-4 fill-[#26890c]" viewBox="0 0 32 32"><rect x="4" y="4" width="24" height="24" rx="2"/></svg>
+                <svg class="absolute bottom-10 left-[8%] size-4 fill-[#1368ce]" viewBox="0 0 32 32"><path d="M16 2 30 16 16 30 2 16Z"/></svg>
+                <svg class="absolute bottom-16 right-[10%] size-5 fill-[#e21b3c]" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13"/></svg>
+            @endif
+        </div>
 
-        {{-- Coloured top stripe --}}
-        <div class="h-1.5 {{ $isPending ? 'bg-amber-400' : ($attempt->is_passed ? 'bg-green-500' : 'bg-red-500') }}"></div>
+        <div class="flex flex-col items-center gap-6 text-center sm:flex-row sm:text-left">
+            {{-- Score ring --}}
+            <div class="relative grid size-36 shrink-0 place-items-center">
+                <svg class="absolute inset-0 size-36 -rotate-90" viewBox="0 0 120 120" aria-hidden="true">
+                    <circle cx="60" cy="60" r="52" fill="rgba(0,0,0,0.2)" stroke="rgba(255,255,255,0.15)" stroke-width="10" />
+                    <circle cx="60" cy="60" r="52" fill="none" stroke-width="10" stroke-linecap="round"
+                            stroke="{{ $isPending ? '#d89e00' : ($passed ? '#ffffff' : '#ff3355') }}"
+                            stroke-dasharray="{{ $ring }}" stroke-dashoffset="{{ $ring - $ringFill }}" />
+                </svg>
+                <div class="relative">
+                    @if($isPending)
+                        <flux:icon name="clock" class="mx-auto size-10 text-[#ffd166]" />
+                        <p class="mt-1 text-xs font-black uppercase tracking-wider text-white/80">Pending</p>
+                    @else
+                        <p class="text-4xl font-black tabular-nums leading-none">{{ $percentage !== null ? number_format($percentage, 0) : '—' }}<span class="text-xl">%</span></p>
+                        <p class="mt-1 text-xs font-bold text-white/70">score</p>
+                    @endif
+                </div>
+            </div>
 
-        <div class="p-6">
-            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                <div class="flex-1 min-w-0">
-                    <p class="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-1">Assessment Result</p>
-                    <h1 class="text-xl font-extrabold text-gray-900 dark:text-white leading-tight">{{ $assessment->title }}</h1>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Submitted {{ $attempt->completed_at?->format('d M Y, H:i') ?? '—' }}
-                        @if($attempt->time_spent && $attempt->time_spent < 1440)
-                            @php
-                                $mins = (int) $attempt->time_spent;
-                                $timeDisplay = $mins >= 60
-                                    ? intdiv($mins, 60) . 'h' . ($mins % 60 > 0 ? ' ' . ($mins % 60) . 'm' : '')
-                                    : $mins . ' min';
-                            @endphp
-                            &nbsp;·&nbsp; {{ $timeDisplay }}
-                        @endif
+            <div class="min-w-0 flex-1">
+                <span @class([
+                    'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black uppercase tracking-wider shadow-[0_3px_0_rgba(0,0,0,0.25)]',
+                    'bg-[#d89e00]' => $isPending,
+                    'bg-[#26890c]' => $passed,
+                    'bg-[#e21b3c]' => ! $isPending && ! $passed,
+                ])>
+                    @if($isPending) Waiting for your teacher @elseif($passed) 🎉 Passed! @else Not passed yet @endif
+                </span>
+                <h1 class="mt-3 text-2xl font-black leading-tight tracking-tight sm:text-3xl">{{ $assessment->title }}</h1>
+                <p class="mt-1 text-sm font-semibold text-white/70">
+                    Submitted {{ $attempt->completed_at?->format('d M Y, H:i') ?? '—' }}
+                    @if($timeDisplay) &nbsp;·&nbsp; {{ $timeDisplay }} @endif
+                    @if($canGrade && $attempt->user) &nbsp;·&nbsp; {{ $attempt->user->name }} @endif
+                </p>
+
+                @if($isPending)
+                    <p class="mt-3 text-sm font-semibold text-white/90">Your submission is awaiting instructor review. You'll be notified when it's graded.</p>
+                @elseif(! $passed)
+                    <p class="mt-3 text-sm font-semibold text-white/90">You need {{ $assessment->passing_score }}% to pass. Check the answers below, then retake when you're ready.</p>
+                @endif
+            </div>
+        </div>
+
+        @if(! $isPending)
+            {{-- Stat tiles --}}
+            <div class="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
+                <div class="rounded-2xl bg-[#26890c] p-3 shadow-[0_4px_0_rgba(0,0,0,0.25)] sm:p-4">
+                    <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-white/85">
+                        <x-assessments.answer-shape shape="square" class="size-3.5" /> Correct
+                    </div>
+                    <p class="mt-1 text-2xl font-black tabular-nums sm:text-3xl">{{ $rightCount }}</p>
+                </div>
+                <div class="rounded-2xl bg-[#e21b3c] p-3 shadow-[0_4px_0_rgba(0,0,0,0.25)] sm:p-4">
+                    <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-white/85">
+                        <x-assessments.answer-shape shape="triangle" class="size-3.5" /> Wrong
+                    </div>
+                    <p class="mt-1 text-2xl font-black tabular-nums sm:text-3xl">{{ $wrongCount }}</p>
+                </div>
+                <div class="rounded-2xl bg-[#1368ce] p-3 shadow-[0_4px_0_rgba(0,0,0,0.25)] sm:p-4">
+                    <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-white/85">
+                        <x-assessments.answer-shape shape="diamond" class="size-3.5" /> Points
+                    </div>
+                    <p class="mt-1 text-2xl font-black tabular-nums sm:text-3xl">
+                        {{ rtrim(rtrim(number_format($attempt->scoreAsPoints() ?? 0, 1), '0'), '.') }}<span class="text-base font-bold text-white/70"> / {{ rtrim(rtrim(number_format((float) $maxScore, 1), '0'), '.') }}</span>
                     </p>
                 </div>
+            </div>
 
-                {{-- Score circle --}}
-                <div class="flex-shrink-0 text-center">
-                    @if($isPending)
-                        <div class="w-20 h-20 rounded-full border-4 border-amber-300 dark:border-amber-600 flex items-center justify-center bg-amber-50 dark:bg-amber-900/20">
-                            <svg class="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                            </svg>
-                        </div>
-                        <p class="text-xs font-semibold text-amber-600 dark:text-amber-400 mt-2">Pending</p>
-                    @else
-                        <div class="w-20 h-20 rounded-full border-4 {{ $attempt->is_passed ? 'border-green-400 dark:border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-red-400 dark:border-red-500 bg-red-50 dark:bg-red-900/20' }} flex items-center justify-center">
-                            <span class="text-xl font-extrabold {{ $attempt->is_passed ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300' }}">
-                                {{ $percentage !== null ? number_format($percentage, 0) : '—' }}%
-                            </span>
-                        </div>
-                        <p class="text-xs font-bold mt-2 {{ $attempt->is_passed ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                            {{ $attempt->is_passed ? '🎉 Passed!' : 'Not Passed' }}
+            @if($percentage !== null)
+                <div class="mt-5">
+                    <div class="relative h-3 overflow-hidden rounded-full bg-black/25">
+                        <div class="h-full rounded-full {{ $passed ? 'bg-white' : 'bg-[#ff3355]' }}" style="width: {{ min($percentage, 100) }}%"></div>
+                        @if($assessment->passing_score)
+                            <div class="absolute inset-y-0 w-1 rounded bg-[#ffd166]" style="left: calc({{ min($assessment->passing_score, 100) }}% - 2px)"></div>
+                        @endif
+                    </div>
+                    @if($assessment->passing_score)
+                        <p class="mt-1.5 text-right text-xs font-bold text-white/70">
+                            <span class="mr-1 inline-block size-2 rounded-sm bg-[#ffd166]"></span>Pass mark {{ $assessment->passing_score }}%
                         </p>
                     @endif
                 </div>
-            </div>
-
-            {{-- Score progress bar --}}
-            @if(!$isPending && $percentage !== null)
-            <div class="mt-5">
-                <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1.5">
-                    <span>Your score: <strong class="text-gray-900 dark:text-white">{{ number_format($attempt->scoreAsPoints() ?? 0, 1) }} / {{ $maxScore }} pts</strong></span>
-                    <span>Passing: <strong class="text-gray-900 dark:text-white">{{ $assessment->passing_score }}%</strong></span>
-                </div>
-                <div class="relative h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div class="h-full rounded-full transition-all duration-700 {{ $attempt->is_passed ? 'bg-green-500' : 'bg-red-500' }}"
-                         style="width: {{ min($percentage, 100) }}%"></div>
-                    {{-- Passing threshold marker --}}
-                    @if($assessment->passing_score)
-                    <div class="absolute top-0 bottom-0 w-0.5 bg-gray-400 dark:bg-gray-500 opacity-60"
-                         style="left: {{ $assessment->passing_score }}%"></div>
-                    @endif
-                </div>
-            </div>
             @endif
+        @endif
 
-            {{-- Failed banner --}}
-            @if(!$isPending && !$attempt->is_passed)
-            <div class="mt-4 flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/60 rounded-xl">
-                <svg class="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                </svg>
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-red-800 dark:text-red-200">
-                        You need {{ $assessment->passing_score }}% to pass — review the answers below, then retake when you're ready.
-                    </p>
-                </div>
-            </div>
-            @endif
-
-            {{-- Pending banner --}}
-            @if($isPending)
-            <div class="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 rounded-xl text-sm text-amber-800 dark:text-amber-200">
-                Your submission is awaiting instructor review. You'll be notified when it's graded.
-            </div>
-            @endif
+        {{-- Actions --}}
+        <div class="mt-6 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+            @unless($canGrade)
+                @if(! $isPending && ! $passed)
+                    <a href="{{ route('assessments.take', $assessment) }}" wire:navigate
+                       class="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-black text-[#46178f] shadow-[0_4px_0_rgba(0,0,0,0.25)] transition hover:bg-gray-100 active:translate-y-1 active:shadow-none">
+                        <flux:icon name="arrow-path" variant="mini" class="size-4" /> Retake
+                    </a>
+                @endif
+                <a href="{{ $assessment->lesson
+                        ? route('lessons.view', $assessment->lesson)
+                        : (auth()->user()->isIctTeacher() ? route('modules.index') : route('courses.show', $assessment->course)) }}"
+                   wire:navigate
+                   @class([
+                       'inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-black transition active:translate-y-1',
+                       'bg-white text-[#46178f] shadow-[0_4px_0_rgba(0,0,0,0.25)] hover:bg-gray-100 active:shadow-none' => $passed,
+                       'bg-white/15 text-white hover:bg-white/25' => ! $passed,
+                   ])>
+                    {{ $assessment->lesson ? 'Back to Lesson' : 'Back to Course' }}
+                    <flux:icon name="arrow-right" variant="mini" class="size-4" />
+                </a>
+            @endunless
+            <a href="{{ route('assessments.show', $assessment) }}" wire:navigate
+               class="inline-flex items-center gap-2 rounded-xl bg-white/15 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/25">
+                {{ $canGrade ? '← All Submissions' : 'Assessment details' }}
+            </a>
         </div>
     </div>
 
-    {{-- ── Wrong answers — shown first so students see what to improve ── --}}
-    @if(!$isPending && count($incorrectQuestions) > 0)
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-md border border-red-200 dark:border-red-800/50 overflow-hidden">
-        <div class="px-6 py-4 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800/50 flex items-center gap-2">
-            <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-            <h2 class="text-base font-bold text-red-900 dark:text-red-100">
-                Questions You Got Wrong
-                <span class="ml-1 text-sm font-normal text-red-600 dark:text-red-400">({{ count($incorrectQuestions) }})</span>
+    {{-- ── Wrong answers first, so students see what to improve ─────── --}}
+    @if(! $isPending && $wrongCount > 0)
+        <section>
+            <h2 class="mb-3 flex items-center gap-2 text-lg font-black text-gray-900 dark:text-white">
+                <span class="grid size-7 place-items-center rounded-lg bg-[#e21b3c]"><x-assessments.answer-shape shape="triangle" class="size-4" /></span>
+                Let's fix these
+                <span class="rounded-full bg-[#e21b3c]/10 px-2 py-0.5 text-sm font-black text-[#e21b3c]">{{ $wrongCount }}</span>
             </h2>
-        </div>
-        <div class="divide-y divide-gray-100 dark:divide-gray-700">
-            @foreach($incorrectQuestions as $index => $item)
-            <div class="px-6 py-5">
-                <p class="text-sm font-bold text-gray-900 dark:text-white mb-3">
-                    <span class="text-gray-400 dark:text-gray-500 font-normal mr-1">Q{{ $index + 1 }}.</span>
-                    {{ $item['question'] }}
-                </p>
-                <div class="space-y-2">
-                    {{-- Student's wrong answer --}}
-                    <div class="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
-                        <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                        <div>
-                            <p class="text-[11px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wide mb-0.5">Your answer</p>
-                            <p class="text-sm text-red-800 dark:text-red-200">{{ $item['your_answer'] ?: 'No answer given' }}</p>
+            <div class="space-y-4">
+                @foreach($incorrectQuestions as $index => $item)
+                    <div class="rounded-2xl bg-white p-5 shadow-[0_4px_0_rgba(0,0,0,0.06)] ring-1 ring-gray-100 dark:bg-gray-800 dark:ring-gray-700">
+                        <div class="mb-4 flex items-start gap-3 text-[15px] font-bold text-gray-900 dark:text-white">
+                            <span class="grid size-8 shrink-0 place-items-center rounded-lg bg-[#46178f] text-xs font-black text-white">{{ $index + 1 }}</span>
+                            <x-question-text :text="$item['question']" class="min-w-0 flex-1 pt-1" />
+                        </div>
+                        <div class="grid gap-2 sm:grid-cols-2">
+                            <div class="flex items-start gap-3 rounded-xl bg-[#e21b3c] p-3.5 text-white shadow-[0_4px_0_rgba(0,0,0,0.2)]">
+                                <span class="grid size-7 shrink-0 place-items-center rounded-full bg-white text-[#e21b3c]"><flux:icon name="x-mark" variant="mini" class="size-4" /></span>
+                                <div class="min-w-0">
+                                    <p class="text-[11px] font-black uppercase tracking-wider text-white/80">Your answer</p>
+                                    <p class="text-sm font-bold [overflow-wrap:anywhere]">{{ $item['your_answer'] ?: 'No answer given' }}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3 rounded-xl bg-[#26890c] p-3.5 text-white shadow-[0_4px_0_rgba(0,0,0,0.2)]">
+                                <span class="grid size-7 shrink-0 place-items-center rounded-full bg-white text-[#26890c]"><flux:icon name="check" variant="mini" class="size-4" /></span>
+                                <div class="min-w-0">
+                                    <p class="text-[11px] font-black uppercase tracking-wider text-white/80">Correct answer</p>
+                                    <p class="text-sm font-bold [overflow-wrap:anywhere]">{{ $item['correct_answer'] }}</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    {{-- Correct answer --}}
-                    <div class="flex items-start gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-xl">
-                        <svg class="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                        </svg>
-                        <div>
-                            <p class="text-[11px] font-bold text-green-700 dark:text-green-400 uppercase tracking-wide mb-0.5">Correct answer</p>
-                            <p class="text-sm text-green-800 dark:text-green-200 font-semibold">{{ $item['correct_answer'] }}</p>
-                        </div>
-                    </div>
-                </div>
+                @endforeach
             </div>
-            @endforeach
-        </div>
-    </div>
+        </section>
     @endif
 
     {{-- ── Questions answered correctly ── --}}
-    @if(!$isPending && count($correctQuestions) > 0)
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-md border border-green-200 dark:border-green-800/50 overflow-hidden">
-        <div class="px-6 py-4 bg-green-50 dark:bg-green-900/20 border-b border-green-200 dark:border-green-800/50 flex items-center gap-2">
-            <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-            </svg>
-            <h2 class="text-base font-bold text-green-900 dark:text-green-100">
-                Questions You Got Right
-                <span class="ml-1 text-sm font-normal text-green-600 dark:text-green-400">({{ count($correctQuestions) }})</span>
+    @if(! $isPending && $rightCount > 0)
+        <section>
+            <h2 class="mb-3 flex items-center gap-2 text-lg font-black text-gray-900 dark:text-white">
+                <span class="grid size-7 place-items-center rounded-lg bg-[#26890c]"><x-assessments.answer-shape shape="square" class="size-3.5" /></span>
+                You got these right
+                <span class="rounded-full bg-[#26890c]/10 px-2 py-0.5 text-sm font-black text-[#26890c]">{{ $rightCount }}</span>
             </h2>
-        </div>
-        <div class="divide-y divide-gray-100 dark:divide-gray-700">
-            @foreach($correctQuestions as $index => $item)
-            <div class="px-6 py-4 flex items-start gap-3">
-                <svg class="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-gray-900 dark:text-white">
-                        <span class="text-gray-400 dark:text-gray-500 font-normal mr-1">Q{{ $index + 1 }}.</span>
-                        {{ $item['question'] }}
-                    </p>
-                    <p class="text-sm text-green-700 dark:text-green-300 mt-1">{{ $item['your_answer'] }}</p>
-                </div>
+            <div class="space-y-3">
+                @foreach($correctQuestions as $index => $item)
+                    <div class="flex items-start gap-3 rounded-2xl bg-white p-4 ring-1 ring-gray-100 dark:bg-gray-800 dark:ring-gray-700">
+                        <span class="grid size-8 shrink-0 place-items-center rounded-full bg-[#26890c] text-white"><flux:icon name="check" variant="mini" class="size-4" /></span>
+                        <div class="min-w-0 flex-1">
+                            <x-question-text :text="$item['question']" class="pt-1 text-sm font-semibold text-gray-900 dark:text-white" />
+                            <p class="mt-2 inline-flex rounded-lg bg-[#26890c]/10 px-2.5 py-1 text-sm font-bold text-[#1f6f0a] dark:text-green-300">{{ $item['your_answer'] }}</p>
+                        </div>
+                    </div>
+                @endforeach
             </div>
-            @endforeach
-        </div>
-    </div>
+        </section>
     @endif
 
     {{-- ── Teacher grading panel (assignments + any pending-review attempt) ── --}}
@@ -227,9 +259,7 @@
                                         </span>
                                         <span class="text-[11px] text-gray-500">{{ number_format($row['points'], 1) }} pts</span>
                                     </div>
-                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">
-                                        {{ \Illuminate\Support\Str::limit(strip_tags($row['question']), 180) }}
-                                    </p>
+                                    <x-question-text :text="$row['question']" class="text-sm font-semibold text-gray-900 dark:text-white" />
                                 </div>
 
                                 @if($row['needs_manual'])
@@ -343,7 +373,7 @@
 
             @if(!$showGradeForm)
                 <button type="button" wire:click="$set('showGradeForm', true)"
-                        class="w-full py-2.5 text-sm font-bold bg-orange-600 hover:bg-orange-700 text-white rounded-xl transition-colors">
+                        class="w-full py-2.5 text-sm font-bold bg-[#46178f] hover:brightness-110 text-white rounded-xl transition-colors">
                     {{ $isPending ? 'Enter Final Grade' : 'Update Grade' }}
                 </button>
             @else
@@ -390,34 +420,4 @@
             @endif
         </div>
     @endif
-
-    {{-- ── Bottom action bar ── --}}
-    <div class="flex flex-wrap items-center gap-3 justify-between">
-        <div class="flex gap-2">
-            <flux:button href="{{ route('assessments.show', $assessment) }}" wire:navigate variant="ghost" size="sm">
-                {{ $canGrade ? '← All Submissions' : 'Back to Assessment' }}
-            </flux:button>
-        </div>
-        <div class="flex gap-2">
-            @unless($canGrade)
-                {{-- Retake button for failed / not-yet-passed attempts --}}
-                @if(!$isPending && !$attempt->is_passed)
-                    <flux:button href="{{ route('assessments.take', $assessment) }}" wire:navigate variant="primary" size="sm">
-                        Retake Assessment
-                    </flux:button>
-                @endif
-                <flux:button
-                    href="{{ $assessment->lesson
-                        ? route('lessons.view', $assessment->lesson)
-                        : (auth()->user()->isIctTeacher() ? route('modules.index') : route('courses.show', $assessment->course)) }}"
-                    wire:navigate
-                    variant="{{ $attempt->is_passed ? 'primary' : 'ghost' }}"
-                    size="sm"
-                >
-                    {{ $assessment->lesson ? 'Back to Lesson' : 'Back to Course' }}
-                </flux:button>
-            @endunless
-        </div>
-    </div>
-
 </div>

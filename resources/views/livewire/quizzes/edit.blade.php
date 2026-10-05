@@ -168,7 +168,7 @@
                                                 <flux:badge size="sm">{{ ucfirst(str_replace('_', ' ', $question['question_type'] ?? 'multiple_choice')) }}</flux:badge>
                                                 <flux:badge size="sm" color="green">{{ $question['points'] ?? 0 }} points</flux:badge>
                                             </div>
-                                            <p class="text-gray-900 dark:text-white font-medium mb-2">{{ $question['question_text'] ?? 'No question text' }}</p>
+                                            <x-question-text :text="$question['question_text'] ?? 'No question text'" class="mb-2 font-medium text-gray-900 dark:text-white" />
                                             @if(isset($question['options']) && count($question['options']) > 0)
                                                 <div class="mt-2 space-y-1">
                                                     @foreach($question['options'] as $option)

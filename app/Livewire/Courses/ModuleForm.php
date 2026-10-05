@@ -28,7 +28,7 @@ class ModuleForm extends Component
             $this->overview = $module->overview;
             $this->order_index = $module->order_index;
             $this->estimated_duration_hours = $module->estimated_duration_hours;
-            $this->is_active = $module->is_active;
+            $this->is_active = (bool) $module->is_active;
         }
     }
 

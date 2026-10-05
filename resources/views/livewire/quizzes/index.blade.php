@@ -190,7 +190,7 @@
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <span class="font-bold text-lg {{ $quiz->best_attempt->percentage_score >= 70 ? 'text-green-600 dark:text-green-400' : ($quiz->best_attempt->percentage_score >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400') }}">
-                                            {{ $quiz->best_attempt->percentage_score }}%
+                                            {{ round($quiz->best_attempt->percentage_score) }}%
                                         </span>
                                             @if($quiz->best_attempt->percentage_score >= 70)
                                                 <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">

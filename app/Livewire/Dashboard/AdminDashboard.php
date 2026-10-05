@@ -36,9 +36,13 @@ class AdminDashboard extends Component
     public $recentIctAssessmentResults = [];
     public $codeClubStats = [];
     public $codeClubHighlights = [];
+    public $activitySeries = [];
+    public $assessmentStats = [];
+    public $recentResults = [];
 
     public function mount()
     {
+        $this->loadInsights();
         $this->loadStats();
         $this->loadPendingApprovals();
         $this->loadRecentUsers();
@@ -465,8 +469,63 @@ class AdminDashboard extends Component
         ];
     }
 
+    public function loadInsights(): void
+    {
+        $days = collect(range(13, 0))->map(fn ($ago) => now()->subDays($ago)->toDateString());
+        $since = now()->subDays(13)->startOfDay();
+
+        $daily = fn ($query, string $column) => $query
+            ->where($column, '>=', $since)
+            ->selectRaw("DATE({$column}) as day, COUNT(*) as total")
+            ->groupBy('day')
+            ->pluck('total', 'day');
+
+        $enrollments = $daily(CourseEnrollment::query(), 'created_at');
+        $users = $daily(User::query(), 'created_at');
+        $attempts = $daily(AssessmentAttempt::query()->whereNotNull('completed_at'), 'completed_at');
+
+        $this->activitySeries = [
+            'labels' => $days->map(fn ($d) => \Illuminate\Support\Carbon::parse($d)->format('M j'))->all(),
+            'enrollments' => $days->map(fn ($d) => (int) ($enrollments[$d] ?? 0))->all(),
+            'users' => $days->map(fn ($d) => (int) ($users[$d] ?? 0))->all(),
+            'attempts' => $days->map(fn ($d) => (int) ($attempts[$d] ?? 0))->all(),
+        ];
+
+        $completed30 = AssessmentAttempt::whereNotNull('completed_at')->where('completed_at', '>=', now()->subDays(30));
+        $graded30 = (clone $completed30)->whereNotNull('score')->count();
+
+        $this->assessmentStats = [
+            'pending_grading' => AssessmentAttempt::where(fn ($q) => $q->where('status', 'completed')->orWhereNotNull('completed_at'))
+                ->whereNull('score')
+                ->count(),
+            'attempts_7d' => AssessmentAttempt::whereNotNull('completed_at')->where('completed_at', '>=', now()->subDays(7))->count(),
+            'pass_rate_30d' => $graded30 > 0 ? round((clone $completed30)->where('is_passed', true)->count() / $graded30 * 100) : null,
+            'assessments' => \App\Models\Assessment::count(),
+            'bank_questions' => \App\Models\Question::where('status', 'active')->count(),
+        ];
+
+        $this->recentResults = AssessmentAttempt::query()
+            ->whereNotNull('completed_at')
+            ->whereNotNull('score')
+            ->with(['user:id,name', 'assessment:id,title,assessment_type', 'questionSet:id,assessment_attempt_id,points'])
+            ->latest('completed_at')
+            ->limit(6)
+            ->get()
+            ->map(fn (AssessmentAttempt $attempt) => [
+                'id' => $attempt->id,
+                'assessment_id' => $attempt->assessment_id,
+                'student' => $attempt->user?->name ?? 'Unknown',
+                'assessment' => $attempt->assessment?->title ?? 'Deleted assessment',
+                'percent' => (int) round($attempt->scorePercentage() ?? 0),
+                'passed' => (bool) $attempt->is_passed,
+                'when' => $attempt->completed_at?->diffForHumans(short: true),
+            ])
+            ->all();
+    }
+
     public function refresh()
     {
+        $this->loadInsights();
         $this->loadStats();
         $this->loadPendingApprovals();
         $this->loadRecentUsers();
