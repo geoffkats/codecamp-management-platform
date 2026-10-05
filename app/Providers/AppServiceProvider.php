@@ -90,7 +90,7 @@ class AppServiceProvider extends AuthServiceProvider
         });
 
         Gate::define('manage_students', function (User $user) {
-            if ($user->hasPermission('manage_users') || $user->isAdmin() || $user->isOperationsManager() || $user->isTeacher()) {
+            if ($user->hasPermission('manage_users') || $user->isAdmin() || $user->isOperationsManager() || $user->isSupervisor() || $user->isTeacher()) {
                 return true;
             }
 

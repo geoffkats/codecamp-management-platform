@@ -3,9 +3,10 @@
 namespace App\Livewire\Dashboard;
 
 use App\Models\ContentApproval;
-use App\Models\Course;
+use App\Models\DailyReport;
+use App\Services\TrainerSubmissionQueue;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -19,227 +20,70 @@ class SupervisorDashboard extends Component
 
     public $filterStatus = 'pending';
 
-    public function mount()
-    {
-        Cache::forget('supervisor_dashboard_' . Auth::id());
-    }
-
     public function filterByStatus($status)
     {
-        $this->filterStatus = $status;
+        $this->filterStatus = in_array($status, ['pending', 'approved', 'rejected', 'all'], true) ? $status : 'pending';
         $this->resetPage();
     }
 
     public function approveContent($approvalId)
     {
-        $approval = ContentApproval::findOrFail($approvalId);
-        $approval->update([
-            'status' => 'approved',
-            'reviewed_by' => Auth::id(),
-            'reviewed_at' => now(),
-        ]);
+        abort_unless(Gate::allows('review_content'), 403);
 
-        // Update the approvable item
-        $approvable = $approval->approvable;
-        if ($approvable) {
-            $updateData = [
-                'approved_at' => now(),
-                'approved_by' => Auth::id(),
-            ];
+        $approval = ContentApproval::where('status', 'pending')->findOrFail($approvalId);
+        $approval->approve(Auth::user());
 
-            // Handle different content types
-            if ($approvable instanceof \App\Models\Assignment) {
-                // Assignments use 'status' field
-                $updateData['status'] = 'active';
-            } else {
-                // Courses, Lessons, Assessments, Modules use 'approval_status'
-                $updateData['approval_status'] = 'approved';
-            }
-
-            // Use fill and save to ensure update persists
-            $approvable->fill($updateData);
-            $approvable->save();
-            $approvable->refresh();
-        }
-
+        session()->flash('message', 'Approved: '.($approval->approvable->title ?? 'content').'.');
         $this->dispatch('content-approved');
-        Cache::forget('supervisor_dashboard_' . Auth::id());
-    }
-
-    public function rejectContent($approvalId, $reason = null)
-    {
-        $approval = ContentApproval::findOrFail($approvalId);
-        $approval->update([
-            'status' => 'rejected',
-            'reviewed_by' => Auth::id(),
-            'reviewed_at' => now(),
-            'rejection_reason' => $reason,
-        ]);
-
-        // Update the approvable item
-        $approvable = $approval->approvable;
-        if ($approvable) {
-            $updateData = [
-                'rejection_reason' => $reason,
-            ];
-
-            // Handle different content types
-            if ($approvable instanceof \App\Models\Assignment) {
-                // Assignments use 'status' field - keep as draft when rejected
-                $updateData['status'] = 'draft';
-            } else {
-                // Courses, Lessons, Assessments, Modules use 'approval_status'
-                $updateData['approval_status'] = 'rejected';
-            }
-
-            $approvable->update($updateData);
-        }
-
-        $this->dispatch('content-rejected');
-        Cache::forget('supervisor_dashboard_' . Auth::id());
     }
 
     public function render()
     {
         $user = Auth::user();
+        $weekStart = now()->startOfWeek();
 
-        $dashboardData = Cache::remember(
-            'supervisor_dashboard_' . $user->id,
-            now()->addMinutes(5),
-            function () use ($user) {
-                return [
-                    'stats' => $this->getStats(),
-                    'approvalBreakdown' => $this->getApprovalBreakdown(),
-                ];
-            }
-        );
+        $approvals = ContentApproval::with(['approvable', 'submitter:id,name'])
+            ->when($this->filterStatus !== 'all', fn ($q) => $q->where('status', $this->filterStatus))
+            ->latest($this->filterStatus === 'pending' ? 'submitted_at' : 'updated_at')
+            ->paginate(10);
 
-        // Get pending approvals
-        $approvals = ContentApproval::with(['approvable', 'submitter'])
-            ->when($this->filterStatus !== 'all', fn($q) => $q->where('status', $this->filterStatus))
-            ->latest('submitted_at')
-            ->paginate(15);
+        $statusCounts = ContentApproval::selectRaw('status, COUNT(*) as total')->groupBy('status')->pluck('total', 'status');
+
+        $pendingByType = ContentApproval::where('status', 'pending')
+            ->selectRaw('approvable_type, COUNT(*) as total')
+            ->groupBy('approvable_type')
+            ->pluck('total', 'approvable_type')
+            ->mapWithKeys(fn ($total, $type) => [$this->typeLabel($type) => $total])
+            ->sortDesc();
+
+        $reviewedThisWeek = ContentApproval::where('reviewed_at', '>=', $weekStart)
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $oldestPending = ContentApproval::where('status', 'pending')->min('submitted_at');
 
         return view('livewire.dashboard.supervisor-dashboard', [
             'user' => $user,
-            'stats' => $dashboardData['stats'],
-            'approvalBreakdown' => $dashboardData['approvalBreakdown'],
             'approvals' => $approvals,
-            'approvalTrends' => $this->getApprovalTrends(),
-            'quickStats' => $this->getQuickStats(),
-            'recentApprovals' => $this->getRecentApprovals(),
+            'statusCounts' => $statusCounts,
+            'pendingCount' => (int) ($statusCounts['pending'] ?? 0),
+            'pendingByType' => $pendingByType,
+            'approvedThisWeek' => (int) ($reviewedThisWeek['approved'] ?? 0),
+            'rejectedThisWeek' => (int) ($reviewedThisWeek['rejected'] ?? 0),
+            'oldestPending' => $oldestPending ? \Illuminate\Support\Carbon::parse($oldestPending) : null,
+            'waitingForMarks' => app(TrainerSubmissionQueue::class)->pendingCount($user),
+            'reportsToday' => DailyReport::whereDate('report_date', today())->count(),
+            'reportsThisWeek' => DailyReport::where('report_date', '>=', $weekStart->toDateString())->count(),
         ]);
     }
 
-    private function getStats(): array
+    public function typeLabel(?string $type): string
     {
-        return [
-            'pendingApprovals' => ContentApproval::where('status', 'pending')->count(),
-            'approvedToday' => ContentApproval::where('status', 'approved')
-                ->whereDate('reviewed_at', today())
-                ->count(),
-            'rejectedToday' => ContentApproval::where('status', 'rejected')
-                ->whereDate('reviewed_at', today())
-                ->count(),
-            'totalReviewed' => ContentApproval::whereNotNull('reviewed_at')->count(),
-            'approvalRate' => $this->getApprovalRate(),
-        ];
-    }
-
-    private function getApprovalBreakdown()
-    {
-        return [
-            'courses' => ContentApproval::where('status', 'pending')
-                ->where('approvable_type', Course::class)
-                ->count(),
-            'modules' => ContentApproval::where('status', 'pending')
-                ->where('approvable_type', \App\Models\CourseModule::class)
-                ->count(),
-            'lessons' => ContentApproval::where('status', 'pending')
-                ->where('approvable_type', \App\Models\Lesson::class)
-                ->count(),
-            'assessments' => ContentApproval::where('status', 'pending')
-                ->where('approvable_type', \App\Models\Assessment::class)
-                ->count(),
-        ];
-    }
-
-    private function getApprovalRate(): float
-    {
-        $total = ContentApproval::whereNotNull('reviewed_at')->count();
-        if ($total === 0) return 0;
-
-        $approved = ContentApproval::where('status', 'approved')->count();
-        return round(($approved / $total) * 100, 2);
-    }
-
-    private function getApprovalTrends(): array
-    {
-        return [
-            'this_week' => ContentApproval::whereNotNull('reviewed_at')
-                ->whereBetween('reviewed_at', [now()->startOfWeek(), now()->endOfWeek()])
-                ->count(),
-            'this_month' => ContentApproval::whereNotNull('reviewed_at')
-                ->whereBetween('reviewed_at', [now()->startOfMonth(), now()->endOfMonth()])
-                ->count(),
-        ];
-    }
-
-    private function getQuickStats(): array
-    {
-        return [
-            'week_approved' => ContentApproval::where('status', 'approved')
-                ->whereBetween('reviewed_at', [now()->startOfWeek(), now()->endOfWeek()])
-                ->count(),
-            'month_approved' => ContentApproval::where('status', 'approved')
-                ->whereBetween('reviewed_at', [now()->startOfMonth(), now()->endOfMonth()])
-                ->count(),
-        ];
-    }
-
-    private function getRecentApprovals(): array
-    {
-        $approvals = ContentApproval::with(['approvable', 'submitter'])
-            ->where('status', 'pending')
-            ->latest('submitted_at')
-            ->limit(5)
-            ->get();
-            
-        return $approvals->map(function ($approval) {
-            $approvable = $approval->approvable;
-            $title = 'Unknown';
-            
-            if ($approvable) {
-                $title = match(class_basename($approval->approvable_type)) {
-                    'Course' => $approvable->title ?? 'Unknown',
-                    'CourseModule' => $approvable->title ?? 'Unknown',
-                    'Lesson' => $approvable->title ?? 'Unknown',
-                    'Assessment' => $approvable->title ?? 'Unknown',
-                    default => 'Unknown Content',
-                };
-            }
-            
-            return [
-                'id' => $approval->id,
-                'title' => $title,
-                'type' => class_basename($approval->approvable_type),
-                'submitter' => $approval->submitter?->name ?? 'Unknown',
-                'submitted_at' => $approval->submitted_at,
-            ];
-        })->toArray();
-    }
-
-    public function getApprovableTitle($approval): string
-    {
-        $approvable = $approval->approvable;
-        if (!$approvable) return 'Unknown';
-        
-        return match(class_basename($approval->approvable_type)) {
-            'Course' => $approvable->title,
-            'CourseModule' => $approvable->title,
-            'Lesson' => $approvable->title,
-            'Assessment' => $approvable->title,
-            default => 'Unknown Content',
+        return match (class_basename((string) $type)) {
+            'CourseModule' => 'Module',
+            '' => 'Content',
+            default => class_basename($type),
         };
     }
 }

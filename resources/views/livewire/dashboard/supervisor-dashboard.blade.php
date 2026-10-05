@@ -1,439 +1,214 @@
-<div class="min-h-screen bg-gradient-to-br from-gray-50 via-orange-50 to-yellow-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 p-6 space-y-8">
-    {{-- Hero Header Section --}}
-    <div class="relative overflow-hidden bg-gradient-to-r from-orange-600 via-yellow-600 to-orange-600 rounded-2xl shadow-2xl p-8 text-white">
-        <div class="absolute inset-0 bg-black/10"></div>
-        <div class="relative z-10 flex items-center justify-between">
-            <div>
-                <div class="flex items-center gap-3 mb-2">
-                    <div class="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                        </svg>
-                    </div>
-                    <h1 class="text-4xl font-bold">Supervisor Dashboard</h1>
-                </div>
-                <p class="text-orange-100 text-lg">Welcome back, <span class="font-semibold">{{ auth()->user()->name }}</span>! Content Review & Approval Center</p>
-                <div class="flex items-center gap-4 mt-4">
-                    <div class="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
-                        </svg>
-                        <span class="text-sm">{{ now()->format('l, F j, Y') }}</span>
-                    </div>
-                </div>
-            </div>
-            <flux:button wire:click="refresh" icon="arrow-path" variant="ghost" class="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border-white/30">
-                Refresh Data
-            </flux:button>
-        </div>
-                    </div>
+@php
+    $hour = now()->hour;
+    $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
+    $firstName = \Illuminate\Support\Str::of($user->name)->before(' ');
+    $can = fn (string $ability) => \Illuminate\Support\Facades\Gate::allows($ability);
+    $readable = fn (?string $text) => $text !== null && $text === mb_strtoupper($text) && preg_match('/\p{L}{4,}/u', $text)
+        ? \Illuminate\Support\Str::title(mb_strtolower($text))
+        : $text;
+    $typeIcon = fn (string $label) => match ($label) {
+        'Course' => 'book-open',
+        'Module' => 'squares-2x2',
+        'Lesson' => 'document-text',
+        'Assessment' => 'clipboard-document-check',
+        'Assignment' => 'pencil-square',
+        default => 'document',
+    };
 
-    {{-- Main Stats Cards --}}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        {{-- Pending Approvals Card --}}
-        <a href="{{ route('content-approvals.index') }}" class="group relative bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 dark:border-gray-700 cursor-pointer">
-            <div class="absolute inset-0 bg-gradient-to-br from-yellow-500/10 to-orange-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div class="relative p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-600 flex items-center justify-center shadow-lg">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </div>
-                    @if(($stats['pendingApprovals'] ?? 0) > 0)
-                        <span class="text-xs font-semibold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-2 py-1 rounded-full animate-pulse">Action Required</span>
-                    @endif
-                </div>
-                    <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Pending Approvals</p>
-                    <p class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ number_format($stats['pendingApprovals'] ?? 0) }}</p>
-                    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                        @if(($stats['pendingApprovals'] ?? 0) > 0)
-                            <span class="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
-                            <span>Requires attention</span>
-                        @else
-                            <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                            <span>All clear!</span>
-                        @endif
-                    </div>
-                </div>
+    $shortcuts = array_values(array_filter([
+        $can('review_content') ? ['Content approvals', 'check-badge', route('content-approvals.index')] : null,
+        ['Submissions', 'inbox-stack', route('submissions.index')],
+        $can('manage_enrollments') ? ['Enrollments', 'user-plus', route('admin.enrollments')] : null,
+        $can('manage_enrollments') ? ['Student progress', 'chart-bar', route('admin.student-progress.index')] : null,
+        $can('view_attendance') ? ['Attendance', 'calendar-days', route('attendance.dashboard')] : null,
+        $can('review_daily_reports') ? ['Daily reports', 'document-text', route('admin.daily-reports.index')] : null,
+        $can('view_analytics') ? ['Reports', 'presentation-chart-line', route('analytics.dashboard')] : null,
+        ['Lesson locks', 'lock-closed', route('lessons.locks')],
+    ]));
+
+    $tabs = ['pending' => 'Waiting', 'approved' => 'Approved', 'rejected' => 'Sent back', 'all' => 'All'];
+@endphp
+
+<div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 sm:p-6">
+    {{-- Greeting --}}
+    <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <p class="text-sm font-medium text-orange-600 dark:text-orange-400">{{ now()->format('l, j F') }}</p>
+            <h1 class="mt-1 text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl dark:text-white">{{ $greeting }}, {{ $firstName }}</h1>
+            <p class="mt-1 text-sm text-gray-600 dark:text-zinc-400">
+                @if($pendingCount > 0)
+                    <span class="font-semibold text-gray-900 dark:text-white">{{ $pendingCount }} {{ \Illuminate\Support\Str::plural('item', $pendingCount) }}</span> waiting for your approval{{ $oldestPending ? ', the oldest from '.$oldestPending->diffForHumans() : '' }}.
+                @else
+                    Nothing is waiting for approval.
+                @endif
+            </p>
+        </div>
+        @if($can('review_content'))
+            <a href="{{ route('content-approvals.index') }}" wire:navigate
+               class="inline-flex items-center justify-center gap-2 self-start rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600 sm:self-auto">
+                <flux:icon.check-badge class="size-4" /> Review content
+                @if($pendingCount > 0)
+                    <span class="rounded-full bg-white/25 px-2 py-0.5 text-xs font-bold">{{ $pendingCount }}</span>
+                @endif
+            </a>
+        @endif
+    </header>
+
+    @if (session('message'))
+        <div class="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-300">
+            <flux:icon.check-circle class="size-5 shrink-0" /> {{ session('message') }}
+        </div>
+    @endif
+
+    {{-- Key numbers --}}
+    <section class="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Summary">
+        <a href="{{ $can('review_content') ? route('content-approvals.index') : '#' }}" wire:navigate
+           class="rounded-2xl border border-gray-200 bg-white p-4 transition hover:border-orange-200 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-zinc-400">
+                <span class="flex size-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"><flux:icon.clock class="size-4" /></span>
+                Waiting for approval
             </div>
+            <p class="mt-3 text-3xl font-bold text-gray-900 dark:text-white">{{ $pendingCount }}</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-zinc-400">{{ $pendingByType->map(fn ($n, $t) => $n.' '.\Illuminate\Support\Str::plural(strtolower($t), $n))->take(2)->implode(' · ') ?: 'All clear' }}</p>
         </a>
-
-        {{-- Approved Today Card --}}
-        <div class="group relative bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 dark:border-gray-700">
-            <div class="absolute inset-0 bg-gradient-to-br from-green-500/10 to-green-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div class="relative p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-lg">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </div>
-                </div>
-                    <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Approved Today</p>
-                    <p class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ number_format($stats['approvedToday'] ?? 0) }}</p>
-                    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                        <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                        <span>Great progress!</span>
-                    </div>
-                </div>
+        <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-zinc-400">
+                <span class="flex size-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"><flux:icon.check class="size-4" /></span>
+                Reviewed this week
             </div>
+            <p class="mt-3 text-3xl font-bold text-gray-900 dark:text-white">{{ $approvedThisWeek + $rejectedThisWeek }}</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-zinc-400">{{ $approvedThisWeek }} approved · {{ $rejectedThisWeek }} sent back</p>
         </div>
-
-        {{-- Rejected Today Card --}}
-        <div class="group relative bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 dark:border-gray-700">
-            <div class="absolute inset-0 bg-gradient-to-br from-red-500/10 to-red-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div class="relative p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-lg">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </div>
-                </div>
-                    <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Rejected Today</p>
-                    <p class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ number_format($stats['rejectedToday'] ?? 0) }}</p>
-                    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                        <span class="w-2 h-2 rounded-full bg-red-500"></span>
-                        <span>Quality control</span>
-                    </div>
-                </div>
+        <a href="{{ route('submissions.index', ['filter' => 'pending']) }}" wire:navigate
+           class="rounded-2xl border border-gray-200 bg-white p-4 transition hover:border-orange-200 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-zinc-400">
+                <span class="flex size-8 items-center justify-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400"><flux:icon.inbox-stack class="size-4" /></span>
+                Work not yet marked
             </div>
-        </div>
-
-        {{-- Total Reviewed Card --}}
-        <div class="group relative bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 dark:border-gray-700">
-            <div class="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-blue-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div class="relative p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
-                    </div>
-                </div>
-                    <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Reviewed</p>
-                    <p class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ number_format($stats['totalReviewed'] ?? 0) }}</p>
-                    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-                        <span>All time</span>
-                    </div>
-                </div>
+            <p class="mt-3 text-3xl font-bold text-gray-900 dark:text-white">{{ $waitingForMarks }}</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-zinc-400">across all trainers</p>
+        </a>
+        <a href="{{ $can('review_daily_reports') ? route('admin.daily-reports.index') : '#' }}" wire:navigate
+           class="rounded-2xl border border-gray-200 bg-white p-4 transition hover:border-orange-200 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-zinc-400">
+                <span class="flex size-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400"><flux:icon.document-text class="size-4" /></span>
+                Daily reports
             </div>
-        </div>
+            <p class="mt-3 text-3xl font-bold text-gray-900 dark:text-white">{{ $reportsToday }}</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-zinc-400">today · {{ $reportsThisWeek }} this week</p>
+        </a>
+    </section>
 
-        {{-- Approval Rate Card --}}
-        <div class="group relative bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 dark:border-gray-700">
-            <div class="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-purple-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div class="relative p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
-                    </div>
-                </div>
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {{-- Approval queue --}}
+        <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white lg:col-span-2 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-800">
                 <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Approval Rate</p>
-                    <p class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ number_format($stats['approvalRate'] ?? 0, 1) }}%</p>
-                    <div class="mt-2">
-                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                            <div class="h-full bg-gradient-to-r from-purple-500 to-purple-600 rounded-full transition-all duration-500" 
-                                 style="width: {{ min($stats['approvalRate'] ?? 0, 100) }}%"></div>
-                        </div>
-                    </div>
+                    <h2 class="font-semibold text-gray-900 dark:text-white">Content approvals</h2>
+                    <p class="text-xs text-gray-500 dark:text-zinc-400">Courses, lessons and quizzes trainers have submitted</p>
+                </div>
+                <div class="inline-flex rounded-xl bg-gray-100 p-1 text-xs font-medium dark:bg-zinc-800" role="tablist">
+                    @foreach($tabs as $key => $label)
+                        @php $count = $key === 'all' ? $statusCounts->sum() : (int) ($statusCounts[$key] ?? 0); @endphp
+                        <button type="button" wire:click="filterByStatus('{{ $key }}')" role="tab" aria-selected="{{ $filterStatus === $key ? 'true' : 'false' }}"
+                                @class([
+                                    'rounded-lg px-3 py-1.5 transition',
+                                    'bg-white text-gray-900 shadow-sm dark:bg-zinc-700 dark:text-white' => $filterStatus === $key,
+                                    'text-gray-500 hover:text-gray-800 dark:text-zinc-400 dark:hover:text-zinc-200' => $filterStatus !== $key,
+                                ])>
+                            {{ $label }} <span class="ml-0.5 text-gray-400">{{ $count }}</span>
+                        </button>
+                    @endforeach
                 </div>
             </div>
-        </div>
-    </div>
 
-    {{-- Performance Metrics --}}
-    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-5">
-            <p class="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Approval Rate</p>
-            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ number_format($performanceMetrics['approval_rate'] ?? 0, 1) }}%</p>
-            <div class="mt-2 h-1 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div class="h-full bg-gradient-to-r from-green-500 to-green-600" style="width: {{ min($performanceMetrics['approval_rate'] ?? 0, 100) }}%"></div>
-            </div>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-5">
-            <p class="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Avg Review Time</p>
-            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ number_format($performanceMetrics['avg_review_time'] ?? 0, 1) }}</p>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">hours</p>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-5">
-            <p class="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">High Priority</p>
-            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ number_format($performanceMetrics['pending_by_priority']['high'] ?? 0) }}</p>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">pending</p>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-5">
-            <p class="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Medium Priority</p>
-            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ number_format($performanceMetrics['pending_by_priority']['medium'] ?? 0) }}</p>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">pending</p>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-5">
-            <p class="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Normal Priority</p>
-            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ number_format($performanceMetrics['pending_by_priority']['normal'] ?? 0) }}</p>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">pending</p>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-5">
-            <p class="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">This Week</p>
-            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ number_format($stats['approvedThisWeek'] ?? 0) }}</p>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">approved</p>
-        </div>
-        </div>
-
-    {{-- Quick Stats Today/Week/Month --}}
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/30 rounded-xl shadow-lg border border-orange-200 dark:border-orange-800 p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Today</h3>
-                <span class="text-2xl">📅</span>
-            </div>
-            <div class="space-y-3">
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-gray-600 dark:text-gray-400">Approved</span>
-                    <span class="text-lg font-bold text-orange-600 dark:text-orange-400">{{ $quickStats['today_approved'] ?? 0 }}</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-gray-600 dark:text-gray-400">Rejected</span>
-                    <span class="text-lg font-bold text-orange-600 dark:text-orange-400">{{ $quickStats['today_rejected'] ?? 0 }}</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-gray-600 dark:text-gray-400">Total Reviewed</span>
-                    <span class="text-lg font-bold text-orange-600 dark:text-orange-400">{{ ($quickStats['today_approved'] ?? 0) + ($quickStats['today_rejected'] ?? 0) }}</span>
-                </div>
-            </div>
-        </div>
-        <div class="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/30 rounded-xl shadow-lg border border-green-200 dark:border-green-800 p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">This Week</h3>
-                <span class="text-2xl">📊</span>
-            </div>
-            <div class="space-y-3">
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-gray-600 dark:text-gray-400">Approved</span>
-                    <span class="text-lg font-bold text-green-600 dark:text-green-400">{{ $quickStats['week_approved'] ?? 0 }}</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-gray-600 dark:text-gray-400">Total Reviewed</span>
-                    <span class="text-lg font-bold text-green-600 dark:text-green-400">{{ $approvalTrends['this_week'] ?? 0 }}</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-gray-600 dark:text-gray-400">Avg per Day</span>
-                    <span class="text-lg font-bold text-green-600 dark:text-green-400">{{ $approvalTrends['this_week'] > 0 ? round($approvalTrends['this_week'] / 7, 1) : 0 }}</span>
-                </div>
-            </div>
-        </div>
-        <div class="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/30 rounded-xl shadow-lg border border-purple-200 dark:border-purple-800 p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">This Month</h3>
-                <span class="text-2xl">🎯</span>
-            </div>
-            <div class="space-y-3">
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-gray-600 dark:text-gray-400">Approved</span>
-                    <span class="text-lg font-bold text-purple-600 dark:text-purple-400">{{ $quickStats['month_approved'] ?? 0 }}</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-gray-600 dark:text-gray-400">Total Reviewed</span>
-                    <span class="text-lg font-bold text-purple-600 dark:text-purple-400">{{ $approvalTrends['this_month'] ?? 0 }}</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-gray-600 dark:text-gray-400">Approval Rate</span>
-                    <span class="text-lg font-bold text-purple-600 dark:text-purple-400">{{ number_format($stats['approvalRate'] ?? 0, 1) }}%</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Approval Breakdown --}}
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 text-center hover:shadow-xl transition-shadow">
-            <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mx-auto mb-3">
-                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z" />
-                </svg>
-            </div>
-            <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ $approvalBreakdown['courses'] ?? 0 }}</p>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">Courses Pending</p>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 text-center hover:shadow-xl transition-shadow">
-            <div class="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center mx-auto mb-3">
-                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-            </div>
-            <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ $approvalBreakdown['modules'] ?? 0 }}</p>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">Modules Pending</p>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 text-center hover:shadow-xl transition-shadow">
-            <div class="w-16 h-16 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center mx-auto mb-3">
-                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-            </div>
-            <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ $approvalBreakdown['lessons'] ?? 0 }}</p>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">Lessons Pending</p>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 text-center hover:shadow-xl transition-shadow">
-            <div class="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center mx-auto mb-3">
-                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-            </div>
-            <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ $approvalBreakdown['assessments'] ?? 0 }}</p>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">Assessments Pending</p>
-        </div>
-        </div>
-
-    {{-- Main Content Grid --}}
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {{-- Left Column --}}
-        <div class="lg:col-span-2 space-y-6">
-            {{-- Pending Approvals List --}}
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                            <svg class="w-5 h-5 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                        </div>
-                        <div>
-                            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Content Approvals</h2>
-                            <p class="text-sm text-gray-600 dark:text-gray-400">Review and manage content submissions</p>
-                        </div>
-                    </div>
-                    <flux:badge color="orange" size="lg">{{ count($recentApprovals) }}</flux:badge>
-                </div>
-                <div class="p-6">
-                    <div class="flex gap-2 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                        <flux:button wire:click="filterByStatus('all')" variant="{{ $filterStatus === 'all' ? 'primary' : 'ghost' }}" size="sm">
-                            All
-                        </flux:button>
-                        <flux:button wire:click="filterByStatus('pending')" variant="{{ $filterStatus === 'pending' ? 'primary' : 'ghost' }}" size="sm">
-                            Pending
-                        </flux:button>
-                        <flux:button wire:click="filterByStatus('approved')" variant="{{ $filterStatus === 'approved' ? 'primary' : 'ghost' }}" size="sm">
-                            Approved
-                        </flux:button>
-                        <flux:button wire:click="filterByStatus('rejected')" variant="{{ $filterStatus === 'rejected' ? 'primary' : 'ghost' }}" size="sm">
-                            Rejected
-                        </flux:button>
-                    </div>
-                @if($approvals->count() > 0)
-                        <div class="space-y-3">
-                        @foreach($approvals as $approval)
-                                <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                                <div class="flex items-start justify-between">
-                                    <div class="flex-1">
-                                            <div class="flex items-center gap-2 mb-2">
-                                            <h3 class="font-semibold text-gray-900 dark:text-white">
-                                                {{ class_basename($approval->approvable_type) }}: {{ $this->getApprovableTitle($approval) }}
-                                            </h3>
-                                            <flux:badge size="sm" variant="{{ $approval->status === 'approved' ? 'success' : ($approval->status === 'rejected' ? 'danger' : 'warning') }}">
-                                                {{ ucfirst($approval->status) }}
-                                            </flux:badge>
-                                        @if($approval->priority)
-                                                    <flux:badge size="xs" variant="{{ $approval->priority === 'high' ? 'danger' : ($approval->priority === 'medium' ? 'warning' : 'ghost') }}">
-                                                {{ ucfirst($approval->priority) }} Priority
-                                            </flux:badge>
+            @if($approvals->isNotEmpty())
+                <ul class="divide-y divide-gray-100 dark:divide-zinc-800">
+                    @foreach($approvals as $approval)
+                        @php $type = $this->typeLabel($approval->approvable_type); @endphp
+                        <li wire:key="approval-{{ $approval->id }}" class="flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center">
+                            <div class="flex min-w-0 flex-1 items-center gap-3">
+                                <span class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-zinc-400" title="{{ $type }}">
+                                    <flux:icon :name="$typeIcon($type)" class="size-4" />
+                                </span>
+                                <div class="min-w-0">
+                                    <p class="flex items-center gap-2 truncate text-sm font-medium text-gray-900 dark:text-white">
+                                        <span class="truncate">{{ $readable($approval->approvable?->title) ?? 'Removed item' }}</span>
+                                        @if($approval->priority === 'high')
+                                            <span class="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-300">Urgent</span>
                                         @endif
-                                    </div>
-                                            <p class="text-sm text-gray-600 dark:text-gray-400">
-                                                Submitted by <span class="font-medium">{{ $approval->submitter->name ?? 'Unknown' }}</span> {{ $approval->submitted_at?->diffForHumans() }}
-                                            </p>
-                                        </div>
-                                        <div class="flex items-center gap-2 ml-4">
-                                        @if($approval->status === 'pending')
-                                            <flux:button wire:click="approveContent({{ $approval->id }})" variant="primary" size="sm">
-                                                Approve
-                                            </flux:button>
-                                            <flux:button wire:click="rejectContent({{ $approval->id }}, 'Incomplete content')" variant="danger" size="sm">
-                                                Reject
-                                            </flux:button>
-                                        @endif
-                                        <flux:button href="{{ route('content-approvals.review', $approval) }}" variant="ghost" size="sm" wire:navigate>
-                                            Review
-                                        </flux:button>
-                                    </div>
+                                    </p>
+                                    <p class="truncate text-xs text-gray-500 dark:text-zinc-400">
+                                        {{ $type }} · {{ $approval->submitter?->name ?? 'Unknown' }}@if($approval->submitted_at) · {{ $approval->submitted_at->diffForHumans() }}@endif
+                                    </p>
                                 </div>
                             </div>
-                        @endforeach
-                    </div>
-                    <div class="mt-4">
-                        {{ $approvals->links() }}
-                    </div>
-                @else
-                    <div class="text-center py-12">
-                            <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                                <svg class="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
+                            <div class="flex shrink-0 items-center gap-2 pl-12 sm:pl-0">
+                                @if($approval->status === 'pending')
+                                    <a href="{{ route('content-approvals.review', $approval) }}" wire:navigate
+                                       class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">Review</a>
+                                    <button type="button" wire:click="approveContent({{ $approval->id }})" wire:confirm="Approve this {{ strtolower($type) }} without opening it?"
+                                            class="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300">Approve</button>
+                                @else
+                                    <span @class([
+                                        'rounded-full px-2.5 py-1 text-[11px] font-medium',
+                                        'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' => $approval->status === 'approved',
+                                        'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' => $approval->status === 'rejected',
+                                    ])>{{ $approval->status === 'rejected' ? 'Sent back' : 'Approved' }}</span>
+                                    <a href="{{ route('content-approvals.review', $approval) }}" wire:navigate class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-zinc-300 dark:hover:bg-zinc-800">Open</a>
+                                @endif
                             </div>
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">All Clear!</h3>
-                            <p class="text-gray-600 dark:text-gray-400">No {{ $filterStatus === 'all' ? '' : $filterStatus }} approvals at this time</p>
-                        </div>
-                    @endif
-                </div>
-            </div>
-        </div>
-
-        {{-- Right Column --}}
-        <div class="space-y-6">
-            {{-- Recent Pending Approvals --}}
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20">
-                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">Recent Pending</h2>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Latest submissions</p>
-                </div>
-                <div class="p-6">
-                    @if(count($recentApprovals) > 0)
-                        <div class="space-y-3">
-                            @foreach($recentApprovals as $approval)
-                                <a href="{{ route('content-approvals.review', $approval['id']) }}" class="block">
-                                    <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer">
-                                        <div class="flex-1 min-w-0">
-                                            <div class="flex items-center gap-2 mb-1">
-                                                @if(!empty($approval['priority'] ?? null))
-                                                    <flux:badge size="xs" :color="($approval['priority'] ?? null) === 'high' ? 'red' : ((($approval['priority'] ?? null) === 'medium') ? 'orange' : 'yellow')">
-                                                        {{ ucfirst($approval['priority'] ?? 'normal') }}
-                                                    </flux:badge>
-                                                @endif
-                                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ $approval['type'] ?? 'Content' }}</span>
-                                            </div>
-                                            <p class="font-semibold text-gray-900 dark:text-white text-sm truncate">{{ $approval['title'] ?? 'Untitled' }}</p>
-                                            <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                                by {{ $approval['submitted_by'] ?? 'Unknown' }} {{ $approval['submitted_at'] ?? '' }}
-                                            </p>
-                                        </div>
-                                        <svg class="w-5 h-5 text-gray-400 ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                        </svg>
-                                    </div>
-                                </a>
-                            @endforeach
-                        </div>
-                        <div class="mt-4 text-center">
-                            <flux:button href="{{ route('content-approvals.index') }}" variant="ghost" size="sm" wire:navigate>
-                                View All
-                            </flux:button>
-                        </div>
-                    @else
-                        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                            <svg class="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                            <p class="text-sm">No pending approvals</p>
-                    </div>
+                        </li>
+                    @endforeach
+                </ul>
+                @if($approvals->hasPages())
+                    <div class="border-t border-gray-100 px-5 py-3 dark:border-zinc-800">{{ $approvals->links() }}</div>
                 @endif
+            @else
+                <div class="flex flex-col items-center px-5 py-12 text-center">
+                    <span class="flex size-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"><flux:icon.check class="size-6" /></span>
+                    <p class="mt-3 text-sm font-medium text-gray-900 dark:text-white">{{ $filterStatus === 'pending' ? 'All caught up' : 'Nothing here yet' }}</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-zinc-400">{{ $filterStatus === 'pending' ? 'New submissions from trainers will show up here.' : 'Try another tab.' }}</p>
                 </div>
-            </div>
-        </div>
+            @endif
+        </section>
+
+        <aside class="space-y-6">
+            {{-- Shortcuts --}}
+            <section class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                <h2 class="px-1 font-semibold text-gray-900 dark:text-white">Oversight</h2>
+                <div class="mt-3 grid grid-cols-2 gap-2">
+                    @foreach($shortcuts as [$label, $icon, $url])
+                        <a href="{{ $url }}" wire:navigate
+                           class="flex items-center gap-2 rounded-xl border border-gray-100 px-3 py-2.5 text-sm font-medium text-gray-700 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 dark:border-zinc-800 dark:text-zinc-200 dark:hover:border-orange-900 dark:hover:bg-orange-900/20 dark:hover:text-orange-300">
+                            <flux:icon :name="$icon" class="size-4 shrink-0 text-gray-400" />
+                            <span class="truncate">{{ $label }}</span>
+                        </a>
+                    @endforeach
+                </div>
+            </section>
+
+            {{-- Waiting by type --}}
+            <section class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                <h2 class="px-1 font-semibold text-gray-900 dark:text-white">Waiting by type</h2>
+                @if($pendingByType->isNotEmpty())
+                    <ul class="mt-3 space-y-3 px-1">
+                        @foreach($pendingByType as $type => $count)
+                            <li>
+                                <div class="flex items-center justify-between text-sm">
+                                    <span class="flex items-center gap-2 text-gray-700 dark:text-zinc-300"><flux:icon :name="$typeIcon($type)" class="size-4 text-gray-400" /> {{ \Illuminate\Support\Str::plural($type, $count) }}</span>
+                                    <span class="font-semibold text-gray-900 dark:text-white">{{ $count }}</span>
+                                </div>
+                                <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-zinc-800">
+                                    <div class="h-full rounded-full bg-amber-400" style="width: {{ round($count / max(1, $pendingCount) * 100) }}%"></div>
+                                </div>
+                            </li>
+                        @endforeach
+                    </ul>
+                @else
+                    <p class="mt-2 px-1 text-sm text-gray-500 dark:text-zinc-400">Nothing waiting.</p>
+                @endif
+            </section>
+        </aside>
     </div>
-    </div>
+</div>

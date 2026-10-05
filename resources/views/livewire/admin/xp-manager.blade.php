@@ -1,274 +1,199 @@
-<div class="flex flex-col gap-6 p-6">
-    <!-- Header -->
-    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+<div class="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 pb-28 sm:p-6 sm:pb-28">
+    @php
+        $selectedCourse = $courseFilter ? $courses->firstWhere('id', (int) $courseFilter) : null;
+        $showRank = $sortBy === 'total_points' && $sortDirection === 'desc' && $search === '';
+        $sortIcon = fn ($field) => $sortBy === $field ? ($sortDirection === 'asc' ? '↑' : '↓') : '';
+    @endphp
+
+    {{-- Header --}}
+    <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">{{ $canManageAllXp ? 'XP Manager' : 'Award XP' }}</h1>
-            <p class="mt-1 text-gray-600 dark:text-gray-400">
-                @if($canManageAllXp)
-                    Click a student, choose their course, then award XP to that class.
-                @else
-                    Award XP to students in your courses. Filter by class, then click Award XP.
-                @endif
-            </p>
+            <h1 class="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl dark:text-white">{{ $canManageAllXp ? 'XP Manager' : 'Award XP' }}</h1>
+            <p class="mt-1 text-sm text-gray-600 dark:text-zinc-400">Reward effort with XP. Pick a class to award everyone at once, or award one student from the list.</p>
         </div>
-        @if($canManageAllXp)
-        <div class="flex items-center gap-3">
-            <flux:button wire:click="syncAllLevels" variant="primary" wire:confirm="Recalculate every student's level and rank from their total XP?">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Sync All Levels
-            </flux:button>
-            <flux:button wire:click="openResetModal('week')" variant="subtle" class="text-orange-600 hover:text-orange-700">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Reset Week
-            </flux:button>
-            <flux:button wire:click="openResetModal('all')" variant="danger">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                Reset All XP
-            </flux:button>
+        <div class="flex items-center gap-2">
+            <button type="button" wire:click="openCourseBulkModal({{ $courseFilter ? (int) $courseFilter : 'null' }})"
+                    class="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-orange-600">
+                <flux:icon.sparkles class="size-4" />
+                {{ $selectedCourse ? 'Award this class' : 'Award a whole class' }}
+            </button>
+            @if($canManageAllXp)
+                <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
+                    <button type="button" @click="open = ! open" aria-label="More XP tools"
+                            class="inline-flex size-10 items-center justify-center rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                        <flux:icon.ellipsis-horizontal class="size-5" />
+                    </button>
+                    <div x-show="open" x-cloak x-transition.origin.top.right
+                         class="absolute right-0 z-30 mt-2 w-60 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+                        <button type="button" wire:click="syncAllLevels" wire:confirm="Recalculate every student's level and rank from their total XP?" @click="open = false"
+                                class="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-zinc-200 dark:hover:bg-zinc-800">
+                            <flux:icon.arrow-path class="size-4 text-gray-400" /> Recalculate levels
+                        </button>
+                        <div class="my-1 border-t border-gray-100 dark:border-zinc-800"></div>
+                        <p class="px-4 pt-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-red-500">Danger zone</p>
+                        <button type="button" wire:click="openResetModal('week')" @click="open = false"
+                                class="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
+                            <flux:icon.backward class="size-4" /> Remove this week's XP
+                        </button>
+                        <button type="button" wire:click="openResetModal('all')" @click="open = false"
+                                class="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
+                            <flux:icon.trash class="size-4" /> Reset all XP to zero
+                        </button>
+                    </div>
+                </div>
+            @endif
         </div>
-        @endif
-    </div>
+    </header>
 
     @if (session('message'))
-        <div class="rounded-lg border border-green-200 bg-green-50 text-green-800 px-4 py-3 text-sm">
-            {{ session('message') }}
+        <div class="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-300">
+            <flux:icon.check-circle class="size-5 shrink-0" /> {{ session('message') }}
         </div>
     @endif
-
     @if (session('error'))
-        <div class="rounded-lg border border-red-200 bg-red-50 text-red-800 px-4 py-3 text-sm">
-            {{ session('error') }}
+        <div class="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300">
+            <flux:icon.exclamation-circle class="size-5 shrink-0" /> {{ session('error') }}
         </div>
     @endif
 
-    <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl shadow-lg p-6">
-            <p class="text-sm font-medium text-blue-100">Total Students</p>
-            <p class="text-3xl font-bold mt-1">{{ number_format($totalStudents) }}</p>
-        </div>
-        <div class="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl shadow-lg p-6">
-            <p class="text-sm font-medium text-purple-100">Total XP Awarded</p>
-            <p class="text-3xl font-bold mt-1">{{ number_format($totalXp) }}</p>
-        </div>
-        <div class="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl shadow-lg p-6">
-            <p class="text-sm font-medium text-green-100">Average XP</p>
-            <p class="text-3xl font-bold mt-1">{{ number_format($avgXp, 0) }}</p>
-        </div>
-    </div>
-
-    <!-- Filters & Search -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search Student</label>
-                <input type="text" wire:model.live.debounce.300ms="search" placeholder="Name or email..."
-                    class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+    {{-- Summary --}}
+    <section class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        @foreach([
+            ['Students', number_format($totalStudents), 'users', 'bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400'],
+            ['XP earned in total', number_format($totalXp), 'star', 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'],
+            ['Average per student', number_format($avgXp ?? 0, 0), 'chart-bar', 'bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400'],
+        ] as [$label, $value, $icon, $tone])
+            <div class="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                <span class="flex size-11 shrink-0 items-center justify-center rounded-xl {{ $tone }}"><flux:icon :name="$icon" class="size-5" /></span>
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-zinc-400">{{ $label }}</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $value }}</p>
+                </div>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by Course</label>
-                <select wire:model.live="courseFilter" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
-                    <option value="">All Courses</option>
+        @endforeach
+    </section>
+
+    {{-- Students --}}
+    <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+        <div class="flex flex-col gap-3 border-b border-gray-100 p-4 lg:flex-row lg:items-center dark:border-zinc-800">
+            <label class="relative flex-1">
+                <span class="sr-only">Search students</span>
+                <flux:icon.magnifying-glass class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+                <input type="search" wire:model.live.debounce.300ms="search" placeholder="Search by name or email"
+                       class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+            </label>
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:flex">
+                <select wire:model.live="courseFilter" aria-label="Class"
+                        class="rounded-xl border border-gray-200 bg-white py-2 pl-3 pr-8 text-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100 lg:w-56 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                    <option value="">All classes</option>
                     @foreach($courses as $course)
                         <option value="{{ $course->id }}">{{ $course->title }}</option>
                     @endforeach
                 </select>
-                @if($courseFilter)
-                    <div class="mt-3">
-                        <flux:button size="sm" variant="primary" wire:click="openCourseBulkModal({{ $courseFilter }})">
-                            Award all students in this course
-                        </flux:button>
-                    </div>
-                @endif
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Time Period</label>
-                <select wire:model.live="timeFilter" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
-                    <option value="all">All Time</option>
+                <select wire:model.live="timeFilter" aria-label="Period"
+                        class="rounded-xl border border-gray-200 bg-white py-2 pl-3 pr-8 text-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                    <option value="all">All time</option>
                     <option value="today">Today</option>
-                    <option value="week">This Week</option>
-                    <option value="month">This Month</option>
+                    <option value="week">This week</option>
+                    <option value="month">This month</option>
                 </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sort By</label>
-                <select wire:model.live="sortBy" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
-                    <option value="total_points">Total XP</option>
-                    <option value="level">Level</option>
+                <select wire:model.live="sortBy" aria-label="Sort by"
+                        class="rounded-xl border border-gray-200 bg-white py-2 pl-3 pr-8 text-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                    <option value="total_points">Most XP</option>
+                    <option value="level">Highest level</option>
                     <option value="name">Name</option>
-                    <option value="period_xp">Period XP</option>
+                    <option value="period_xp">XP this period</option>
                     @if($courseFilter)
-                        <option value="course_xp">Course XP</option>
+                        <option value="course_xp">XP in this class</option>
                     @endif
                 </select>
             </div>
         </div>
-    </div>
 
-    <!-- Bulk Operations -->
-    @if(!empty($selectedStudents))
-        <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-            <div class="flex items-center justify-between gap-4">
-                <p class="text-sm font-medium text-blue-900 dark:text-blue-100">
-                    {{ count($selectedStudents) }} student(s) selected
-                </p>
-                <div class="flex items-center gap-3 flex-wrap">
-                    <select wire:model="bulkCourseId" class="px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-lg text-sm dark:bg-blue-900/50 dark:text-white min-w-[12rem]">
-                        <option value="">Choose course</option>
-                        @foreach($courses as $course)
-                            <option value="{{ $course->id }}">{{ $course->title }}</option>
-                        @endforeach
-                    </select>
-                    <select wire:model="bulkOperation" class="px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-lg text-sm dark:bg-blue-900/50 dark:text-white">
-                        <option value="add">Add XP</option>
-                        <option value="subtract">Subtract XP</option>
-                    </select>
-                    <input type="number" wire:model="bulkPoints" placeholder="Points" min="1"
-                        class="w-32 px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-lg text-sm dark:bg-blue-900/50 dark:text-white">
-                    <flux:button wire:click="bulkUpdateXp" variant="primary" size="sm">
-                        Apply to course
-                    </flux:button>
-                    <flux:button wire:click="$set('selectedStudents', [])" variant="subtle" size="sm">
-                        Clear
-                    </flux:button>
-                </div>
-                @error('bulkCourseId')<p class="text-xs text-red-600 w-full mt-2">{{ $message }}</p>@enderror
-            </div>
-        </div>
-    @endif
-
-    <!-- Students Table -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="w-full">
-                <thead class="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-                    <tr>
-                        <th class="px-4 py-3 text-left">
-                            <input type="checkbox" 
-                                wire:click="$toggle('selectAll')"
-                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-gray-100 text-left text-xs font-medium text-gray-500 dark:border-zinc-800 dark:text-zinc-400">
+                        <th class="w-10 py-3 pl-4">
+                            <input type="checkbox" wire:click="$toggle('selectAll')" @checked($selectAll) aria-label="Select all on this page"
+                                   class="rounded border-gray-300 text-orange-500 focus:ring-orange-400">
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                            Student
-                        </th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer" wire:click="sortBy('total_points')">
-                            Total XP
-                            @if($sortBy === 'total_points')
-                                <span class="ml-1">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>
-                            @endif
-                        </th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer" wire:click="sortBy('level')">
-                            Level
-                            @if($sortBy === 'level')
-                                <span class="ml-1">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>
-                            @endif
-                        </th>
+                        <th class="px-3 py-3">Student</th>
+                        <th class="px-3 py-3"><button type="button" wire:click="sortBy('total_points')" class="hover:text-gray-900 dark:hover:text-white">XP {{ $sortIcon('total_points') }}</button></th>
+                        <th class="px-3 py-3"><button type="button" wire:click="sortBy('level')" class="hover:text-gray-900 dark:hover:text-white">Level {{ $sortIcon('level') }}</button></th>
                         @if($timeFilter !== 'all')
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer" wire:click="sortBy('period_xp')">
-                                Period XP
-                                @if($sortBy === 'period_xp')
-                                    <span class="ml-1">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>
-                                @endif
-                            </th>
+                            <th class="px-3 py-3"><button type="button" wire:click="sortBy('period_xp')" class="hover:text-gray-900 dark:hover:text-white">{{ ['today' => 'Today', 'week' => 'This week', 'month' => 'This month'][$timeFilter] ?? 'Period' }} {{ $sortIcon('period_xp') }}</button></th>
                         @endif
                         @if($courseFilter)
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer" wire:click="sortBy('course_xp')">
-                                Course XP
-                                @if($sortBy === 'course_xp')
-                                    <span class="ml-1">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>
-                                @endif
-                            </th>
+                            <th class="px-3 py-3"><button type="button" wire:click="sortBy('course_xp')" class="hover:text-gray-900 dark:hover:text-white">In this class {{ $sortIcon('course_xp') }}</button></th>
                         @endif
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                            Multiplier
-                        </th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                            Actions
-                        </th>
+                        <th class="py-3 pl-3 pr-4 text-right"><span class="sr-only">Actions</span></th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody class="divide-y divide-gray-100 dark:divide-zinc-800">
                     @forelse($students as $student)
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-900/50">
-                            <td class="px-4 py-3">
-                                <input type="checkbox" 
-                                    wire:model.live="selectedStudents" 
-                                    value="{{ $student->id }}"
-                                    class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        @php
+                            $xp = (int) ($student->points->total_points ?? 0);
+                            $lvl = \App\Support\LevelSystem::info($xp);
+                            $position = ($students->currentPage() - 1) * $students->perPage() + $loop->iteration;
+                            $isSelected = in_array((string) $student->id, array_map('strval', $selectedStudents), true);
+                        @endphp
+                        <tr wire:key="xp-student-{{ $student->id }}" @class(['transition', 'bg-orange-50/60 dark:bg-orange-900/10' => $isSelected, 'hover:bg-gray-50 dark:hover:bg-zinc-800/50' => ! $isSelected])>
+                            <td class="py-3 pl-4">
+                                <input type="checkbox" wire:model.live="selectedStudents" value="{{ $student->id }}" aria-label="Select {{ $student->name }}"
+                                       class="rounded border-gray-300 text-orange-500 focus:ring-orange-400">
                             </td>
-                            <td class="px-4 py-3">
+                            <td class="px-3 py-3">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-                                        <span class="text-sm font-bold text-white">{{ $student->initials() }}</span>
+                                    @if($showRank && $position <= 3)
+                                        <span class="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold {{ [1 => 'bg-amber-100 text-amber-700', 2 => 'bg-gray-200 text-gray-700', 3 => 'bg-orange-100 text-orange-700'][$position] }}">{{ $position }}</span>
+                                    @else
+                                        <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600 dark:bg-zinc-800 dark:text-zinc-300">{{ $student->initials() }}</span>
+                                    @endif
+                                    <div class="min-w-0">
+                                        <button type="button" wire:click="openDetailsModal({{ $student->id }})" class="block truncate text-left font-medium text-gray-900 hover:text-orange-600 dark:text-white">{{ $student->name }}</button>
+                                        <p class="truncate text-xs text-gray-500 dark:text-zinc-400">{{ $student->email ?: $student->student_id }}</p>
                                     </div>
-                                    <div>
-                                        <button 
-                                            wire:click="openDetailsModal({{ $student->id }})"
-                                            class="font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition text-left">
-                                            {{ $student->name }}
-                                        </button>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $student->email }}</p>
-                                    </div>
+                                    @if($student->points?->xp_multiplier)
+                                        <span class="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" title="XP boost">{{ $student->points->xp_multiplier }}× boost</span>
+                                    @endif
                                 </div>
                             </td>
-                            <td class="px-4 py-3">
-                                <span class="inline-flex items-center gap-1 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 rounded-full text-sm font-semibold text-yellow-700 dark:text-yellow-300">
-                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                    </svg>
-                                    {{ number_format($student->points->total_points ?? 0) }}
+                            <td class="px-3 py-3">
+                                <span class="inline-flex items-center gap-1 font-semibold text-gray-900 dark:text-white">
+                                    <flux:icon.star variant="solid" class="size-4 text-amber-400" /> {{ number_format($xp) }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3">
-                                <div class="space-y-1">
-                                    <span class="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 rounded-full text-sm font-semibold text-purple-700 dark:text-purple-300">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                        </svg>
-                                        Level {{ $student->level_number }}
-                                    </span>
-                                    <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 pl-1">{{ $student->rank_name }}</p>
+                            <td class="px-3 py-3">
+                                <div class="w-36">
+                                    <div class="flex items-baseline justify-between gap-2 text-xs">
+                                        <span class="font-semibold text-gray-900 dark:text-white">Lv {{ $lvl['level'] }}</span>
+                                        <span class="truncate text-gray-500 dark:text-zinc-400">{{ $lvl['name'] }}</span>
+                                    </div>
+                                    <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-zinc-800" title="{{ $lvl['xp_to_next_level'] }} XP to next level">
+                                        <div class="h-full rounded-full" style="width: {{ $lvl['level_progress'] }}%; background: {{ $lvl['hex'] }}"></div>
+                                    </div>
                                 </div>
                             </td>
                             @if($timeFilter !== 'all')
-                                <td class="px-4 py-3">
-                                    <span class="text-sm font-medium text-gray-900 dark:text-white">
-                                        +{{ number_format($student->period_xp) }} XP
-                                    </span>
-                                </td>
+                                <td class="px-3 py-3 font-medium {{ $student->period_xp > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400' }}">+{{ number_format($student->period_xp) }}</td>
                             @endif
                             @if($courseFilter)
-                                <td class="px-4 py-3">
-                                    <span class="text-sm font-medium text-gray-900 dark:text-white">
-                                        {{ number_format($student->course_xp) }} XP
-                                    </span>
-                                </td>
+                                <td class="px-3 py-3 font-medium text-gray-900 dark:text-white">{{ number_format($student->course_xp) }}</td>
                             @endif
-                            <td class="px-4 py-3">
-                                @if($student->points?->xp_multiplier)
-                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded text-xs font-medium text-green-700 dark:text-green-300">
-                                        {{ $student->points->xp_multiplier }}x
-                                    </span>
-                                @else
-                                    <span class="text-xs text-gray-400">None</span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-3 text-right">
-                                <flux:button wire:click="openEditModal({{ $student->id }})" variant="subtle" size="sm">
-                                    Award XP
-                                </flux:button>
+                            <td class="py-3 pl-3 pr-4 text-right">
+                                <div class="flex items-center justify-end gap-1">
+                                    <button type="button" wire:click="openDetailsModal({{ $student->id }})" class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-zinc-300 dark:hover:bg-zinc-800">History</button>
+                                    <button type="button" wire:click="openEditModal({{ $student->id }})" class="rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100 dark:bg-orange-900/30 dark:text-orange-300">Award</button>
+                                </div>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-4 py-12 text-center">
-                                <p class="text-gray-500 dark:text-gray-400">No students found</p>
+                            <td colspan="7" class="px-4 py-14 text-center">
+                                <flux:icon.users class="mx-auto size-8 text-gray-300" />
+                                <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No students found</p>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-zinc-400">Try another class or clear the search.</p>
                             </td>
                         </tr>
                     @endforelse
@@ -277,11 +202,35 @@
         </div>
 
         @if($students->hasPages())
-            <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-                {{ $students->links() }}
-            </div>
+            <div class="border-t border-gray-100 px-4 py-3 dark:border-zinc-800">{{ $students->links() }}</div>
         @endif
-    </div>
+    </section>
+
+    {{-- Bulk bar --}}
+    @if(! empty($selectedStudents))
+        <div class="fixed inset-x-0 bottom-4 z-30 flex justify-center px-4">
+            <div class="flex w-full max-w-4xl flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl sm:flex-row sm:items-center dark:border-zinc-700 dark:bg-zinc-900">
+                <p class="shrink-0 px-2 text-sm font-semibold text-gray-900 dark:text-white">{{ count($selectedStudents) }} selected</p>
+                <div class="flex flex-1 flex-wrap items-center gap-2">
+                    <select wire:model="bulkCourseId" aria-label="Class for XP" class="min-w-[11rem] flex-1 rounded-xl border border-gray-200 py-2 pl-3 pr-8 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                        <option value="">Choose class</option>
+                        @foreach($courses as $course)
+                            <option value="{{ $course->id }}">{{ $course->title }}</option>
+                        @endforeach
+                    </select>
+                    <select wire:model="bulkOperation" aria-label="Add or remove" class="rounded-xl border border-gray-200 py-2 pl-3 pr-8 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                        <option value="add">Add</option>
+                        <option value="subtract">Remove</option>
+                    </select>
+                    <input type="number" wire:model="bulkPoints" min="1" placeholder="XP" aria-label="XP amount"
+                           class="w-24 rounded-xl border border-gray-200 py-2 px-3 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+                    <button type="button" wire:click="bulkUpdateXp" class="rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600">Apply</button>
+                    <button type="button" wire:click="$set('selectedStudents', [])" class="rounded-xl px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-zinc-300 dark:hover:bg-zinc-800">Clear</button>
+                </div>
+                @error('bulkCourseId')<p class="w-full px-2 text-xs text-red-600">{{ $message }}</p>@enderror
+            </div>
+        </div>
+    @endif
 
     <!-- Edit Modal -->
     @if($showEditModal && $editingUser)
@@ -289,8 +238,8 @@
             <div class="p-6 space-y-6">
                     <!-- Header with User Info -->
                     <div class="flex items-center gap-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                        <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-                            <span class="text-2xl font-bold text-white">{{ $editingUser->initials() }}</span>
+                        <div class="w-16 h-16 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                            <span class="text-2xl font-bold text-orange-600 dark:text-orange-400">{{ $editingUser->initials() }}</span>
                         </div>
                         <div class="flex-1">
                             <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ $editingUser->name }}</h2>
@@ -488,8 +437,8 @@
                 <!-- Header -->
                 <div class="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
                     <div class="flex items-center gap-4">
-                        <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-                            <span class="text-2xl font-bold text-white">{{ $detailsUser->initials() }}</span>
+                        <div class="w-16 h-16 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                            <span class="text-2xl font-bold text-orange-600 dark:text-orange-400">{{ $detailsUser->initials() }}</span>
                         </div>
                         <div>
                             <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ $detailsUser->name }}</h2>
@@ -505,13 +454,13 @@
 
                 <!-- Current Stats Summary -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4">
+                    <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900 rounded-xl p-4">
                         <p class="text-xs font-medium text-yellow-700 dark:text-yellow-300 uppercase tracking-wide">Total XP</p>
                         <p class="text-2xl font-bold text-yellow-900 dark:text-yellow-100 mt-1">
                             {{ number_format($detailsUser->points->total_points ?? 0) }}
                         </p>
                     </div>
-                    <div class="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4">
+                    <div class="bg-violet-50 dark:bg-violet-900/20 border border-violet-100 dark:border-violet-900 rounded-xl p-4">
                         @php $detailsInfo = \App\Support\LevelSystem::info($detailsUser->points->total_points ?? 0); @endphp
                         <p class="text-xs font-medium text-purple-700 dark:text-purple-300 uppercase tracking-wide">Level · Rank</p>
                         <p class="text-2xl font-bold text-purple-900 dark:text-purple-100 mt-1">
@@ -519,13 +468,13 @@
                         </p>
                         <p class="text-sm font-semibold text-purple-700 dark:text-purple-300 mt-0.5">{{ $detailsInfo['name'] }}</p>
                     </div>
-                    <div class="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
+                    <div class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900 rounded-xl p-4">
                         <p class="text-xs font-medium text-green-700 dark:text-green-300 uppercase tracking-wide">XP Activities</p>
                         <p class="text-2xl font-bold text-green-900 dark:text-green-100 mt-1">
                             {{ count($xpHistory) }}
                         </p>
                     </div>
-                    <div class="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                    <div class="bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-900 rounded-xl p-4">
                         <p class="text-xs font-medium text-blue-700 dark:text-blue-300 uppercase tracking-wide">Enrollments</p>
                         <p class="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-1">
                             {{ $detailsUser->enrollments->count() }}

@@ -340,6 +340,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/student-progress/{student}', \App\Livewire\Admin\StudentProgressDetail::class)->name('student-progress.show');
     });
 
+    // Camps — admin/supervisor manage; trainers view (role checks live in the components)
+    Route::prefix('admin/camps')->name('admin.camps.')->group(function () {
+        Route::get('/', \App\Livewire\Admin\Camps\Index::class)->name('index');
+        Route::get('/{camp}', \App\Livewire\Admin\Camps\Show::class)->name('show');
+    });
+
     Route::middleware(['can:review_daily_reports'])->prefix('admin/daily-reports')->name('admin.daily-reports.')->group(function () {
         Route::get('/', \App\Livewire\Admin\DailyReports\Index::class)->name('index');
         Route::get('/{report}', \App\Livewire\Admin\DailyReports\Show::class)->name('show');
@@ -353,11 +359,6 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/icdl-exam-marks', \App\Livewire\Admin\IcdlExamMarks::class)->name('icdl-exam-marks');
         Route::get('/settings', \App\Livewire\Admin\SystemSettings::class)->name('settings');
         Route::get('/feedback', \App\Livewire\Admin\ManageTeacherFeedback::class)->name('feedback');
-
-        Route::prefix('camps')->name('camps.')->group(function () {
-            Route::get('/', \App\Livewire\Admin\Camps\Index::class)->name('index');
-            Route::get('/{camp}', \App\Livewire\Admin\Camps\Show::class)->name('show');
-        });
 
         Route::prefix('club-session-reports')->middleware('code_club.enabled')->name('club-session-reports.')->group(function () {
             Route::get('/', \App\Livewire\Admin\ClubSessionReports\Index::class)->name('index');

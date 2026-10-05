@@ -94,7 +94,7 @@ class StudentDashboard extends Component
 
         $dashboardData = Cache::remember(
             'student_dashboard_' . $user->id,
-            now()->addMinutes(5),
+            now()->addMinute(),
             function () use ($user) {
                 return [
                     'stats'              => $this->getStats($user),
@@ -111,8 +111,10 @@ class StudentDashboard extends Component
         );
 
         $activeEnrollments = CourseEnrollment::where('user_id', $user->id)
+            ->whereHas('course')
             ->with(['course:id,title,instructor_id', 'course.instructor:id,name'])
-            ->orderBy('enrolled_at', 'desc')
+            ->orderByRaw('CASE WHEN completed_at IS NULL THEN 0 ELSE 1 END')
+            ->orderByDesc('updated_at')
             ->paginate(6);
 
         $notifications   = Notification::where('user_id', $user->id)->latest()->take(10)->get();
@@ -243,11 +245,10 @@ class StudentDashboard extends Component
 
     private function getDailyXp(User $user): int
     {
-        // Count XP from lessons completed today
-        return StudentLessonProgress::where('user_id', $user->id)
-            ->where('status', 'completed')
-            ->whereDate('completed_at', today())
-            ->count() * 10; // 10 XP per lesson as proxy
+        return (int) UserProgress::where('user_id', $user->id)
+            ->where('created_at', '>=', today())
+            ->where('points_earned', '>', 0)
+            ->sum('points_earned');
     }
 
     // ── Camp leaderboard top-5 ────────────────────────────────────────────────

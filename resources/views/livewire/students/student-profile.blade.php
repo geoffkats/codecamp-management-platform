@@ -142,9 +142,13 @@
                         >
                             <div
                                 class="w-12 h-12 rounded-full flex items-center justify-center text-2xl shadow-sm"
-                                style="background-color: {{ $badge->color }}22; border: 2px solid {{ $badge->color }}44"
+                                style="color: {{ $badge->color }}; background-color: {{ $badge->color }}22; border: 2px solid {{ $badge->color }}44"
                             >
-                                {{ $badge->icon }}
+                                @if($badge->icon && preg_match('/[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}]/u', $badge->icon))
+                                    {{ $badge->icon }}
+                                @else
+                                    <x-badge-icon :icon="$badge->icon ?: 'trophy'" class="size-6" />
+                                @endif
                             </div>
                             <span class="text-[10px] text-center font-semibold text-gray-700 dark:text-gray-300 leading-tight line-clamp-2">
                                 {{ $badge->name }}

@@ -1,264 +1,175 @@
-<div class="min-h-screen bg-gradient-to-br from-gray-50 via-orange-50 to-yellow-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 p-6 space-y-8">
-    {{-- Hero Header Section --}}
-    <div class="relative overflow-hidden bg-gradient-to-r from-orange-600 via-yellow-600 to-orange-600 rounded-2xl shadow-2xl p-8 text-white">
-        <div class="absolute inset-0 bg-black/10"></div>
-        <div class="relative z-10 flex items-center justify-between">
+@php
+    $readable = fn (?string $text) => $text !== null && $text === mb_strtoupper($text) && preg_match('/\p{L}{4,}/u', $text)
+        ? \Illuminate\Support\Str::title(mb_strtolower($text))
+        : $text;
+
+    $pending = (int) ($counts['pending'] ?? 0);
+    $tabs = [
+        'pending' => ['Waiting', $pending],
+        'approved' => ['Approved', (int) ($counts['approved'] ?? 0)],
+        'rejected' => ['Sent back', (int) ($counts['rejected'] ?? 0)],
+        'all' => ['All', (int) $counts->sum()],
+    ];
+    $typeIcons = [
+        'Course' => ['book-open', 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300'],
+        'Module' => ['squares-2x2', 'bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300'],
+        'Lesson' => ['document-text', 'bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300'],
+        'Assessment' => ['clipboard-document-check', 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300'],
+        'Assignment' => ['pencil-square', 'bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300'],
+    ];
+@endphp
+
+<div class="mx-auto max-w-7xl space-y-5 p-4 sm:p-6">
+    {{-- Header --}}
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-                <div class="flex items-center gap-3 mb-2">
-                    <div class="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                        </svg>
-                    </div>
-                    <h1 class="text-4xl font-bold">Content Approvals</h1>
-                </div>
-                <p class="text-orange-100 text-lg">Review and approve content submissions for quality assurance</p>
-                <div class="flex items-center gap-4 mt-4">
-                    <div class="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
-                        </svg>
-                        <span class="text-sm">{{ now()->format('l, F j, Y') }}</span>
-                    </div>
-                </div>
-            </div>
+            <h1 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Content approval</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-zinc-400">
+                @if($pending > 0)
+                    <span class="font-semibold text-gray-900 dark:text-white">{{ $pending }} {{ \Illuminate\Support\Str::plural('item', $pending) }}</span> from trainers {{ $pending === 1 ? 'is' : 'are' }} waiting for you{{ $oldestPending ? ', the oldest from '.$oldestPending->diffForHumans() : '' }}.
+                @else
+                    Nothing is waiting. Trainers' new courses, lessons and assessments will show up here.
+                @endif
+            </p>
+        </div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-zinc-400">
+            <flux:icon.check-badge class="size-5 text-emerald-500" />
+            <span><span class="font-semibold text-gray-900 dark:text-white">{{ $reviewedThisWeek }}</span> reviewed this week</span>
         </div>
     </div>
 
-    {{-- Main Stats Cards --}}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {{-- Pending Card --}}
-        <a href="?filterStatus=pending" class="group relative bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 dark:border-gray-700 cursor-pointer">
-            <div class="absolute inset-0 bg-gradient-to-br from-yellow-500/10 to-orange-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div class="relative p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-600 flex items-center justify-center shadow-lg">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    </div>
-                    @if(($stats['pending'] ?? 0) > 0)
-                        <span class="text-xs font-semibold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-2 py-1 rounded-full animate-pulse">Action Required</span>
-                    @endif
-                </div>
-                <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Pending</p>
-                    <p class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ number_format($stats['pending'] ?? 0) }}</p>
-                    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                        @if(($stats['pending'] ?? 0) > 0)
-                            <span class="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
-                            <span>Requires attention</span>
-                        @else
-                            <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                            <span>All clear!</span>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </a>
-
-        {{-- Approved Card --}}
-        <a href="?filterStatus=approved" class="group relative bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 dark:border-gray-700 cursor-pointer">
-            <div class="absolute inset-0 bg-gradient-to-br from-green-500/10 to-green-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div class="relative p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-lg">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    </div>
-                </div>
-                <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Approved</p>
-                    <p class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ number_format($stats['approved'] ?? 0) }}</p>
-                    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                        <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                        <span>Quality approved</span>
-                    </div>
-                </div>
-            </div>
-        </a>
-
-        {{-- Rejected Card --}}
-        <a href="?filterStatus=rejected" class="group relative bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 dark:border-gray-700 cursor-pointer">
-            <div class="absolute inset-0 bg-gradient-to-br from-red-500/10 to-red-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div class="relative p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-lg">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    </div>
-                </div>
-                <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Rejected</p>
-                    <p class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ number_format($stats['rejected'] ?? 0) }}</p>
-                    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                        <span class="w-2 h-2 rounded-full bg-red-500"></span>
-                        <span>Needs revision</span>
-                    </div>
-                </div>
-            </div>
-        </a>
-
-        {{-- Total Card --}}
-        <div class="group relative bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 dark:border-gray-700">
-            <div class="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-blue-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div class="relative p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    </div>
-                </div>
-                <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total</p>
-                    <p class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ number_format($stats['total'] ?? 0) }}</p>
-                    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-                        <span>All submissions</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Filters --}}
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Filter & Search</h2>
-            @if(($stats['pending'] ?? 0) > 0)
-                <button wire:click="approveAll" class="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    Approve All ({{ $stats['pending'] ?? 0 }})
-                </button>
-            @endif
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <flux:input wire:model.live.debounce.300ms="search" placeholder="Search content..." />
-            <flux:select wire:model.live="filterStatus" label="Status">
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-            </flux:select>
-            <flux:select wire:model.live="filterType" label="Type">
-                <option value="all">All Types</option>
-                <option value="course">Courses</option>
-                <option value="lesson">Lessons</option>
-                <option value="module">Modules</option>
-                <option value="assessment">Assessments</option>
-            </flux:select>
-            <flux:select wire:model.live="filterPriority" label="Priority">
-                <option value="all">All Priorities</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-            </flux:select>
-        </div>
-    </div>
-
-    {{-- Approvals List --}}
-    @if($approvals->count() > 0)
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20">
-                <h2 class="text-xl font-bold text-gray-900 dark:text-white">Content Submissions</h2>
-                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Review and manage content awaiting approval</p>
-            </div>
-            <div class="p-6">
-        <div class="space-y-4">
-            @foreach($approvals as $approval)
-                <a href="{{ route('content-approvals.review', $approval) }}" class="block">
-                            <div class="rounded-lg border-2 {{ $approval->status === 'pending' ? 'border-orange-300 dark:border-orange-700 bg-orange-50/50 dark:bg-orange-900/10' : ($approval->status === 'approved' ? 'border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-900/10' : 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10') }} hover:shadow-lg transition-all duration-300 overflow-hidden cursor-pointer p-5">
-                            <div class="flex items-start justify-between">
-                                <div class="flex-1">
-                                        <div class="flex items-center gap-3 mb-3">
-                                        <h3 class="text-lg font-bold text-gray-900 dark:text-white">
-                                            @php
-                                                $title = $approval->approvable ? match(class_basename($approval->approvable_type)) {
-                                                    'Course' => $approval->approvable->title,
-                                                    'Lesson' => $approval->approvable->title,
-                                                    'CourseModule' => $approval->approvable->title,
-                                                    'Assessment' => $approval->approvable->title,
-                                                    default => 'Unknown Content',
-                                                } : 'Deleted Item';
-                                            @endphp
-                                            {{ $title }}
-                                        </h3>
-                                        @if($approval->status === 'approved')
-                                            <div class="flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-900/40 border border-green-200 dark:border-green-800 rounded-md">
-                                                <svg class="w-3.5 h-3.5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                                </svg>
-                                                <span class="text-xs font-semibold text-green-700 dark:text-green-300">{{ ucfirst($approval->status) }}</span>
-                                            </div>
-                                        @else
-                                            <flux:badge size="sm" variant="{{ $approval->status === 'rejected' ? 'danger' : 'warning' }}">
-                                                {{ ucfirst($approval->status) }}
-                                            </flux:badge>
-                                        @endif
-                                        <flux:badge size="sm" variant="ghost">
-                                            {{ class_basename($approval->approvable_type) }}
-                                        </flux:badge>
-                                        @if($approval->priority)
-                                            <flux:badge size="xs" variant="{{ $approval->priority === 'high' ? 'danger' : ($approval->priority === 'medium' ? 'warning' : 'ghost') }}">
-                                                {{ ucfirst($approval->priority) }} Priority
-                                            </flux:badge>
-                                        @endif
-                                    </div>
-                                    <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-3">
-                                            <span>Submitted by <span class="font-medium text-gray-900 dark:text-white">{{ $approval->submitter->name ?? 'Unknown' }}</span></span>
-                                        <span>•</span>
-                                        <span>{{ $approval->submitted_at->diffForHumans() }}</span>
-                                        @if($approval->reviewed_at)
-                                            <span>•</span>
-                                            <span>Reviewed {{ $approval->reviewed_at->diffForHumans() }}</span>
-                                        @endif
-                                    </div>
-                                    @if($approval->rejection_reason)
-                                            <div class="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                                            <p class="text-sm text-red-800 dark:text-red-200">
-                                                    <strong>Rejection Reason:</strong> {{ $approval->rejection_reason }}
-                                            </p>
-                                        </div>
-                                    @endif
-                                </div>
-                                <div class="flex items-center gap-2 ml-4">
-                                    @if($approval->status === 'pending')
-                                        <flux:button wire:click.stop="approveContent({{ $approval->id }})" variant="primary" size="sm">
-                                            Approve
-                                        </flux:button>
-                                        <flux:button wire:click.stop="rejectContent({{ $approval->id }}, 'Needs revision')" variant="danger" size="sm">
-                                            Reject
-                                        </flux:button>
-                                    @endif
-                                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                    </svg>
-                            </div>
-                        </div>
-                    </div>
-                </a>
-            @endforeach
-        </div>
-
-        <div class="mt-6">
-            {{ $approvals->links() }}
-                </div>
-            </div>
-        </div>
-    @else
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
-            <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <svg class="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            </div>
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">All Clear!</h3>
-            <p class="text-gray-600 dark:text-gray-400">No content approvals found matching your filters</p>
+    @if(session('message'))
+        <div class="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-200">
+            <flux:icon.check-circle class="size-5 shrink-0" /> {{ session('message') }}
         </div>
     @endif
+
+    <section class="rounded-2xl border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+        {{-- Toolbar --}}
+        <div class="flex flex-col gap-3 border-b border-gray-100 p-4 dark:border-zinc-800 lg:flex-row lg:items-center lg:justify-between">
+            <div class="inline-flex overflow-x-auto rounded-xl bg-gray-100 p-1 dark:bg-zinc-800">
+                @foreach($tabs as $key => [$label, $count])
+                    <button type="button" wire:click="filterByStatus('{{ $key }}')"
+                            class="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition {{ $filterStatus === $key ? 'bg-white text-gray-900 shadow-sm dark:bg-zinc-900 dark:text-white' : 'text-gray-500 hover:text-gray-900 dark:text-zinc-400 dark:hover:text-white' }}">
+                        {{ $label }}
+                        <span class="rounded-full px-1.5 text-xs {{ $key === 'pending' && $count > 0 ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-600 dark:bg-zinc-700 dark:text-zinc-300' }}">{{ $count }}</span>
+                    </button>
+                @endforeach
+            </div>
+
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div class="relative">
+                    <flux:icon.magnifying-glass class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+                    <input type="search" wire:model.live.debounce.300ms="search" placeholder="Search title or trainer"
+                           class="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm focus:border-orange-400 focus:ring-orange-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white sm:w-60" />
+                </div>
+                <select wire:model.live="filterType"
+                        class="rounded-xl border border-gray-200 bg-white py-2 pl-3 pr-8 text-sm focus:border-orange-400 focus:ring-orange-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
+                    <option value="all">All types</option>
+                    <option value="course">Courses</option>
+                    <option value="module">Modules</option>
+                    <option value="lesson">Lessons</option>
+                    <option value="assessment">Assessments</option>
+                    <option value="assignment">Assignments</option>
+                </select>
+                @if($filterStatus === 'pending' && $pending > 1)
+                    <button type="button" wire:click="approveAll"
+                            wire:confirm="Approve all {{ $pending }} waiting items without opening them? Trainers will be told each one is approved."
+                            class="inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+                        <flux:icon.check class="size-4" /> Approve all
+                    </button>
+                @endif
+            </div>
+        </div>
+
+        {{-- List --}}
+        @if($approvals->isNotEmpty())
+            <ul class="divide-y divide-gray-100 dark:divide-zinc-800">
+                @foreach($approvals as $approval)
+                    @php
+                        $type = $approval->typeLabel();
+                        [$icon, $tile] = $typeIcons[$type] ?? ['document', 'bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-300'];
+                        $item = $approval->approvable;
+                        $course = $item instanceof \App\Models\Course ? null : $item?->course;
+                        $waitingDays = $approval->status === 'pending' && $approval->submitted_at ? (int) $approval->submitted_at->diffInDays(now()) : 0;
+                    @endphp
+                    <li wire:key="approval-{{ $approval->id }}" class="flex flex-col gap-3 px-4 py-4 transition hover:bg-gray-50/70 dark:hover:bg-zinc-800/40 sm:flex-row sm:items-center sm:px-5">
+                        <div class="flex min-w-0 flex-1 items-start gap-3">
+                            <span class="flex size-10 shrink-0 items-center justify-center rounded-xl {{ $tile }}">
+                                <flux:icon :name="$icon" class="size-5" />
+                            </span>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    <a href="{{ route('content-approvals.review', $approval) }}" wire:navigate class="truncate font-semibold text-gray-900 hover:text-orange-600 dark:text-white dark:hover:text-orange-400">
+                                        {{ $item ? $readable($item->title) : 'Deleted item' }}
+                                    </a>
+                                    <span class="rounded-md bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-zinc-800 dark:text-zinc-300">{{ $type }}</span>
+                                    @if($approval->priority === 'high')
+                                        <span class="rounded-md bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-600 dark:bg-red-900/30 dark:text-red-300">Urgent</span>
+                                    @endif
+                                    @if($waitingDays >= 3)
+                                        <span class="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Waiting {{ $waitingDays }} days</span>
+                                    @endif
+                                </div>
+                                <p class="mt-0.5 truncate text-sm text-gray-500 dark:text-zinc-400">
+                                    @if($course){{ $readable($course->title) }} · @endif{{ $approval->submitter?->name ?? 'Unknown trainer' }}@if($approval->submitted_at) · sent {{ $approval->submitted_at->diffForHumans() }}@endif
+                                </p>
+                                @if($approval->status === 'rejected' && $approval->rejection_reason)
+                                    <p class="mt-2 line-clamp-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                                        <span class="font-semibold">Sent back:</span> {{ $approval->rejection_reason }}
+                                    </p>
+                                @endif
+                            </div>
+                        </div>
+
+                        <div class="flex shrink-0 items-center gap-2 pl-13 sm:pl-0">
+                            @if($approval->status === 'pending')
+                                @if($item)
+                                    <button type="button" wire:click="approveContent({{ $approval->id }})"
+                                            wire:confirm="Approve &quot;{{ $item->title }}&quot; without opening it?"
+                                            class="inline-flex items-center gap-1 rounded-xl border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-900/20">
+                                        <flux:icon.check class="size-4" /> Approve
+                                    </button>
+                                @endif
+                                <a href="{{ route('content-approvals.review', $approval) }}" wire:navigate
+                                   class="inline-flex items-center gap-1 rounded-xl bg-orange-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-600">
+                                    Review <flux:icon.arrow-right class="size-4" />
+                                </a>
+                            @else
+                                <span class="text-right text-xs text-gray-500 dark:text-zinc-400">
+                                    <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {{ $approval->status === 'approved' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300' }}">
+                                        {{ $approval->status === 'approved' ? 'Approved' : 'Sent back' }}
+                                    </span>
+                                    @if($approval->reviewed_at)
+                                        <span class="mt-0.5 block">{{ $approval->reviewer?->name ? 'by '.$approval->reviewer->name.' · ' : '' }}{{ $approval->reviewed_at->diffForHumans() }}</span>
+                                    @endif
+                                </span>
+                                <a href="{{ route('content-approvals.review', $approval) }}" wire:navigate
+                                   class="rounded-xl border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">Open</a>
+                            @endif
+                        </div>
+                    </li>
+                @endforeach
+            </ul>
+
+            @if($approvals->hasPages())
+                <div class="border-t border-gray-100 px-4 py-3 dark:border-zinc-800">{{ $approvals->links() }}</div>
+            @endif
+        @else
+            <div class="px-6 py-14 text-center">
+                <span class="mx-auto flex size-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
+                    <flux:icon.check-badge class="size-6" />
+                </span>
+                @if($search !== '' || $filterType !== 'all')
+                    <p class="mt-3 font-semibold text-gray-900 dark:text-white">Nothing matches</p>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-zinc-400">Try another search or type.</p>
+                @elseif($filterStatus === 'pending')
+                    <p class="mt-3 font-semibold text-gray-900 dark:text-white">You're all caught up</p>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-zinc-400">No content is waiting for approval.</p>
+                @else
+                    <p class="mt-3 font-semibold text-gray-900 dark:text-white">Nothing here yet</p>
+                @endif
+            </div>
+        @endif
+    </section>
 </div>

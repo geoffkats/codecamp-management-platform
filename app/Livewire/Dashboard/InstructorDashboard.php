@@ -5,10 +5,10 @@ namespace App\Livewire\Dashboard;
 use App\Models\ContentApproval;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
+use App\Models\Lesson;
 use App\Services\TrainerSubmissionQueue;
 use App\Support\ProgramScope;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -20,50 +20,33 @@ class InstructorDashboard extends Component
 
     protected $paginationTheme = 'tailwind';
 
-    public function mount()
-    {
-        Cache::forget('instructor_dashboard_' . Auth::id());
-    }
-
     public function render()
     {
         $user = Auth::user();
-
-        $dashboardData = Cache::remember(
-            'instructor_dashboard_' . $user->id,
-            now()->addMinutes(5),
-            function () use ($user) {
-                return [
-                    'stats' => $this->getStats($user),
-                    'pendingApprovals' => $this->getPendingApprovals($user),
-                    'recentEnrollments' => $this->getRecentEnrollments($user),
-                    'topPerformingCourses' => $this->getTopPerformingCourses($user),
-                ];
-            }
-        );
+        $queue = app(TrainerSubmissionQueue::class);
 
         $courses = Course::accessibleBy($user)
-            ->with(['enrollments', 'modules', 'lessons'])
-            ->withCount(['enrollments', 'lessons'])
-            ->orderBy('created_at', 'desc')
+            ->withCount([
+                'enrollments' => fn ($q) => ProgramScope::applyCourseEnrollmentScope($q, $user),
+                'lessons',
+                'modules',
+            ])
+            ->withAvg(['enrollments' => fn ($q) => ProgramScope::applyCourseEnrollmentScope($q, $user)], 'progress_percentage')
+            ->latest('updated_at')
             ->paginate(6);
-
-        $queue = app(TrainerSubmissionQueue::class);
-        $pendingGradingCount = $queue->pendingCount($user);
-        $recentSubmissions = $queue->recentPending($user, 8);
-
-        $studentAnalytics = $this->getStudentAnalytics($user);
 
         return view('livewire.dashboard.instructor-dashboard', [
             'user' => $user,
-            'stats' => $dashboardData['stats'],
-            'pendingApprovals' => $dashboardData['pendingApprovals'],
-            'recentEnrollments' => $dashboardData['recentEnrollments'],
-            'topPerformingCourses' => $dashboardData['topPerformingCourses'],
+            'stats' => $this->getStats($user),
             'courses' => $courses,
-            'pendingGradingCount' => $pendingGradingCount,
-            'recentSubmissions' => $recentSubmissions,
-            'studentAnalytics' => $studentAnalytics,
+            'pendingGradingCount' => $queue->pendingCount($user),
+            'recentSubmissions' => $queue->recentPending($user, 6),
+            'pendingApprovals' => $this->getPendingApprovals($user),
+            'recentEnrollments' => $this->enrollmentQuery($user)
+                ->with(['user:id,name', 'course:id,title'])
+                ->latest('enrolled_at')
+                ->take(5)
+                ->get(),
         ]);
     }
 
@@ -78,148 +61,41 @@ class InstructorDashboard extends Component
     private function getStats($user): array
     {
         $courses = Course::accessibleBy($user);
-        $totalEnrollments = $this->enrollmentQuery($user)->count();
+
+        $enrollments = $this->enrollmentQuery($user)
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw('COUNT(DISTINCT user_id) as students')
+            ->selectRaw('SUM(CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END) as completed')
+            ->selectRaw('SUM(CASE WHEN completed_at IS NULL AND progress_percentage > 0 THEN 1 ELSE 0 END) as active')
+            ->selectRaw('AVG(progress_percentage) as avg_progress')
+            ->first();
+
+        $total = (int) ($enrollments->total ?? 0);
 
         return [
             'totalCourses' => (clone $courses)->count(),
             'publishedCourses' => (clone $courses)->where('is_published', true)->count(),
-            'draftCourses' => (clone $courses)->where('approval_status', 'draft')->count(),
-            'pendingApprovals' => (clone $courses)->where('approval_status', 'pending')->count(),
-            'totalEnrollments' => $totalEnrollments,
-            'activeStudents' => (int) ($this->enrollmentQuery($user)
-                ->whereNotNull('enrolled_at')
-                ->selectRaw('COUNT(DISTINCT user_id) as count')
-                ->first()
-                ?->count ?? 0),
+            'students' => (int) ($enrollments->students ?? 0),
+            'activeLearners' => (int) ($enrollments->active ?? 0),
+            'averageProgress' => round((float) ($enrollments->avg_progress ?? 0)),
+            'completionRate' => $total > 0 ? round(((int) $enrollments->completed / $total) * 100) : 0,
+            'completed' => (int) ($enrollments->completed ?? 0),
         ];
     }
 
     private function getPendingApprovals($user)
     {
-        // Get IDs of lessons from courses this user owns
-        $lessonIds = \App\Models\Lesson::whereHas('module.course', function ($q) use ($user) {
-            $q->accessibleBy($user);
-        })->pluck('id');
-
+        $lessonIds = Lesson::whereHas('module.course', fn ($q) => $q->accessibleBy($user))->pluck('id');
         $courseIds = Course::accessibleBy($user)->pluck('id');
 
-        // Get pending approvals for lessons
-        $lessonApprovals = ContentApproval::where('approvable_type', 'App\Models\Lesson')
-            ->whereIn('approvable_id', $lessonIds)
-            ->where('status', 'pending')
-            ->with(['approvable', 'submitter'])
-            ->get();
-
-        // Get pending approvals for courses
-        $courseApprovals = ContentApproval::where('approvable_type', 'App\Models\Course')
-            ->whereIn('approvable_id', $courseIds)
-            ->where('status', 'pending')
-            ->with(['approvable', 'submitter'])
-            ->get();
-
-        // Combine, sort by submitted_at, and take 5
-        return collect($lessonApprovals)
-            ->concat($courseApprovals)
-            ->sortByDesc('submitted_at')
-            ->take(5)
-            ->values();
-    }
-
-    private function getRecentEnrollments($user)
-    {
-        return $this->enrollmentQuery($user)
-            ->with(['user', 'course'])
-            ->latest('enrolled_at')
-            ->take(10)
-            ->get();
-    }
-
-    private function getTopPerformingCourses($user)
-    {
-        return Course::accessibleBy($user)
-            ->withCount(['enrollments', 'lessons'])
-            ->with(['enrollments' => function ($q) {
-                $q->selectRaw('course_id, AVG(progress_percentage) as avg_progress, COUNT(*) as student_count')
-                  ->groupBy('course_id');
-            }])
-            ->orderBy('enrollments_count', 'desc')
+        return ContentApproval::where('status', 'pending')
+            ->where(function ($q) use ($lessonIds, $courseIds) {
+                $q->where(fn ($l) => $l->where('approvable_type', Lesson::class)->whereIn('approvable_id', $lessonIds))
+                    ->orWhere(fn ($c) => $c->where('approvable_type', Course::class)->whereIn('approvable_id', $courseIds));
+            })
+            ->with('approvable')
+            ->latest('submitted_at')
             ->take(5)
             ->get();
-    }
-
-    private function getStudentAnalytics($user)
-    {
-        $enrollments = $this->enrollmentQuery($user)->get();
-
-        $total = $enrollments->count();
-        $completed = $enrollments->whereNotNull('completed_at')->count();
-        
-        return [
-            'averageProgress' => round($enrollments->avg('progress_percentage') ?? 0, 2),
-            'completionRate' => $total > 0 ? round(($completed / $total) * 100, 2) : 0,
-            'averageScore' => round($enrollments->avg('average_quiz_score') ?? 0, 2),
-            'totalLessonsCompleted' => $enrollments->sum('lessons_completed'),
-            'activeStudents' => $enrollments->whereNull('completed_at')->where('progress_percentage', '>', 0)->count(),
-            'totalStudents' => $enrollments->unique('user_id')->count(),
-            'avgCompletionTime' => $this->getAverageCompletionTime($user),
-            'enrollmentTrends' => $this->getEnrollmentTrends($user),
-            'topPerformers' => $this->getTopPerformers($user),
-        ];
-    }
-
-    private function getAverageCompletionTime($user)
-    {
-        $completions = $this->enrollmentQuery($user)
-            ->whereNotNull('completed_at')
-            ->whereNotNull('enrolled_at')
-            ->get()
-            ->map(function ($enrollment) {
-                return $enrollment->enrolled_at->diffInDays($enrollment->completed_at);
-            });
-
-        return $completions->count() > 0 ? round($completions->avg(), 1) : 0;
-    }
-
-    private function getEnrollmentTrends($user)
-    {
-        return $this->enrollmentQuery($user)
-            ->where('created_at', '>=', now()->subDays(30))
-            ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get()
-            ->map(fn($item) => ['date' => $item->date, 'count' => $item->count]);
-    }
-
-    private function getTopPerformers($user)
-    {
-        return $this->enrollmentQuery($user)
-            ->with('user')
-            ->whereNotNull('completed_at')
-            ->orderByDesc('average_quiz_score')
-            ->take(5)
-            ->get()
-            ->map(function ($enrollment) {
-                return [
-                    'name' => $enrollment->user->name,
-                    'score' => round($enrollment->average_quiz_score ?? 0, 2),
-                    'progress' => round($enrollment->progress_percentage ?? 0, 2),
-                    'course' => $enrollment->course->title,
-                ];
-            });
-    }
-
-    public function getApprovableTitle($approval): string
-    {
-        $approvable = $approval->approvable;
-        if (!$approvable) return 'Unknown';
-        
-        return match(class_basename($approval->approvable_type)) {
-            'Course' => $approvable->title,
-            'CourseModule' => $approvable->title,
-            'Lesson' => $approvable->title,
-            'Assessment' => $approvable->title,
-            default => 'Unknown Content',
-        };
     }
 }

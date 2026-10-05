@@ -107,6 +107,7 @@ return [
 
     'supervisor' => [
         ['label' => 'Oversight', 'icon' => 'eye', 'items' => [
+            ['label' => 'Students', 'route' => 'students.index', 'icon' => 'user-group', 'match' => 'students.*', 'keywords' => 'learners children'],
             ['label' => 'Enrollments', 'route' => 'admin.enrollments', 'icon' => 'clipboard-document-list', 'match' => 'admin.enrollments'],
             ['label' => 'Code Camps', 'route' => 'admin.camps.index', 'icon' => 'flag', 'match' => 'admin.camps.*'],
             ['label' => 'Content Approval', 'route' => 'content-approvals.index', 'icon' => 'shield-check', 'match' => 'content-approvals.*', 'badge' => 'pending_approvals'],

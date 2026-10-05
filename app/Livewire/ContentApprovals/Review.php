@@ -5,7 +5,6 @@ namespace App\Livewire\ContentApprovals;
 use App\Models\ContentApproval;
 use App\Models\AssignmentSubmission;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -86,93 +85,7 @@ class Review extends Component
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        $this->approval->update([
-            'status' => 'approved',
-            'reviewed_by' => Auth::id(),
-            'reviewed_at' => now(),
-            'notes' => $this->notes,
-        ]);
-
-        // Update the approvable item
-        if ($this->approvable) {
-            // Update approval_status for models that have it
-            $updateData = [
-                'approved_at' => now(),
-                'approved_by' => Auth::id(),
-                'approval_notes' => $this->notes,
-            ];
-
-            // Handle different content types
-            if ($this->approvable instanceof \App\Models\Assignment) {
-                // Assignments use 'status' field, not 'approval_status'
-                $updateData['status'] = 'active'; // Change from 'draft' to 'active'
-            } else {
-                // Courses, Lessons, Assessments, Modules use 'approval_status'
-                $updateData['approval_status'] = 'approved';
-            }
-
-            // Update the approvable item - ensure it saves
-            $this->approvable->fill($updateData);
-            $this->approvable->save();
-            
-            // Refresh to ensure the update is reflected
-            $this->approvable->refresh();
-            
-            // Double-check the update took
-            if ($this->approvable instanceof \App\Models\Assignment) {
-                // For assignments, verify status changed
-                if ($this->approvable->status !== 'active') {
-                    Log::warning('Assignment status not updated after approval', [
-                        'assignment_id' => $this->approvable->id,
-                        'expected_status' => 'active',
-                        'actual_status' => $this->approvable->status,
-                    ]);
-                }
-            } else {
-                // For other content, verify approval_status changed
-                if ($this->approvable->approval_status !== 'approved') {
-                    Log::warning('Content approval_status not updated after approval', [
-                        'content_type' => get_class($this->approvable),
-                        'content_id' => $this->approvable->id,
-                        'expected_status' => 'approved',
-                        'actual_status' => $this->approvable->approval_status,
-                    ]);
-                    // Force update again
-                    $this->approvable->approval_status = 'approved';
-                    $this->approvable->save();
-                    $this->approvable->refresh();
-                }
-            }
-
-            // Optionally auto-publish when approved (if content supports it)
-            if ($this->approvable instanceof \App\Models\Course) {
-                // Course approval_status is now 'approved'
-                // Optionally, we could auto-publish here, but let instructor decide
-            } elseif ($this->approvable instanceof \App\Models\Lesson) {
-                // Optionally auto-publish lessons when approved
-                if (!$this->approvable->is_published) {
-                    // Set to published when approved
-                    $this->approvable->update(['is_published' => true]);
-                    $this->approvable->refresh();
-                }
-            }
-        }
-
-        // Create notification for submitter
-        if ($this->approval->submitted_by) {
-            \App\Models\Notification::create([
-                'user_id' => $this->approval->submitted_by,
-                'title' => 'Content Approved',
-                'message' => 'Your ' . $this->approval->category . ' "' . ($this->approvable->title ?? 'Content') . '" has been approved.',
-                'type' => 'success',
-                'data' => [
-                    'approval_id' => $this->approval->id,
-                    'content_type' => $this->approval->category,
-                    'content_id' => $this->approvable->id ?? null,
-                ],
-                'is_read' => false,
-            ]);
-        }
+        $this->approval->approve(Auth::user(), $this->notes ?: null);
 
         session()->flash('message', 'Content approved successfully!');
         return $this->redirect(route('content-approvals.index'), navigate: true);
@@ -187,48 +100,7 @@ class Review extends Component
             'rejectionReason.min' => 'Rejection reason must be at least 10 characters.',
         ]);
 
-        $this->approval->update([
-            'status' => 'rejected',
-            'reviewed_by' => Auth::id(),
-            'reviewed_at' => now(),
-            'rejection_reason' => $this->rejectionReason,
-            'notes' => $this->notes,
-        ]);
-
-        // Update the approvable item
-        if ($this->approvable) {
-            $updateData = [
-                'rejection_reason' => $this->rejectionReason,
-            ];
-
-            // Handle different content types
-            if ($this->approvable instanceof \App\Models\Assignment) {
-                // Assignments use 'status' field - keep as draft when rejected
-                $updateData['status'] = 'draft';
-            } else {
-                // Courses, Lessons, Assessments, Modules use 'approval_status'
-                $updateData['approval_status'] = 'rejected';
-            }
-
-            $this->approvable->update($updateData);
-        }
-
-        // Create notification for submitter
-        if ($this->approval->submitted_by) {
-            \App\Models\Notification::create([
-                'user_id' => $this->approval->submitted_by,
-                'title' => 'Content Rejected',
-                'message' => 'Your ' . $this->approval->category . ' "' . ($this->approvable->title ?? 'Content') . '" has been rejected. Reason: ' . $this->rejectionReason,
-                'type' => 'warning',
-                'data' => [
-                    'approval_id' => $this->approval->id,
-                    'content_type' => $this->approval->category,
-                    'content_id' => $this->approvable->id ?? null,
-                    'rejection_reason' => $this->rejectionReason,
-                ],
-                'is_read' => false,
-            ]);
-        }
+        $this->approval->reject(Auth::user(), $this->rejectionReason, $this->notes ?: null);
 
         session()->flash('message', 'Content rejected. The submitter has been notified.');
         return $this->redirect(route('content-approvals.index'), navigate: true);

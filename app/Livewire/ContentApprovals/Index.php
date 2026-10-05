@@ -2,186 +2,142 @@
 
 namespace App\Livewire\ContentApprovals;
 
+use App\Models\Assessment;
+use App\Models\Assignment;
 use App\Models\ContentApproval;
+use App\Models\Course;
+use App\Models\CourseModule;
+use App\Models\Lesson;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
 
 #[Layout('components.layouts.app')]
 class Index extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'tailwind';
+    private const TYPES = [
+        'course' => Course::class,
+        'module' => CourseModule::class,
+        'lesson' => Lesson::class,
+        'assessment' => Assessment::class,
+        'assignment' => Assignment::class,
+    ];
 
-    public $filterStatus = 'all'; // 'all', 'pending', 'approved', 'rejected'
-    public $filterType = 'all'; // 'all', 'course', 'lesson', 'module', 'assessment'
-    public $filterPriority = 'all'; // 'all', 'high', 'medium', 'low'
-    public $search = '';
+    private const STATUSES = ['pending', 'approved', 'rejected', 'all'];
+
+    public string $filterStatus = 'pending';
+
+    public string $filterType = 'all';
+
+    public string $search = '';
 
     protected $queryString = [
-        'filterStatus' => ['except' => 'all'],
+        'filterStatus' => ['except' => 'pending'],
         'filterType' => ['except' => 'all'],
-        'filterPriority' => ['except' => 'all'],
         'search' => ['except' => ''],
     ];
 
-    public function filterByStatus($status)
+    public function mount(): void
     {
-        $this->filterStatus = $status;
+        abort_unless(Gate::allows('review_content'), 403, 'You do not have permission to review content.');
+
+        if (! in_array($this->filterStatus, self::STATUSES, true)) {
+            $this->filterStatus = 'pending';
+        }
+    }
+
+    public function filterByStatus(string $status): void
+    {
+        $this->filterStatus = in_array($status, self::STATUSES, true) ? $status : 'pending';
         $this->resetPage();
     }
 
-    public function approveContent($approvalId)
+    public function updatedFilterType(): void
     {
-        $approval = ContentApproval::findOrFail($approvalId);
-        $approval->update([
-            'status' => 'approved',
-            'reviewed_by' => Auth::id(),
-            'reviewed_at' => now(),
-        ]);
-
-        $approvable = $approval->approvable;
-        if ($approvable) {
-            $updateData = [
-                'approved_at' => now(),
-                'approved_by' => Auth::id(),
-            ];
-
-            // Handle different content types
-            if ($approvable instanceof \App\Models\Assignment) {
-                // Assignments use 'status' field
-                $updateData['status'] = 'active';
-            } else {
-                // Courses, Lessons, Assessments, Modules use 'approval_status'
-                $updateData['approval_status'] = 'approved';
-            }
-
-            // Use fill and save to ensure update persists
-            $approvable->fill($updateData);
-            $approvable->save();
-            $approvable->refresh();
-        }
-
-        session()->flash('message', 'Content approved successfully.');
-        $this->dispatch('content-approved');
+        $this->resetPage();
     }
 
-    public function rejectContent($approvalId, $reason = null)
+    public function updatedSearch(): void
     {
-        $approval = ContentApproval::findOrFail($approvalId);
-        $approval->update([
-            'status' => 'rejected',
-            'reviewed_by' => Auth::id(),
-            'reviewed_at' => now(),
-            'rejection_reason' => $reason,
-        ]);
-
-        $approvable = $approval->approvable;
-        if ($approvable) {
-            $updateData = [
-                'rejection_reason' => $reason,
-            ];
-
-            // Handle different content types
-            if ($approvable instanceof \App\Models\Assignment) {
-                // Assignments use 'status' field - keep as draft when rejected
-                $updateData['status'] = 'draft';
-            } else {
-                // Courses, Lessons, Assessments, Modules use 'approval_status'
-                $updateData['approval_status'] = 'rejected';
-            }
-
-            $approvable->update($updateData);
-        }
-
-        session()->flash('message', 'Content rejected.');
-        $this->dispatch('content-rejected');
+        $this->resetPage();
     }
 
-    public function getApprovableTitle($approval)
+    public function approveContent(int $approvalId): void
     {
-        if (!$approval->approvable) {
-            return 'Deleted Item';
-        }
+        abort_unless(Gate::allows('review_content'), 403);
 
-        return match (class_basename($approval->approvable_type)) {
-            'Course' => $approval->approvable->title,
-            'Lesson' => $approval->approvable->title,
-            'CourseModule' => $approval->approvable->title,
-            'Assessment' => $approval->approvable->title,
-            default => 'Unknown Content',
-        };
+        $approval = ContentApproval::where('status', 'pending')->findOrFail($approvalId);
+        $approval->approve(Auth::user());
+
+        session()->flash('message', 'Approved: '.($approval->approvable->title ?? 'content').'. The trainer has been told.');
     }
 
-    public function mount()
+    public function approveAll(): void
     {
-        // Authorization check - only supervisors and admins can access
-        $user = Auth::user();
-        if (!$user->isSupervisor() && !$user->isAdmin() && !$user->hasPermission('review_content')) {
-            abort(403, 'You do not have permission to review content.');
-        }
-    }
+        abort_unless(Gate::allows('review_content'), 403);
 
-    public function approveAll()
-    {
-        $pending = ContentApproval::where('status', 'pending')->get();
-        
+        $pending = $this->filteredQuery()->where('status', 'pending')->get();
+
         foreach ($pending as $approval) {
-            $this->approveContent($approval->id);
+            $approval->approve(Auth::user());
         }
-        
-        session()->flash('message', "Approved {$pending->count()} pending items.");
+
+        session()->flash('message', 'Approved '.$pending->count().' '.str('item')->plural($pending->count()).'.');
+    }
+
+    private function filteredQuery()
+    {
+        return ContentApproval::query()
+            ->when(isset(self::TYPES[$this->filterType]), fn ($q) => $q->where('approvable_type', self::TYPES[$this->filterType]))
+            ->when(trim($this->search) !== '', function ($q) {
+                $term = '%'.trim($this->search).'%';
+                $q->where(function ($q) use ($term) {
+                    $q->whereHasMorph('approvable', array_values(self::TYPES), fn ($m) => $m->where('title', 'like', $term))
+                        ->orWhereHas('submitter', fn ($u) => $u->where('name', 'like', $term));
+                });
+            });
     }
 
     public function render()
     {
-        $query = ContentApproval::with(['submitter', 'approvable']);
+        $approvals = $this->filteredQuery()
+            ->with([
+                'submitter:id,name',
+                'reviewer:id,name',
+                'approvable' => fn (MorphTo $morph) => $morph->morphWith([
+                    Lesson::class => ['course:id,title'],
+                    CourseModule::class => ['course:id,title'],
+                    Assessment::class => ['course:id,title'],
+                    Assignment::class => ['course:id,title'],
+                ]),
+            ])
+            ->when($this->filterStatus !== 'all', fn ($q) => $q->where('status', $this->filterStatus))
+            ->when(
+                $this->filterStatus === 'pending',
+                fn ($q) => $q->orderBy('submitted_at'),
+                fn ($q) => $q->orderByDesc('reviewed_at')->orderByDesc('submitted_at')
+            )
+            ->paginate(15);
 
-        if ($this->filterStatus !== 'all') {
-            $query->where('status', $this->filterStatus);
-        }
+        $counts = $this->filteredQuery()
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
 
-        if ($this->filterType !== 'all') {
-            $typeMap = [
-                'course' => \App\Models\Course::class,
-                'lesson' => \App\Models\Lesson::class,
-                'module' => \App\Models\CourseModule::class,
-                'assessment' => \App\Models\Assessment::class,
-            ];
-            if (isset($typeMap[$this->filterType])) {
-                $query->where('approvable_type', $typeMap[$this->filterType]);
-            }
-        }
-
-        if ($this->filterPriority !== 'all') {
-            $query->where('priority', $this->filterPriority);
-        }
-
-        if ($this->search) {
-            $query->whereHasMorph('approvable', [
-                \App\Models\Course::class,
-                \App\Models\Lesson::class,
-                \App\Models\CourseModule::class,
-                \App\Models\Assessment::class,
-            ], function ($q) {
-                $q->where('title', 'like', '%' . $this->search . '%');
-            });
-        }
-
-        $approvals = $query->orderByDesc('submitted_at')->paginate(20);
-
-        $stats = [
-            'pending' => ContentApproval::where('status', 'pending')->count(),
-            'approved' => ContentApproval::where('status', 'approved')->count(),
-            'rejected' => ContentApproval::where('status', 'rejected')->count(),
-            'total' => ContentApproval::count(),
-        ];
+        $oldestPending = ContentApproval::where('status', 'pending')->min('submitted_at');
 
         return view('livewire.content-approvals.index', [
             'approvals' => $approvals,
-            'stats' => $stats,
+            'counts' => $counts,
+            'oldestPending' => $oldestPending ? \Illuminate\Support\Carbon::parse($oldestPending) : null,
+            'reviewedThisWeek' => ContentApproval::whereIn('status', ['approved', 'rejected'])
+                ->where('reviewed_at', '>=', now()->startOfWeek())
+                ->count(),
         ]);
     }
 }
