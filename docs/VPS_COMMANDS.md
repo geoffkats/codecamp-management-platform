@@ -148,6 +148,16 @@ cd /var/www/codecamp
 php artisan db:seed --class=AiMachineLearningMblockSeeder --force
 ```
 
+**Restyle existing lessons** (banner, coloured boxes, orange headings, styled tables; text is not changed). Preview first, then run. Already-styled lessons are skipped. Every run saves the originals and prints an undo command.
+
+```bash
+cd /var/www/codecamp
+php artisan lessons:restyle --dry-run
+php artisan lessons:restyle
+# only some courses: php artisan lessons:restyle --course=14 --course=27
+# undo a run:        php artisan lessons:restyle --restore=20261010-003504
+```
+
 Type `yes` if it asks about production.
 
 ---

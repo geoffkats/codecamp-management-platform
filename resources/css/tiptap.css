@@ -215,6 +215,26 @@
     @apply mt-1;
 }
 
+/* Styled lesson blocks (banner, callout boxes, checklists): colours come from inline styles on the block */
+.lesson-content [data-block] :is(p, ul, ol, li, td, strong, em, h1, h2, h3, h4),
+.ProseMirror [data-block] :is(p, ul, ol, li, td, strong, em, h1, h2, h3, h4) {
+    color: inherit;
+}
+
+.lesson-content [data-block] > :first-child,
+.ProseMirror [data-block] > :first-child {
+    margin-top: 0;
+}
+
+.lesson-content [data-block] > :last-child,
+.ProseMirror [data-block] > :last-child {
+    margin-bottom: 0;
+}
+
+.lesson-content [data-block] li > p,
+.ProseMirror [data-block] li > p {
+    margin: 0;
+}
 .monaco-field {
     width: 100%;
 }

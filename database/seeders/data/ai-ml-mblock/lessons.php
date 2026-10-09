@@ -3,99 +3,19 @@
 /*
  * Lesson content for "AI & Machine Learning with mBlock".
  *
- * Lesson HTML goes through App\Support\RichContent: only inline styles survive (no Tailwind classes,
- * no <section>/<details>/<button>), so every visual component below is a styled <div>/<table>.
+ * Visual components come from App\Support\LessonBlocks so these lessons stay editable in the curriculum builder.
  */
 
-$hero = function (int $number, string $title, string $tagline, string $meta): string {
-    return '<div style="background:#1e3a8a;color:#ffffff;border-radius:16px;padding:28px 32px;margin:0 0 28px 0;">'
-        .'<div style="display:inline-block;background:#f97316;color:#ffffff;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 12px;border-radius:999px;">Lesson '.$number.'</div>'
-        .'<h1 style="color:#ffffff;margin:14px 0 8px 0;font-size:30px;line-height:1.2;">'.$title.'</h1>'
-        .'<p style="color:#dbeafe;margin:0 0 14px 0;font-size:17px;">'.$tagline.'</p>'
-        .'<p style="color:#bfdbfe;margin:0;font-size:13px;">'.$meta.'</p>'
-        .'</div>';
-};
+use App\Support\LessonBlocks;
 
-$box = function (string $kind, string $label, string $html): string {
-    $palette = [
-        'key' => ['#eff6ff', '#2563eb', '#1e3a8a'],
-        'tip' => ['#ecfdf5', '#059669', '#064e3b'],
-        'warn' => ['#fffbeb', '#d97706', '#78350f'],
-        'try' => ['#f5f3ff', '#7c3aed', '#4c1d95'],
-        'teacher' => ['#f8fafc', '#475569', '#1e293b'],
-        'think' => ['#fff1f2', '#e11d48', '#881337'],
-    ];
-    [$bg, $border, $text] = $palette[$kind] ?? $palette['key'];
-
-    return '<div style="background:'.$bg.';border-left:6px solid '.$border.';border-radius:12px;padding:16px 20px;margin:20px 0;color:'.$text.';">'
-        .'<p style="margin:0 0 6px 0;font-weight:700;color:'.$border.';text-transform:uppercase;font-size:13px;letter-spacing:.06em;">'.$label.'</p>'
-        .'<div style="color:'.$text.';">'.$html.'</div>'
-        .'</div>';
-};
-
-$block = function (string $text, string $kind = 'ml'): string {
-    $colors = [
-        'ml' => ['#0d9488', '#ffffff'],
-        'event' => ['#ffbf00', '#3b2f00'],
-        'control' => ['#ffab19', '#3b2600'],
-        'looks' => ['#9966ff', '#ffffff'],
-        'sound' => ['#cf63cf', '#ffffff'],
-        'operator' => ['#59c059', '#ffffff'],
-        'data' => ['#ff8c1a', '#ffffff'],
-        'robot' => ['#2563eb', '#ffffff'],
-    ];
-    [$bg, $fg] = $colors[$kind] ?? $colors['ml'];
-
-    return '<span style="display:inline-block;background:'.$bg.';color:'.$fg.';font-family:ui-monospace,Consolas,monospace;font-size:14px;font-weight:600;padding:2px 10px;border-radius:999px;margin:2px 0;">'.$text.'</span>';
-};
-
-$steps = function (array $items): string {
-    $html = '<ol>';
-    foreach ($items as $item) {
-        $html .= '<li style="margin-bottom:8px;">'.$item.'</li>';
-    }
-
-    return $html.'</ol>';
-};
-
-$table = function (array $headers, array $rows): string {
-    $html = '<table style="width:100%;border-collapse:collapse;margin:16px 0;"><thead><tr>';
-    foreach ($headers as $header) {
-        $html .= '<th style="background:#1e3a8a;color:#ffffff;text-align:left;padding:10px 12px;">'.$header.'</th>';
-    }
-    $html .= '</tr></thead><tbody>';
-    foreach ($rows as $row) {
-        $html .= '<tr>';
-        foreach ($row as $cell) {
-            $html .= '<td style="padding:10px 12px;vertical-align:top;">'.$cell.'</td>';
-        }
-        $html .= '</tr>';
-    }
-
-    return $html.'</tbody></table>';
-};
-
-$h2 = fn (string $text): string => '<h2 style="margin-top:36px;padding-bottom:6px;border-bottom:3px solid #f97316;">'.$text.'</h2>';
-
-$checklist = function (array $items): string {
-    $html = '<div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:12px;padding:16px 20px;margin:20px 0;color:#1e293b;">'
-        .'<p style="margin:0 0 8px 0;font-weight:700;color:#1e3a8a;">Before you submit, check that you can:</p><ul>';
-    foreach ($items as $item) {
-        $html .= '<li style="margin-bottom:6px;">'.$item.'</li>';
-    }
-
-    return $html.'</ul></div>';
-};
-
-$sources = function (array $links): string {
-    $html = '<p style="font-size:13px;color:#64748b;margin-top:32px;"><strong>Further reading:</strong> ';
-    $parts = [];
-    foreach ($links as $label => $url) {
-        $parts[] = '<a href="'.$url.'">'.$label.'</a>';
-    }
-
-    return $html.implode(' · ', $parts).'</p>';
-};
+$hero = fn (int $number, string $title, string $tagline, string $meta): string => LessonBlocks::hero('Lesson '.$number, $title, $tagline, $meta);
+$box = fn (string $kind, string $label, string $html): string => LessonBlocks::box($kind, $label, $html);
+$block = fn (string $text, string $kind = 'ml'): string => LessonBlocks::pill($text, $kind);
+$steps = fn (array $items): string => LessonBlocks::steps($items);
+$table = fn (array $headers, array $rows): string => LessonBlocks::table($headers, $rows);
+$h2 = fn (string $text): string => LessonBlocks::h2($text);
+$checklist = fn (array $items): string => LessonBlocks::checklist($items);
+$sources = fn (array $links): string => LessonBlocks::sources($links);
 
 $ml2 = 'Machine Learning 2.0';
 

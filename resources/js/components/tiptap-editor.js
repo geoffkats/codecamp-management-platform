@@ -16,6 +16,7 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import { common, createLowlight } from 'lowlight'
 import { ResizableImage } from './resizable-image'
+import { INSERT_OPTIONS, PreservedStyles, StyledBlock, runInsertOption } from './lesson-blocks'
 import { isScratchLine, looksLikeScratch } from './scratch-detect'
 
 const lowlight = createLowlight(common)
@@ -333,6 +334,8 @@ export function initTipTapEditor(element, initialContent = '', onUpdate = null) 
                 }),
                 TaskList,
                 TaskItem.configure({ nested: true }),
+                StyledBlock,
+                PreservedStyles,
                 Youtube.configure({
                     width: 640,
                     height: 360,
@@ -469,6 +472,19 @@ export function createToolbar(editor, container) {
         })
     })
     toolbar.appendChild(headingSelect)
+
+    const blockSelect = selectControl(controlClass, INSERT_OPTIONS
+        .map(([value, label]) => `<option value="${value}">${label}</option>`)
+        .join(''))
+    blockSelect.title = 'Banners, coloured boxes, block pills and table styles'
+    blockSelect.addEventListener('change', () => {
+        const value = blockSelect.value
+        blockSelect.value = ''
+        if (value) {
+            runSafe('Styled block', () => runInsertOption(editor, value))
+        }
+    })
+    toolbar.appendChild(blockSelect)
 
     const buttons = [
         button('<strong>B</strong>', 'Bold', () => editor.chain().focus().toggleBold().run(), () => editor.isActive('bold')),
