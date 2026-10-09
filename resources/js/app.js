@@ -4,6 +4,14 @@ import { initTipTapEditor, createToolbar, escapeUnknownTags } from './components
 window.cauRenderScratch = (el) => import('./components/question-text').then((m) => m.renderScratch(el));
 window.cauHighlightCode = (el) => import('./components/question-text').then((m) => m.highlightCode(el));
 
+// Lesson content (RichContent) outputs [data-scratch] blocks without Alpine; draw them wherever they appear.
+function renderScratchBlocks() {
+    const blocks = document.querySelectorAll('[data-scratch]:not([data-rendered="1"])');
+    if (blocks.length) {
+        import('./components/question-text').then((m) => blocks.forEach((el) => m.renderScratch(el)));
+    }
+}
+
 // TipTap is bundled directly — no dynamic import needed
 window.loadTipTap = () => Promise.resolve({ initTipTapEditor, createToolbar });
 
@@ -347,13 +355,22 @@ function startLessonEditorWatcher() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', startLessonEditorWatcher);
-document.addEventListener('livewire:navigated', mountLessonEditors);
+document.addEventListener('DOMContentLoaded', () => {
+    startLessonEditorWatcher();
+    renderScratchBlocks();
+});
+document.addEventListener('livewire:navigated', () => {
+    mountLessonEditors();
+    renderScratchBlocks();
+});
 document.addEventListener('livewire:init', () => {
     startLessonEditorWatcher();
     Livewire.hook('morph.added', () => queueMicrotask(mountLessonEditors));
     Livewire.hook('commit', ({ succeed }) => {
-        succeed(() => queueMicrotask(mountLessonEditors));
+        succeed(() => queueMicrotask(() => {
+            mountLessonEditors();
+            renderScratchBlocks();
+        }));
     });
     Livewire.hook('request', ({ fail }) => {
         fail(({ status, preventDefault }) => {
@@ -373,5 +390,6 @@ document.addEventListener('livewire:init', () => {
 
 if (document.readyState !== 'loading') {
     startLessonEditorWatcher();
+    renderScratchBlocks();
 }
 

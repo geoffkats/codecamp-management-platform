@@ -142,6 +142,23 @@
                 </div>
             </div>
 
+            {{-- Membership Section --}}
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden mb-6">
+                <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">Code Camp membership</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Fee parents pay online after submitting the membership form at <span class="font-mono">{{ route('registration.membership') }}</span></p>
+                </div>
+                <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <flux:input wire:model="settings.membership_application_fee" type="number" min="0" step="1000" label="Application fee (UGX)" />
+                    <div class="text-sm text-gray-600 dark:text-gray-400">
+                        Payments go through Pesapal ({{ config('services.pesapal.environment') === 'live' ? 'live' : 'sandbox/test' }} mode).
+                        @unless(config('services.pesapal.consumer_key'))
+                            <span class="block mt-1 font-semibold text-amber-600">Pesapal keys are not set in .env yet, so parents can't pay online.</span>
+                        @endunless
+                    </div>
+                </div>
+            </div>
+
             {{-- Certificate Section --}}
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden mb-6">
                 <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20">

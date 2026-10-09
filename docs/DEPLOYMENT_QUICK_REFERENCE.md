@@ -17,19 +17,21 @@
 ✅ Documentation: Complete
 ```
 
-### Deploy Commands (If Using Laravel)
+### Deploy Commands
+
+The current, tested procedure (backup, build, permissions, rollback, phpMyAdmin) is in [QUICK_DEPLOYMENT_GUIDE.md](QUICK_DEPLOYMENT_GUIDE.md). Short version, run in `/var/www/codecamp`:
+
 ```bash
-# Clear caches
-php artisan optimize:clear
-
-# Run any pending migrations
-php artisan migrate
-
-# Cache everything
-php artisan optimize
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+mysqldump --no-tablespaces -u codecamp -p codecamp > ~/codecamp-$(date +%F-%H%M).sql
+php artisan down --retry=60
+git pull origin main
+composer install --no-dev --optimize-autoloader
+php artisan migrate --force
+npm ci && npm run build
+php artisan optimize:clear && php artisan optimize
+php artisan queue:restart
+sudo chown -R www-data:www-data storage bootstrap/cache
+php artisan up
 ```
 
 ---

@@ -1,6 +1,6 @@
 {{-- Other Forms --}}
 <div class="p-8">
-    <div class="max-w-4xl mx-auto">
+    <div class="max-w-6xl mx-auto">
         <div class="flex items-center justify-between mb-6">
             <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
                 {{ $selectedId ? 'Edit' : 'Create' }} {{ ucfirst($selectedType) }}

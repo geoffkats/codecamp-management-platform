@@ -1,3 +1,5 @@
+import { normalizeScratch } from './scratch-detect';
+
 let scratchblocksPromise = null;
 let highlighterPromise = null;
 
@@ -52,15 +54,20 @@ export async function renderScratch(el) {
     if (!source || !target) return;
 
     try {
-        const scratchblocks = await loadScratchblocks();
-        const doc = scratchblocks.parse(source.textContent, { languages: ['en'] });
-        const svg = scratchblocks.render(doc, { style: 'scratch3', scale: Number(el.dataset.scale || 0.7) });
+        const svg = await renderScratchSvg(source.textContent, Number(el.dataset.scale || 0.7));
         target.replaceChildren(svg);
         source.classList.add('hidden');
         el.dataset.rendered = '1';
     } catch (error) {
         console.warn('Could not render Scratch blocks', error);
     }
+}
+
+export async function renderScratchSvg(text, scale = 0.7) {
+    const scratchblocks = await loadScratchblocks();
+    const doc = scratchblocks.parse(normalizeScratch(text), { languages: ['en'] });
+
+    return scratchblocks.render(doc, { style: 'scratch3', scale });
 }
 
 export async function highlightCode(el) {

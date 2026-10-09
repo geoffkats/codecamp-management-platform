@@ -66,6 +66,15 @@ Route::prefix('register')->name('registration.')->group(function () {
         Route::post('/codeclub', [\App\Http\Controllers\RegistrationController::class, 'storeCodeclub'])->name('codeclub.store');
     });
     Route::get('/thank-you', [\App\Http\Controllers\RegistrationController::class, 'thankYou'])->name('thank-you');
+
+    Route::controller(\App\Http\Controllers\MembershipController::class)->group(function () {
+        Route::get('/membership', 'create')->name('membership');
+        Route::post('/membership', 'store')->middleware('throttle:10,1')->name('membership.store');
+        Route::get('/membership/{token}/pay', 'pay')->name('membership.pay');
+        Route::post('/membership/{token}/pay', 'checkout')->middleware('throttle:10,1')->name('membership.checkout');
+        Route::get('/payments/pesapal/callback', 'callback')->name('payments.pesapal.callback');
+        Route::get('/payments/pesapal/ipn', 'ipn')->name('payments.pesapal.ipn');
+    });
 });
 
 Route::middleware(['auth'])->group(function () {
@@ -117,10 +126,19 @@ Route::middleware(['auth'])->group(function () {
     // Daily Reports - submission for instructors
     Route::prefix('daily-reports')->name('daily-reports.')->group(function () {
         Route::get('/submit', \App\Livewire\DailyReports\Submit::class)->name('submit');
+        Route::get('/{report}', \App\Livewire\Admin\DailyReports\Show::class)->whereNumber('report')->name('show');
     });
 
     Route::prefix('club-session-reports')->middleware('code_club.enabled')->name('club-session-reports.')->group(function () {
         Route::get('/submit', \App\Livewire\ClubSessionReports\Submit::class)->name('submit');
+    });
+
+    // End-of-camp revised content — trainers submit, supervisors/admins review
+    Route::prefix('camp-revisions')->name('camp-revisions.')->group(function () {
+        Route::get('/', \App\Livewire\CampRevisions\Index::class)->name('index');
+        Route::get('/new', \App\Livewire\CampRevisions\Create::class)->name('create');
+        Route::get('/files/{file}', \App\Http\Controllers\CampRevisionFileController::class)->name('files.download');
+        Route::get('/{revision}', \App\Livewire\CampRevisions\Show::class)->whereNumber('revision')->name('show');
     });
 
     Route::get('/lesson-locks', \App\Livewire\Lessons\LessonLocks::class)->name('lessons.locks');
@@ -344,7 +362,11 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('admin/camps')->name('admin.camps.')->group(function () {
         Route::get('/', \App\Livewire\Admin\Camps\Index::class)->name('index');
         Route::get('/{camp}', \App\Livewire\Admin\Camps\Show::class)->name('show');
+        Route::get('/{camp}/report', \App\Livewire\Admin\Camps\Report::class)->name('report');
+        Route::get('/{camp}/report/pdf', \App\Http\Controllers\CampReportPdfController::class)->name('report.pdf');
     });
+
+    Route::middleware(['can:review_daily_reports'])->get('/admin/camp-reports', \App\Livewire\Admin\CampReports\Index::class)->name('admin.camp-reports.index');
 
     Route::middleware(['can:review_daily_reports'])->prefix('admin/daily-reports')->name('admin.daily-reports.')->group(function () {
         Route::get('/', \App\Livewire\Admin\DailyReports\Index::class)->name('index');
@@ -359,10 +381,6 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/icdl-exam-marks', \App\Livewire\Admin\IcdlExamMarks::class)->name('icdl-exam-marks');
         Route::get('/settings', \App\Livewire\Admin\SystemSettings::class)->name('settings');
         Route::get('/feedback', \App\Livewire\Admin\ManageTeacherFeedback::class)->name('feedback');
-
-        Route::prefix('club-session-reports')->middleware('code_club.enabled')->name('club-session-reports.')->group(function () {
-            Route::get('/', \App\Livewire\Admin\ClubSessionReports\Index::class)->name('index');
-        });
 
 
         // Audit Log Routes
@@ -379,6 +397,11 @@ Route::middleware(['auth'])->group(function () {
 
     // Code Club admin — facilitators + admin/supervisor (not full manage_users)
     Route::middleware(['code_club.enabled', 'can:access_code_clubs'])->prefix('admin')->name('admin.')->group(function () {
+        Route::prefix('club-session-reports')->name('club-session-reports.')->group(function () {
+            Route::get('/', \App\Livewire\Admin\ClubSessionReports\Index::class)->name('index');
+            Route::get('/{report}', \App\Livewire\Admin\ClubSessionReports\Show::class)->whereNumber('report')->name('show');
+        });
+
         Route::prefix('code-clubs')->name('code-clubs.')->group(function () {
             Route::get('/', \App\Livewire\Admin\Clubs\Index::class)->name('index');
             Route::get('/{club}', \App\Livewire\Admin\Clubs\Show::class)->name('show');

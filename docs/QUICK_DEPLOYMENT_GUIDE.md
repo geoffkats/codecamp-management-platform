@@ -1,433 +1,212 @@
-# 🚀 CodeCamp System - Quick Deployment Guide
+# Deployment Guide (Production VPS)
 
-**Status:** ✅ READY FOR PRODUCTION DEPLOYMENT  
-**Date:** December 7, 2025
-
----
-
-## Pre-Deployment Checklist
-
-### Security ✅
-- [x] Authorization middleware added to all protected routes
-- [x] APP_DEBUG set to false
-- [x] LOG_LEVEL set to error
-- [x] MAIL_MAILER configured for SMTP
-- [x] All migrations run successfully
-- [x] Database indexes created
-
-### Testing ✅
-- [x] Routes protected correctly
-- [x] Authentication working
-- [x] Dashboard loads properly
-- [x] No console errors
-- [x] Mobile responsive
-- [x] All components render
-
-### Performance ✅
-- [x] Database optimized (78-81% faster queries)
-- [x] Dashboard loads in < 1.5 seconds
-- [x] No memory leaks
-- [x] Cache configured
-- [x] Images optimized
+**Last updated:** 6 October 2026
+**Server:** Ubuntu 24.04, Nginx, PHP 8.3-FPM, MySQL, Node 22
+**App folder:** `/var/www/codecamp`
+**Web server user:** `www-data`
+**Database / DB user:** `codecamp` / `codecamp` (password is `DB_PASSWORD` in `/var/www/codecamp/.env`)
 
 ---
 
-## Deployment Steps
+## 1. Before you deploy
 
-### Step 1: Backup Database
-```bash
-# Backup your database before deploying
-mysqldump -u root -p codecamp > backup_2025_12_07.sql
-```
+On your PC:
 
-### Step 2: Pull Latest Code
-```bash
-git pull origin main  # or your deployment branch
-```
+1. Make sure the tests pass: `php artisan test`
+2. Commit and push to `main`.
+3. Check whether the release contains migrations:
+   ```bash
+   git diff --stat <last-deployed-commit>..HEAD -- database/migrations
+   ```
+   If it does, the database backup in step 2 below is mandatory.
 
-### Step 3: Run Migrations (if any pending)
-```bash
-php artisan migrate
-```
-
-### Step 4: Clear Cache
-```bash
-php artisan cache:clear
-php artisan view:clear
-php artisan route:clear
-```
-
-### Step 5: Build Assets
-```bash
-npm run build  # or your build command
-```
-
-### Step 6: Verify Deployment
-```bash
-php artisan env
-# Should show: APP_DEBUG=false
-# Should show: APP_ENV=production (if production)
-```
+Deploy when few students are online. The site is in maintenance mode for roughly one to two minutes.
 
 ---
 
-## Post-Deployment Verification
+## 2. Deploy
 
-### 1. Check System Status
+SSH into the server:
+
 ```bash
-# Verify all tables exist
-php artisan db:show
-
-# Check migration status
-php artisan migrate:status
+ssh root@<vps-ip>
+cd /var/www/codecamp
 ```
 
-### 2. Test User Flows
-- [ ] Login as admin
-- [ ] Login as teacher
-- [ ] Login as student
-- [ ] View dashboard
-- [ ] Browse courses
-- [ ] Create a new course (as teacher)
-- [ ] Enroll in a course (as student)
+Back up the database (asks for `DB_PASSWORD`; nothing shows while typing):
 
-### 3. Monitor Performance
-- Dashboard load time: < 2 seconds
-- Course listing: < 1.5 seconds
-- Student progress: < 1 second
-- No errors in logs
-
-### 4. Check Email Configuration
 ```bash
-# Test email sending
-php artisan tinker
-> Mail::send([], [], function($m) { 
-    $m->to('test@example.com')->subject('Test')->getSwiftMessage(); 
-});
+mysqldump --no-tablespaces -u codecamp -p codecamp > ~/codecamp-$(date +%F-%H%M).sql
+ls -lh ~/codecamp-*.sql   # must be tens of MB, not 0 bytes
 ```
+
+Deploy:
+
+```bash
+php artisan down --retry=60
+
+git pull origin main
+
+composer install --no-dev --optimize-autoloader
+php artisan migrate --force
+
+npm ci
+npm run build
+
+php artisan optimize:clear
+php artisan optimize
+php artisan queue:restart
+
+sudo chown -R www-data:www-data storage bootstrap/cache
+sudo chmod -R ug+rwX storage bootstrap/cache
+
+php artisan up
+```
+
+Why each step matters:
+
+| Step | Why |
+|------|-----|
+| `npm ci` + `npm run build` | `public/build` is git-ignored, so CSS/JS must be built on the server. Skipping it leaves new pages unstyled. |
+| `migrate --force` | Required in production; without `--force` Laravel refuses to run migrations. |
+| `optimize` | Caches config, routes, events and views. Run `optimize:clear` first so stale caches never survive a deploy. |
+| `chown` | Commands run as root create root-owned cache files that `www-data` cannot overwrite, which causes 500 errors later. |
+| `queue:restart` | Makes queue workers load the new code. Harmless if no workers run. |
 
 ---
 
-## Quick Access URLs
+## 3. One-off steps for specific releases
 
-### Student Dashboard
-```
-http://yoursite.com/dashboard
-```
+Only run these when the release notes call for them.
 
-### Course Management
-```
-http://yoursite.com/courses
-```
+### Question-set snapshots (October 2026 question bank release)
 
-### Student Management
-```
-http://yoursite.com/students
+Attempts created before snapshots existed need their question set saved. It never changes scores, answers or status. Always dry-run first:
+
+```bash
+sudo -u www-data php artisan assessments:snapshot-attempts --dry-run
+sudo -u www-data php artisan assessments:snapshot-attempts
 ```
 
-### Attendance Tracking
-```
-http://yoursite.com/attendance/dashboard
-```
+"Flagged" attempts could not be reconstructed exactly, usually because a trainer edited or deleted questions after the attempt. Their scores stand; only the review screen may differ from what the student originally saw. A second dry run should report `No attempts need a question-set snapshot.`
 
-### Analytics
-```
-http://yoursite.com/analytics
-```
+Status: run on 6 October 2026 (2,168 attempts snapshotted, 293 flagged).
 
-### Admin Settings
-```
-http://yoursite.com/admin/settings
+---
+
+## 4. Check the release
+
+In the browser:
+
+- [ ] Log in as a supervisor: Students, Code Camps and Content Approval open without a 403.
+- [ ] Log in as a trainer: dashboard, Assessments and Question Bank load.
+- [ ] Log in as a student: dashboard shows badges as icons and the Continue button opens the course.
+- [ ] Pages are styled (if not, the asset build did not run).
+
+On the server:
+
+```bash
+php artisan migrate:status | tail -5
+tail -n 50 storage/logs/laravel.log
 ```
 
 ---
 
-## Key User Credentials (from Seeders)
+## 5. Rollback
 
-### Admin Account
-- **Email:** admin@example.com
-- **Password:** password
-- **Role:** Admin
+**Code only (no migrations in the release):**
 
-### Teacher Account
-- **Email:** teacher@example.com
-- **Password:** password
-- **Role:** Teacher
+```bash
+php artisan down --retry=60
+git log --oneline -5                 # find the previous good commit
+git reset --hard <good-commit>
+composer install --no-dev --optimize-autoloader
+npm ci && npm run build
+php artisan optimize:clear && php artisan optimize
+sudo chown -R www-data:www-data storage bootstrap/cache
+php artisan up
+```
 
-### Student Account
-- **Email:** student@example.com
-- **Password:** password
-- **Role:** Student
+**Code and database:** restore the backup taken in step 2. This overwrites all data written since the backup, so use it only as a last resort.
 
-### Operations Manager
-- **Email:** operations@example.com
-- **Password:** password
-- **Role:** Operations Manager
+```bash
+php artisan down --retry=60
+mysql -u codecamp -p codecamp < ~/codecamp-YYYY-MM-DD-HHMM.sql
+# then roll back the code as above
+php artisan up
+```
 
 ---
 
-## Configuration Changes Made
+## 6. Troubleshooting
 
-### .env File Updates
+| Symptom | Fix |
+|---------|-----|
+| 500 error right after deploy | `tail -n 100 storage/logs/laravel.log`; usually permissions, so rerun the `chown`/`chmod` lines. |
+| Pages unstyled or old design | `npm ci && npm run build`, then hard refresh the browser. |
+| `EBADENGINE` warnings during `npm ci` | Node is too old. Vite 7 needs Node 20.19+ (server runs Node 22). Check with `node -v`. |
+| A role gets 403 on a sidebar link | Check the route's `can:` gate in `routes/web.php` and the gate in `AppServiceProvider`. `tests/Feature/SidebarAccessTest.php` catches these. |
+| Changes to `.env` not taking effect | `php artisan optimize:clear && php artisan optimize` |
+| `mysqldump: Access denied ... PROCESS privilege` | Add `--no-tablespaces` (already in the command above). |
+| Composer warns about running as root | Safe to ignore for `install --no-dev`; or run it as `sudo -u www-data composer install ...`. |
+
+---
+
+## 7. Server tools
+
+### phpMyAdmin (private)
+
+Installed on the server but only listens on `127.0.0.1:8081`, so it is not reachable from the internet. Open it through an SSH tunnel from your PC:
+
+```powershell
+ssh -L 8081:127.0.0.1:8081 root@<vps-ip>
+```
+
+Keep that window open and browse to `http://localhost:8081`. Log in as `codecamp` with `DB_PASSWORD`.
+
+Edits in phpMyAdmin hit the live database immediately and cannot be undone. Take a backup first. `mysqldump` is a shell command; it does not work in phpMyAdmin's SQL box (use the **Export** tab there instead).
+
+Nginx config: `/etc/nginx/sites-available/phpmyadmin`.
+
+### Copy a backup to your PC
+
+From PowerShell on your PC:
+
+```powershell
+scp root@<vps-ip>:/root/codecamp-YYYY-MM-DD-HHMM.sql $HOME\Desktop\
+```
+
+### Node
+
+Installed from NodeSource (Node 22). To upgrade to a newer major version later:
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_24.x -o /tmp/nodesource_setup.sh
+sudo bash /tmp/nodesource_setup.sh
+sudo apt install nodejs
+cd /var/www/codecamp && rm -rf node_modules && npm ci && npm run build
+```
+
+### Kernel updates
+
+When SSH shows `*** System restart required ***`, run `sudo reboot` at a quiet time. The site comes back on its own in about a minute.
+
+---
+
+## 8. Production `.env` essentials
+
 ```env
-# Security
-APP_DEBUG=false              # Was: true (SECURITY RISK)
-LOG_LEVEL=error              # Was: debug
-
-# Email
-MAIL_MAILER=smtp             # Was: log (non-functional)
-MAIL_HOST=smtp.mailtrap.io   # Configure for your SMTP
-MAIL_PORT=2525               # Standard SMTP port
+APP_ENV=production
+APP_DEBUG=false
+LOG_LEVEL=error
 ```
 
-### Routes File Updates
-- Added `can:edit_courses` middleware to course/lesson/assessment edit routes
-- Added `can:manage_users` middleware to student management and attendance
-- Added `can:manage_users` middleware to admin enrollment management
+Never commit `.env`. After editing it, run `php artisan optimize:clear && php artisan optimize`.
 
 ---
 
-## New Dashboard Components
+## Deployment log
 
-### Quick Actions Bar
-Shows at the top of the dashboard:
-- Browse Courses
-- View Progress
-- Badges & XP
-- Leaderboards
-
-### Getting Started Guide (New Users)
-Shows for users registered within last 7 days:
-- 4 step onboarding guide
-- Clear next steps
-
-### Help & Tips Section
-Always visible section showing:
-- How to unlock certificates
-- How to earn badges
-- How to build streaks
-- How to climb leaderboard
-
-### Recommended Courses
-Shows courses user hasn't enrolled in yet
-
----
-
-## Performance Improvements
-
-### Database Query Optimization
-| Query | Before | After | Improvement |
-|-------|--------|-------|-------------|
-| Student Enrollments | 800ms | 150ms | 81% faster |
-| Student Progress | 600ms | 120ms | 80% faster |
-| Assessments | 450ms | 100ms | 78% faster |
-| User Points | 350ms | 80ms | 77% faster |
-
-### Dashboard Performance
-- Before: 2500ms load time
-- After: 800ms load time
-- Improvement: 68% faster
-
----
-
-## Troubleshooting
-
-### Dashboard not loading?
-```bash
-# Clear application cache
-php artisan cache:clear
-php artisan view:clear
-
-# Check for errors
-tail -f storage/logs/laravel.log
-```
-
-### Routes giving 403 Forbidden?
-```bash
-# Verify middleware is loaded
-php artisan route:list | grep auth
-
-# Check user permissions
-php artisan tinker
-> Auth::user()->can('edit_courses')
-```
-
-### Database queries slow?
-```bash
-# Check if indexes exist
-SHOW INDEX FROM course_enrollments;
-SHOW INDEX FROM lessons;
-
-# Run migrations if needed
-php artisan migrate
-```
-
-### Emails not sending?
-```bash
-# Verify mail configuration
-php artisan config:show mail
-
-# Test connection
-php artisan mail:test recipient@example.com
-```
-
----
-
-## Rollback Procedure (If Needed)
-
-### Step 1: Revert Code Changes
-```bash
-git revert <commit-hash>
-# or
-git reset --hard HEAD~1
-```
-
-### Step 2: Revert .env Changes
-```
-APP_DEBUG=false       # Set back if needed
-LOG_LEVEL=error       # Set back if needed
-MAIL_MAILER=log       # If needed to disable email
-```
-
-### Step 3: Clear Cache
-```bash
-php artisan cache:clear
-php artisan view:clear
-```
-
-### Step 4: Restart Application
-```bash
-# If using Supervisor
-supervisorctl restart laravel-worker
-
-# If using PHP-FPM
-sudo systemctl restart php-fpm
-```
-
----
-
-## Monitoring After Deployment
-
-### Key Metrics to Watch
-- ✅ Page load times (target: < 2 seconds)
-- ✅ Database response times (target: < 500ms)
-- ✅ Error rate (target: < 0.1%)
-- ✅ User engagement (expect +20% with new UI)
-- ✅ Course enrollment rate (expect +30%)
-
-### Log Monitoring
-```bash
-# Watch logs in real-time
-tail -f storage/logs/laravel.log | grep -i error
-
-# Count errors by type
-grep -i error storage/logs/laravel.log | wc -l
-```
-
-### User Feedback
-- Monitor support requests
-- Check user feedback forms
-- Review analytics
-- Plan Phase 3 improvements based on feedback
-
----
-
-## Success Indicators
-
-After deployment, you should see:
-
-✅ **Students report:**
-- "The system is much easier to navigate"
-- "I know exactly what to do now"
-- "Love the quick action buttons"
-
-✅ **Teachers report:**
-- "Faster course and grade management"
-- "Better student access control"
-- "Dashboard loads much faster"
-
-✅ **System metrics:**
-- 68% faster dashboard loads
-- 78-81% faster database queries
-- 40% less database CPU usage
-- 25% less memory usage
-
----
-
-## Support & Escalation
-
-### For Technical Issues
-1. Check the logs: `storage/logs/laravel.log`
-2. Review: `docs/COMPREHENSIVE_SYSTEM_DOCUMENTATION.md`
-3. Test in development first
-4. Consult: `docs/SECURITY_AUDIT_REPORT.md`
-
-### For User Questions
-1. Point to: `docs/TESTING_GUIDE.md`
-2. Share: Dashboard help tips (visible on dashboard)
-3. Reference: Getting started guide
-
-### For Performance Issues
-1. Check database indexes
-2. Monitor query performance
-3. Review cache configuration
-4. Check server resources
-
----
-
-## Important Reminders
-
-⚠️ **DO NOT:**
-- Set APP_DEBUG=true in production
-- Use LOG_LEVEL=debug in production
-- Commit .env file to git
-- Skip database backups
-- Deploy untested code
-
-✅ **DO:**
-- Keep backups of database
-- Monitor system after deployment
-- Test all user flows
-- Keep dependencies updated
-- Plan regular maintenance
-
----
-
-## Next Steps After Successful Deployment
-
-### Week 1: Monitor
-- Watch system performance
-- Gather user feedback
-- Fix any issues immediately
-
-### Week 2-3: Optimize
-- Make any performance tweaks
-- Address user feedback
-- Plan Phase 3 enhancements
-
-### Month 1+: Enhance
-- Add advanced features
-- Improve based on usage
-- Plan new functionality
-
----
-
-## Quick Contact Points
-
-**Documentation Folder:** `docs/`  
-**Key Documents:**
-- `SYSTEM_READINESS_AUDIT_AND_IMPROVEMENT_PLAN.md`
-- `IMPLEMENTATION_SUMMARY_DECEMBER_7_2025.md`
-- `COMPREHENSIVE_SYSTEM_DOCUMENTATION.md`
-- `TESTING_GUIDE.md`
-- `SECURITY_AUDIT_REPORT.md`
-
-**System Status:** 🟢 **PRODUCTION READY**
-
-Deploy with confidence! Your system is hardened, optimized, and user-friendly.
-
----
-
-**Deployment Date:** December 7, 2025  
-**System Version:** 2.0.0  
-**Status:** ✅ READY FOR PRODUCTION
+| Date | Commit | Notes |
+|------|--------|-------|
+| 2026-10-06 | `b469538` | Question bank, attempt snapshots, help manual, dashboard redesigns, supervisor access fixes. Three migrations; snapshot command run. Node upgraded 18 → 22. phpMyAdmin installed (private). |

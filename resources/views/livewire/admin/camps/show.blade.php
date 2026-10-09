@@ -47,6 +47,12 @@
                             {{ ucfirst($camp->status) }}
                         </span>
                         <div class="flex gap-2">
+                            @can('review_daily_reports')
+                                <a href="{{ route('admin.camps.report', $camp) }}" wire:navigate
+                                   class="px-3 py-1.5 text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white rounded-xl transition-colors">
+                                    End of camp report
+                                </a>
+                            @endcan
                             @if($canManageCampSettings && isset($nextStatus[$camp->status]))
                                 <button wire:click="advanceStatus"
                                         class="px-3 py-1.5 text-xs font-bold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">

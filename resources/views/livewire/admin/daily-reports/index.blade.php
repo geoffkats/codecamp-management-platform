@@ -99,6 +99,11 @@
 
                 {{-- Badges --}}
                 <div class="flex items-center gap-2 flex-shrink-0">
+                    @if($report->comments_count)
+                        <span class="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400" title="Comments">
+                            <flux:icon.chat-bubble-left class="size-4" /> {{ $report->comments_count }}
+                        </span>
+                    @endif
                     @if($report->follow_up_required)
                         <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-bold">Follow-up</span>
                     @endif

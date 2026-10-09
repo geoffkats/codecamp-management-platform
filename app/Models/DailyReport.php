@@ -2,14 +2,16 @@
 
 namespace App\Models;
 
+use App\Contracts\Commentable;
+use App\Models\Concerns\HasSubmissionComments;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class DailyReport extends Model
+class DailyReport extends Model implements Commentable
 {
-    use HasFactory;
+    use HasFactory, HasSubmissionComments;
 
     public const PEDAGOGICAL_APPROACHES = [
         'instant_reward' => [
@@ -151,5 +153,25 @@ class DailyReport extends Model
     public function reportIssues(): HasMany
     {
         return $this->hasMany(DailyReportIssue::class);
+    }
+
+    public function commentOwner(): ?User
+    {
+        return $this->instructor;
+    }
+
+    public function commentSubject(): string
+    {
+        return 'the daily report for '.($this->course?->title ?? 'a class').' on '.$this->report_date?->format('j M');
+    }
+
+    public function commentUrl(): string
+    {
+        return route('daily-reports.show', $this);
+    }
+
+    public function canComment(User $user): bool
+    {
+        return $user->isAdmin() || $user->isSupervisor() || (int) $this->instructor_id === (int) $user->id;
     }
 }

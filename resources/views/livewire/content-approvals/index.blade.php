@@ -44,6 +44,15 @@
         </div>
     @endif
 
+    @if($pendingRevisions > 0)
+        <a href="{{ route('camp-revisions.index') }}" wire:navigate
+           class="flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800 hover:bg-orange-100 dark:border-orange-900 dark:bg-orange-900/20 dark:text-orange-200">
+            <flux:icon.document-arrow-up class="size-5 shrink-0" />
+            <span class="flex-1"><span class="font-semibold">{{ $pendingRevisions }} end-of-camp revised {{ $pendingRevisions === 1 ? 'submission' : 'submissions' }}</span> from trainers waiting for review.</span>
+            <flux:icon.arrow-right class="size-4" />
+        </a>
+    @endif
+
     <section class="rounded-2xl border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
         {{-- Toolbar --}}
         <div class="flex flex-col gap-3 border-b border-gray-100 p-4 dark:border-zinc-800 lg:flex-row lg:items-center lg:justify-between">

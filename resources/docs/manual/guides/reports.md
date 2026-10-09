@@ -21,6 +21,10 @@ After class, open **Daily Reports**, or click **Submit report** on the reminder 
 4. Add **Student Highlights**, **Flagged Issues** and any **Attachments** (photos, files).
 5. Click **Submit Report**.
 
+Your reports are listed under **My recent reports** at the bottom of the page. A speech-bubble count means your supervisor left a comment. Click the report to read and reply (see *Comments on reports and submissions*).
+
+Your challenges and notes are not wasted: they feed the **End-of-camp report**, where challenges from all instructors are grouped into themes such as *Laptops and devices* or *Internet and power*. Clear, specific challenges lead to better recommendations for the next camp.
+
 ## Club session report (Code Club facilitators)
 
 Open **Session Reports** after each club session:
@@ -31,7 +35,11 @@ Open **Session Reports** after each club session:
 4. Tick **Follow-up required** if someone needs to act on something.
 5. Click **Submit Report**.
 
+To see your past reports and any comments on them, open **My Session Reports** and click a report.
+
 ## Reading reports (admins and supervisors)
 
-- **Reports → Daily Reports**: filter by camp, course, instructor and status (**Submitted** / **Draft**).
-- **Reports → Club Session Reports**: open a report, click **Mark reviewed**, add notes and **Confirm**. Reports marked **Follow-up required** need attention first.
+- **Reports → Camp Reports**: the end-of-camp report for each camp, with a PDF download. See *End-of-camp reports*.
+- **Reports → Daily Reports**: filter by camp, course, instructor and status (**Submitted** / **Draft**). Click **View** to open a report and leave a comment for the trainer.
+- **Reports → Club Session Reports**: click a report to open its full page, read it, leave a comment, and click **Mark reviewed**. Reports marked **Follow-up required** need attention first.
+- **Reports → Revised Content**: improved materials sent in by trainers. See *Sending revised content after a camp*.

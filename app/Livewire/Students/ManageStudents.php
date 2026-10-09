@@ -830,6 +830,7 @@ class ManageStudents extends Component
         $isCodecampOnly = $user->isCodecampTrainer() && ! $user->hasCodeClubAccess();
 
         return $this->applyStudentScope(StudentProfile::query())
+            ->withCount(['uniforms', 'uniforms as paid_uniforms_count' => fn ($q) => $q->where('paid', true)])
             ->when($isCodeClubView, fn ($q) => $q->where('program_type', 'codeclub'))
             ->when(! $isIct && ! $isCodeClubView && ($showProgram = $this->filterProgram !== 'all'), function ($q) {
                 $q->where('program_type', $this->filterProgram);

@@ -376,6 +376,12 @@ class Submit extends Component
             'staff'    => $this->staff,
             'camps'    => $this->camps,
             'approachOptions' => DailyReport::PEDAGOGICAL_APPROACHES,
+            'myReports' => DailyReport::with('course:id,title')
+                ->withCount('comments')
+                ->where('instructor_id', Auth::id())
+                ->orderByDesc('report_date')
+                ->limit(10)
+                ->get(),
         ]);
     }
 }

@@ -34,6 +34,24 @@ it('only shows guides written for the user role', function () {
     $this->actingAs($supervisor)->get(route('help.show', 'question-bank'))->assertNotFound();
 });
 
+it('documents the camp report, Scratch lessons, comments and revised content for the right roles', function () {
+    $help = app(HelpCenter::class);
+    $trainer = userWithRole('codecamp_trainer');
+    $supervisor = userWithRole('supervisor');
+    $admin = userWithRole('admin');
+
+    expect($help->guides($trainer)->pluck('slug'))
+        ->toContain('scratch-in-lessons', 'comments-on-reports', 'revised-content')
+        ->not->toContain('camp-reports');
+    expect($help->guides($supervisor)->pluck('slug'))->toContain('camp-reports', 'comments-on-reports', 'revised-content');
+    expect($help->guides($admin)->pluck('slug'))->toContain('camp-reports', 'scratch-in-lessons')
+        ->not->toContain('membership-applications');
+
+    $this->actingAs($supervisor)->get(route('help.show', 'camp-reports'))->assertOk()->assertSee('Download PDF');
+    $this->actingAs($trainer)->get(route('help.show', 'scratch-in-lessons'))->assertOk()->assertSee('when flag clicked');
+    $this->actingAs($trainer)->get(route('help.panel'))->assertOk()->assertSee('Scratch blocks in lessons, detected as you type');
+});
+
 it('lists the newest updates first with a key for the unseen dot', function () {
     $help = app(HelpCenter::class);
     $admin = userWithRole('admin');

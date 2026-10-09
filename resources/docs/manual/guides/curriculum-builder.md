@@ -11,7 +11,7 @@ Open **Teaching → Curriculum**. The builder has your course list on the left a
 
 ## 1. Pick a course
 
-1. In the left panel under **My Courses**, click the course. Courses you share with another trainer show a **Collab** badge.
+1. Click the course's card. Use the search box to find a course by name or category, **Mine** / **Shared with me** to filter, and the sort menu to show recently updated courses first. Each card shows the course's status, number of modules and lessons, and who owns it.
 2. No courses yet? Click **Create a Course**.
 
 ## 2. Add a module
@@ -24,8 +24,17 @@ Open **Teaching → Curriculum**. The builder has your course list on the left a
 
 1. Under the module, click **+ Add Lesson**. The **Add Lesson** button at the top only works after you select a module.
 2. Fill in the lesson title, choose the **Module**, and pick a **Lesson Type**: **Text**, **Video**, **Interactive** or **Quiz**.
-3. Add the lesson content.
+3. Add the lesson content. To show a Scratch script as real blocks, type it one block per line starting with `when flag clicked` and press **Enter**, or use the **🧩 Scratch** button (see *Scratch blocks in lessons*).
 4. Click **Create Lesson**.
+
+## Open a lesson
+
+- **To edit:** click **Edit** on the lesson's row in the course outline (or click the lesson's title). The editor uses the full width of the screen; click **Course** at the top to go back to the outline.
+- **To see it as students do:** click **Open** on the lesson's row in the course outline, the eye icon in the left panel, or **Open lesson** at the top of the lesson editor. The lesson opens in a new tab, so the builder stays where you left it.
+
+![Each lesson in the course outline has Edit and Open buttons](manual:builder-open-lesson.png)
+
+![Open lesson at the top of the lesson editor](manual:builder-lesson-header.png)
 
 > **Trainers:** new and edited lessons are sent to an admin or supervisor for approval automatically. You'll see *"Lesson created and sent for approval!"*. An amber dot means **Pending** and a red dot means **Rejected**. See *Content approval*.
 

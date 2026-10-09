@@ -251,6 +251,9 @@ class Sidebar extends Component
             'pending_approvals' => (int) $this->pendingApprovalCount,
             'pending_feedback' => (int) $this->pendingFeedbackCount,
             'pending_submissions' => (int) $this->pendingSubmissionsCount,
+            'pending_revisions' => ($this->isAdmin || $this->isSupervisor)
+                ? (int) Cache::remember('pending_camp_revisions', 300, fn () => \App\Models\CampContentRevision::where('status', 'pending')->count())
+                : 0,
         ];
 
         $seenHrefs = [];

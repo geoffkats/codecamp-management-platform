@@ -50,6 +50,11 @@ class NewBuilder extends Component
     public $structureTab = 'active'; // active | archived
     public $canManageCourse = false;
     public $isApprover = false;
+
+    // Course picker (shown when no course is open)
+    public string $courseSearch = '';
+    public string $courseFilter = 'all'; // all | mine | shared
+    public string $courseSort = 'recent'; // recent | title
     
     // Computed property for backward compatibility
     public $showForm = false;
@@ -72,6 +77,9 @@ class NewBuilder extends Component
     ];
     protected $queryString = [
         'structureTab' => ['except' => 'active'],
+        'courseSearch' => ['except' => '', 'as' => 'q'],
+        'courseFilter' => ['except' => 'all', 'as' => 'show'],
+        'courseSort' => ['except' => 'recent', 'as' => 'sort'],
     ];
 
     public function mount($course = null)
@@ -956,6 +964,57 @@ class NewBuilder extends Component
         return app(ApprovalService::class);
     }
     
+    /**
+     * Courses for the picker, with counts and the owner loaded in the same
+     * queries so the cards never trigger per-course lookups.
+     *
+     * @return array{0: \Illuminate\Support\Collection, 1: int}
+     */
+    protected function pickerCourses(): array
+    {
+        $userId = Auth::id();
+        $user = Auth::user();
+        $seesAll = $user->isAdmin() || $user->isSupervisor();
+
+        $base = Course::query()
+            ->where('approval_status', '!=', 'deleted')
+            ->when(! $seesAll, fn ($q) => $q->where(fn ($w) => $w
+                ->where('instructor_id', $userId)
+                ->orWhereHas('collaborators', fn ($c) => $c->where('user_id', $userId))));
+
+        $total = (clone $base)->count();
+
+        $search = trim($this->courseSearch);
+
+        $courses = $base
+            ->select('id', 'title', 'instructor_id', 'category', 'difficulty_level', 'approval_status', 'is_published', 'featured_image', 'updated_at')
+            ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                ->where('title', 'like', "%{$search}%")
+                ->orWhere('category', 'like', "%{$search}%")))
+            ->when($this->courseFilter === 'mine', fn ($q) => $q->where('instructor_id', $userId))
+            ->when($this->courseFilter === 'shared', fn ($q) => $q->where('instructor_id', '!=', $userId))
+            ->with('instructor:id,name')
+            ->withCount(['modules', 'lessons'])
+            ->when($this->courseSort === 'title', fn ($q) => $q->orderBy('title'), fn ($q) => $q->latest('updated_at'))
+            ->get();
+
+        return [$courses, $total];
+    }
+
+    public function updatedCourseFilter(string $value): void
+    {
+        if (! in_array($value, ['all', 'mine', 'shared'], true)) {
+            $this->courseFilter = 'all';
+        }
+    }
+
+    public function updatedCourseSort(string $value): void
+    {
+        if (! in_array($value, ['recent', 'title'], true)) {
+            $this->courseSort = 'recent';
+        }
+    }
+
     public function render()
     {
         if ($this->courseId) {
@@ -967,27 +1026,14 @@ class NewBuilder extends Component
         }
 
         $courses = collect();
+        $courseTotal = 0;
         if (! $this->courseId) {
-            $authUser = Auth::user();
-            $isAdmin = $authUser->isAdmin();
-            $isSupervisor = $authUser->isSupervisor();
-            $courses = Course::withCount('modules')
-                ->where(function ($query) use ($isAdmin, $isSupervisor) {
-                    if (! $isAdmin && ! $isSupervisor) {
-                        $query->where('instructor_id', Auth::id())
-                              ->orWhereHas('collaborators', function ($q) {
-                                  $q->where('user_id', Auth::id());
-                              });
-                    }
-                })
-                ->where('approval_status', '!=', 'deleted')
-                ->orderBy('title')
-                ->select('id', 'title', 'instructor_id')
-                ->get();
+            [$courses, $courseTotal] = $this->pickerCourses();
         }
 
         return view('livewire.curriculum.new-builder', [
             'courses' => $courses,
+            'courseTotal' => $courseTotal,
             'course' => $this->course,
             'selectedAssessment' => $this->selectedAssessment,
         ]);

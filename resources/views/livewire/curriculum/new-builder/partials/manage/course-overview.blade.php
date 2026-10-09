@@ -1,6 +1,6 @@
 {{-- Course Overview --}}
 <div class="p-8">
-    <div class="max-w-4xl mx-auto">
+    <div class="max-w-6xl mx-auto">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
             <h2 class="text-3xl font-bold text-gray-900 dark:text-white">Course Settings</h2>
             <div class="flex flex-wrap items-center gap-3">

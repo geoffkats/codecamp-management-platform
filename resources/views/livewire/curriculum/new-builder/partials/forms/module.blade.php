@@ -1,6 +1,6 @@
 {{-- Module Form --}}
 <div class="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 md:p-8">
-    <div class="max-w-3xl mx-auto">
+    <div class="max-w-5xl mx-auto">
         <div class="flex items-center justify-between mb-6">
             <div>
                 <h1 class="text-3xl font-bold text-gray-900 dark:text-white">

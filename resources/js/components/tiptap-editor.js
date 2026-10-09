@@ -16,8 +16,249 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import { common, createLowlight } from 'lowlight'
 import { ResizableImage } from './resizable-image'
+import { isScratchLine, looksLikeScratch } from './scratch-detect'
 
 const lowlight = createLowlight(common)
+// Scratch source is shown as plain text; registering it stops lowlight auto-detecting another language.
+lowlight.register('scratch', () => ({ name: 'scratch', contains: [] }))
+
+const SCRATCH_STARTER = 'when flag clicked\nmove (10) steps\nsay [Hello!] for (2) seconds'
+
+const ScratchAwareCodeBlock = CodeBlockLowlight.extend({
+    addNodeView() {
+        return ({ node }) => {
+            let current = node
+            let timer = null
+
+            const dom = document.createElement('div')
+            const pre = document.createElement('pre')
+            const code = document.createElement('code')
+            pre.appendChild(code)
+
+            const preview = document.createElement('div')
+            preview.contentEditable = 'false'
+            preview.className = 'cau-scratch-preview'
+            const label = document.createElement('div')
+            label.className = 'cau-scratch-label'
+            label.textContent = 'Scratch blocks · preview (edit the text above)'
+            const canvas = document.createElement('div')
+            preview.append(label, canvas)
+            dom.append(pre, preview)
+
+            const paint = () => {
+                const text = current.textContent
+                if (!text.trim()) {
+                    canvas.textContent = 'Type Scratch blocks above, one per line, e.g. "when flag clicked".'
+                    return
+                }
+                import('./question-text')
+                    .then(({ renderScratchSvg }) => renderScratchSvg(text, 0.65))
+                    .then((svg) => canvas.replaceChildren(svg))
+                    .catch(() => { canvas.textContent = 'Could not draw these blocks. Check the spelling of each block.' })
+            }
+
+            const sync = () => {
+                const language = current.attrs.language
+                const isScratch = language === 'scratch'
+                code.className = language ? `language-${language}` : ''
+                dom.className = isScratch ? 'cau-scratch-block' : ''
+                preview.hidden = !isScratch
+                clearTimeout(timer)
+                if (isScratch) {
+                    timer = setTimeout(paint, 300)
+                }
+            }
+
+            sync()
+
+            return {
+                dom,
+                contentDOM: code,
+                update(updated) {
+                    if (updated.type !== current.type) return false
+                    const changed = updated.textContent !== current.textContent || updated.attrs.language !== current.attrs.language
+                    current = updated
+                    if (changed) sync()
+                    return true
+                },
+                ignoreMutation(mutation) {
+                    return preview.contains(mutation.target) || mutation.target === dom
+                },
+                stopEvent(event) {
+                    return preview.contains(event.target)
+                },
+                destroy() {
+                    clearTimeout(timer)
+                },
+            }
+        }
+    },
+})
+
+function scratchNode(schema, text) {
+    const content = text.trim()
+    return schema.nodes.codeBlock.create({ language: 'scratch' }, content ? schema.text(content) : null)
+}
+
+function toast(message, tone = 'blue') {
+    const el = document.createElement('div')
+    el.className = `fixed top-4 right-4 z-50 rounded-lg px-4 py-2 text-white shadow-lg ${tone === 'green' ? 'bg-green-500' : 'bg-blue-500'}`
+    el.textContent = message
+    document.body.appendChild(el)
+    setTimeout(() => el.remove(), 3000)
+}
+
+/**
+ * Toolbar action: turn the selected lines into one Scratch block, flip the current code block
+ * to/from Scratch, or insert a starter script.
+ */
+export function toggleScratchBlock(editor) {
+    const { state } = editor
+    const { selection, schema } = state
+    const { $from, $to, empty } = selection
+
+    if ($from.parent.type.name === 'codeBlock') {
+        const language = $from.parent.attrs.language === 'scratch' ? null : 'scratch'
+        editor.chain().focus().updateAttributes('codeBlock', { language }).run()
+        return
+    }
+
+    if (empty) {
+        editor.chain().focus().insertContent({
+            type: 'codeBlock',
+            attrs: { language: 'scratch' },
+            content: [{ type: 'text', text: SCRATCH_STARTER }],
+        }).run()
+        return
+    }
+
+    const from = $from.depth ? $from.before(1) : selection.from
+    const to = $to.depth ? $to.after(1) : selection.to
+    const text = state.doc.textBetween(from, to, '\n', '\n')
+    editor.view.dispatch(state.tr.replaceWith(from, to, scratchNode(schema, text)).scrollIntoView())
+    editor.commands.focus()
+}
+
+/**
+ * Finds Scratch scripts typed or pasted as normal paragraphs (or plain code blocks) and turns them into Scratch blocks.
+ */
+export function detectScratchBlocks(editor) {
+    const { state } = editor
+    const { schema } = state
+    const changes = []
+    let run = []
+
+    const flush = () => {
+        const lines = run.flatMap((item) => item.lines)
+        if (run.length && lines.filter((line) => line.trim() !== '').length >= 2 && looksLikeScratch(lines.join('\n'))) {
+            changes.push({ from: run[0].offset, to: run[run.length - 1].end, text: lines.join('\n') })
+        }
+        run = []
+    }
+
+    state.doc.forEach((node, offset) => {
+        const end = offset + node.nodeSize
+
+        if (node.type.name === 'codeBlock') {
+            flush()
+            if (node.attrs.language !== 'scratch' && looksLikeScratch(node.textContent)) {
+                changes.push({ from: offset, to: end, text: node.textContent, markupOnly: true })
+            }
+            return
+        }
+
+        if (node.type.name !== 'paragraph') {
+            flush()
+            return
+        }
+
+        const lines = node.textBetween(0, node.content.size, '\n', '\n').split('\n')
+        const nonBlank = lines.filter((line) => line.trim() !== '')
+        if (nonBlank.length && nonBlank.every(isScratchLine)) {
+            run.push({ offset, end, lines: nonBlank })
+        } else {
+            flush()
+        }
+    })
+    flush()
+
+    if (!changes.length) {
+        toast('No Scratch scripts found. Put each block on its own line, e.g. "when flag clicked".')
+        return 0
+    }
+
+    const tr = state.tr
+    changes.reverse().forEach((change) => {
+        if (change.markupOnly) {
+            tr.setNodeMarkup(change.from, undefined, { language: 'scratch' })
+        } else {
+            tr.replaceWith(change.from, change.to, scratchNode(schema, change.text))
+        }
+    })
+    editor.view.dispatch(tr)
+    toast(`Turned ${changes.length} ${changes.length === 1 ? 'script' : 'scripts'} into Scratch blocks.`, 'green')
+
+    return changes.length
+}
+
+const SCRATCH_HAT = /^\s*when\b/i
+
+/**
+ * Enter at the end of a typed Scratch script ("when flag clicked", "move 10 steps", …) turns the lines above
+ * into a Scratch block and keeps the cursor inside it for the next block. Scripts must start with a "when …"
+ * hat block so ordinary sentences are never converted while typing.
+ */
+function convertTypedScratch(view) {
+    const { state } = view
+    const { selection, doc, schema } = state
+    const { $from, empty } = selection
+
+    if ($from.parent.type.name === 'codeBlock') {
+        const code = $from.parent.textContent
+        if (!$from.parent.attrs.language && SCRATCH_HAT.test(code) && looksLikeScratch(code)) {
+            view.dispatch(state.tr.setNodeMarkup($from.before($from.depth), undefined, { ...$from.parent.attrs, language: 'scratch' }))
+        }
+        return false
+    }
+
+    if (!empty || $from.depth !== 1 || $from.parent.type.name !== 'paragraph' || $from.parentOffset !== $from.parent.content.size) {
+        return false
+    }
+
+    const lines = []
+    let index = $from.index(0)
+    let from = $from.before(1)
+    const to = $from.after(1)
+
+    while (index >= 0) {
+        const node = doc.child(index)
+        const text = node.type.name === 'paragraph' ? node.textContent : ''
+        if (!isScratchLine(text)) {
+            break
+        }
+        lines.unshift(text.trim())
+        if (index !== $from.index(0)) {
+            from -= node.nodeSize
+        }
+        if (SCRATCH_HAT.test(text)) {
+            break
+        }
+        index -= 1
+    }
+
+    if (lines.length < 2 || !SCRATCH_HAT.test(lines[0]) || !looksLikeScratch(lines.join('\n'))) {
+        return false
+    }
+
+    const text = lines.join('\n') + '\n'
+    const tr = state.tr.replaceWith(from, to, scratchNode(schema, lines.join('\n')))
+    tr.insertText('\n', from + 1 + text.length - 1)
+    tr.setSelection(selection.constructor.create(tr.doc, from + 1 + text.length)).scrollIntoView()
+    view.dispatch(tr)
+    toast('Scratch script detected — keep typing blocks. Press Enter three times to leave the block.', 'green')
+
+    return true
+}
 
 const EDITOR_ALLOWED_TAGS = new Set([
     'p', 'br', 'hr', 'div', 'span',
@@ -84,7 +325,7 @@ export function initTipTapEditor(element, initialContent = '', onUpdate = null) 
                         class: 'text-blue-600 dark:text-blue-400 underline',
                     },
                 }),
-                CodeBlockLowlight.configure({
+                ScratchAwareCodeBlock.configure({
                     lowlight,
                 }),
                 TableKit.configure({
@@ -105,6 +346,24 @@ export function initTipTapEditor(element, initialContent = '', onUpdate = null) 
             editorProps: {
                 attributes: {
                     class: 'prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[300px] px-4 py-3',
+                },
+                handleKeyDown(view, event) {
+                    if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) {
+                        return false
+                    }
+
+                    return convertTypedScratch(view)
+                },
+                handlePaste(view, event) {
+                    const text = event.clipboardData?.getData('text/plain')
+                    const { $from } = view.state.selection
+                    if (!text || $from.parent.type.name === 'codeBlock' || !looksLikeScratch(text)) {
+                        return false
+                    }
+
+                    view.dispatch(view.state.tr.replaceSelectionWith(scratchNode(view.state.schema, text)).scrollIntoView())
+                    toast('Pasted as Scratch blocks. Use the 🧩 Scratch button to switch back to plain text.', 'green')
+                    return true
                 },
             },
             onUpdate: ({ editor }) => {
@@ -246,7 +505,9 @@ export function createToolbar(editor, container) {
         button('+ Row', 'Add row', () => editor.chain().focus().addRowAfter().run()),
         button('- Row', 'Delete row', () => editor.chain().focus().deleteRow().run()),
         separator(),
-        button('</>', 'Code block', () => editor.chain().focus().toggleCodeBlock().run(), () => editor.isActive('codeBlock')),
+        button('</>', 'Code block', () => editor.chain().focus().toggleCodeBlock().run(), () => editor.isActive('codeBlock') && editor.getAttributes('codeBlock').language !== 'scratch'),
+        button('🧩 Scratch', 'Scratch blocks: turn the selected lines into Scratch blocks, or insert a new script', () => toggleScratchBlock(editor), () => editor.isActive('codeBlock', { language: 'scratch' })),
+        button('Detect Scratch', 'Find Scratch scripts written as normal text in this lesson and turn them into blocks', () => detectScratchBlocks(editor)),
         button('❝', 'Quote', () => editor.chain().focus().toggleBlockquote().run(), () => editor.isActive('blockquote')),
         button('—', 'Divider', () => editor.chain().focus().setHorizontalRule().run()),
         separator(),

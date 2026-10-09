@@ -6,6 +6,7 @@ use App\Models\CampEnrollment;
 use App\Models\CodeCamp;
 use App\Models\CourseEnrollment;
 use App\Models\User;
+use App\Services\NotificationService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -119,7 +120,27 @@ class Show extends Component
 
         $this->camp->advanceStatus();
         $this->camp->refresh();
+
+        if ($this->camp->status === 'completed') {
+            $this->notifyReportReady();
+        }
+
         session()->flash('message', 'Camp status updated to ' . ucfirst($this->camp->status) . '.');
+    }
+
+    private function notifyReportReady(): void
+    {
+        $notifications = app(NotificationService::class);
+
+        User::whereHas('roles', fn ($q) => $q->whereIn('name', ['admin', 'supervisor']))
+            ->get()
+            ->each(fn (User $user) => $notifications->notify(
+                $user,
+                'Camp report ready',
+                "{$this->camp->name} is complete. Open the end-of-camp report to review attendance, instructor reports and feedback, then download the PDF.",
+                'info',
+                ['action_url' => route('admin.camps.report', $this->camp)]
+            ));
     }
 
     // ── Add student modal ─────────────────────────────────────────────

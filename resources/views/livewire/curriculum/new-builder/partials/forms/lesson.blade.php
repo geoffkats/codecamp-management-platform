@@ -38,6 +38,15 @@
                     </span>
                 @endif
 
+                @if($selectedId)
+                    <a href="{{ route('lessons.view', $selectedId) }}" target="_blank" rel="noopener"
+                       title="Open the lesson as students see it (new tab)"
+                       class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Open lesson
+                    </a>
+                @endif
+
                 {{-- Save button --}}
                 <button type="submit"
                         wire:loading.attr="disabled"
@@ -52,7 +61,7 @@
 
         {{-- ── Main content ────────────────────────────────────────────── --}}
         <div class="flex-1 overflow-y-auto">
-            <div class="max-w-3xl mx-auto px-6 py-8 space-y-6">
+            <div class="w-full max-w-[1800px] mx-auto px-4 sm:px-8 py-8 space-y-6">
 
                 {{-- Rejection notice --}}
                 @if(($formData['approval_status'] ?? '') === 'rejected' && $lesson && $lesson->rejection_reason)
@@ -150,123 +159,6 @@
                     </div>
                 </div>
                 @endif
-
-                {{-- ── HTML Lesson Page ────────────────────────────────────────── --}}
-                <div x-data="{
-                        htmlFileName: null,
-                        importHtml(event) {
-                            const file = event.target.files[0];
-                            if (!file) return;
-                            const reader = new FileReader();
-                            reader.onload = (e) => {
-                                this.htmlFileName = file.name;
-                                $wire.set('formData.html_content', e.target.result);
-                                this.$nextTick(() => {
-                                    if (this.$refs.newHtmlPreview) {
-                                        this.$refs.newHtmlPreview.srcdoc = e.target.result;
-                                    }
-                                });
-                            };
-                            reader.readAsText(file);
-                            event.target.value = '';
-                        },
-                        removeHtml() {
-                            this.htmlFileName = null;
-                            $wire.set('formData.html_content', null);
-                        }
-                    }" class="space-y-4">
-
-                    {{-- Upload card --}}
-                    <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-                        <div class="flex items-center gap-3 px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-                            <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                                <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-                                </svg>
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm font-bold text-gray-900 dark:text-white">HTML Lesson Page</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Upload an HTML file — displays with full styling for students</p>
-                            </div>
-                            @if(!empty($formData['html_content']))
-                                <span class="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-semibold rounded-full">
-                                    <span class="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-                                    HTML saved
-                                </span>
-                            @endif
-                        </div>
-
-                        <div class="px-5 py-4 space-y-3">
-                            {{-- Existing file row --}}
-                            @if(!empty($formData['html_content']))
-                                <div class="flex items-center gap-3 px-3 py-2.5 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                                    <svg class="w-5 h-5 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-                                    </svg>
-                                    <span class="flex-1 text-sm text-gray-700 dark:text-gray-300 font-medium">HTML lesson page saved</span>
-                                    <button type="button"
-                                            x-on:click="removeHtml()"
-                                            class="flex-shrink-0 text-xs text-red-500 hover:text-red-700 font-semibold transition-colors">
-                                        Remove
-                                    </button>
-                                </div>
-                            @endif
-
-                            {{-- File input --}}
-                            <div>
-                                <label class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 cursor-pointer transition-colors">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                                    </svg>
-                                    {{ !empty($formData['html_content']) ? 'Replace HTML File' : 'Upload HTML File' }}
-                                    <input type="file" accept=".html,.htm" class="sr-only" x-on:change="importHtml($event)">
-                                </label>
-                                <span x-show="htmlFileName" x-text="'— ' + htmlFileName" class="ml-2 text-sm text-gray-600 dark:text-gray-400"></span>
-                                <p class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">HTML only · Exports from Word, Google Docs, or PowerPoint as "Web Page" work well</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- Saved HTML preview --}}
-                    @if(!empty($formData['html_content']))
-                        <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-                            <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-                                <div class="flex items-center gap-2">
-                                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                                    </svg>
-                                    <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">HTML Preview</span>
-                                </div>
-                            </div>
-                            <iframe srcdoc="{{ htmlspecialchars($formData['html_content'] ?? '') }}"
-                                    sandbox=""
-                                    class="w-full border-0 block"
-                                    style="height: 700px;"
-                                    title="HTML lesson preview"></iframe>
-                        </div>
-                    @endif
-
-                    {{-- New upload preview (before saving) --}}
-                    <div x-show="htmlFileName" x-cloak
-                         class="bg-white dark:bg-gray-900 rounded-xl border border-blue-200 dark:border-blue-800 overflow-hidden">
-                        <div class="flex items-center gap-2 px-5 py-3 border-b border-blue-100 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
-                            <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                            </svg>
-                            <span class="text-sm font-semibold text-blue-800 dark:text-blue-200">New file preview</span>
-                            <span class="text-xs text-blue-600 dark:text-blue-400" x-text="'— ' + htmlFileName"></span>
-                            <span class="ml-auto text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 rounded-full">Unsaved</span>
-                        </div>
-                        <iframe x-ref="newHtmlPreview"
-                                sandbox=""
-                                class="w-full border-0 block"
-                                style="height: 700px;"
-                                title="New HTML preview"></iframe>
-                    </div>
-
-                </div>{{-- /HTML upload --}}
 
                 {{-- ── Lesson content editor (always visible) ──────────────────── --}}
                 <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">

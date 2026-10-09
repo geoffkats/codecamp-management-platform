@@ -380,8 +380,15 @@
             </div>
             <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Uniform Size</p>
-                    <p class="text-gray-900 dark:text-white font-medium">{{ $student->uniform_size ?? 'Not set' }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Uniforms</p>
+                    @forelse($student->uniforms as $uniform)
+                        <p class="text-gray-900 dark:text-white font-medium">
+                            {{ $uniform->size ?: 'Size not set' }}
+                            <span class="ml-1 text-xs font-medium {{ $uniform->paid ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400' }}">{{ $uniform->paid ? 'Paid' : 'Not paid' }}</span>
+                        </p>
+                    @empty
+                        <p class="text-gray-900 dark:text-white font-medium">{{ $student->uniform_size ?? 'Not set' }}</p>
+                    @endforelse
                 </div>
                 <div>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">T-shirt Collected</p>

@@ -12,6 +12,12 @@
             </div>
         @endif
 
+        @if (!$isEdit && $membershipRequestId)
+            <div class="mb-6 p-4 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 text-sm text-orange-800 dark:text-orange-200">
+                Details loaded from Code Camp membership application <strong>#{{ $membershipRequestId }}</strong>. Add a login email and password for the student, check the details, then save. The application will be marked as closed.
+            </div>
+        @endif
+
         @if (!$isEdit && $cauRegistrationEnabled)
             <div class="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-blue-200 dark:border-blue-800 overflow-hidden">
                 <div class="px-6 py-4 bg-gradient-to-r from-sky-50 to-blue-50 dark:from-blue-900/20 dark:to-sky-900/20 border-b border-blue-200 dark:border-blue-800">
@@ -413,17 +419,41 @@
                     <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Section D — Uniform & Fees</h2>
                 </div>
                 <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Uniform Size</label>
-                        <select wire:model="uniform_size" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
-                            <option value="">Select Size</option>
-                            <option value="XS">XS</option>
-                            <option value="S">S</option>
-                            <option value="M">M</option>
-                            <option value="L">L</option>
-                            <option value="XL">XL</option>
-                            <option value="XXL">XXL</option>
-                        </select>
+                    <div class="md:col-span-2">
+                        <div class="mb-2 flex items-center justify-between">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Uniforms</label>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">
+                                {{ collect($uniforms)->where('paid', true)->count() }} of {{ count($uniforms) }} paid
+                            </span>
+                        </div>
+                        <div class="space-y-2">
+                            @foreach($uniforms as $i => $uniform)
+                                <div wire:key="uniform-{{ $i }}" class="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-600 dark:bg-gray-700/40">
+                                    <span class="w-20 text-sm font-semibold text-gray-700 dark:text-gray-200">Uniform {{ $i + 1 }}</span>
+                                    <select wire:model="uniforms.{{ $i }}.size" aria-label="Uniform {{ $i + 1 }} size"
+                                            class="w-32 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                                        <option value="">Size</option>
+                                        @foreach(\App\Models\StudentUniform::SIZES as $size)
+                                            <option value="{{ $size }}">{{ $size }}</option>
+                                        @endforeach
+                                        @if(($uniform['size'] ?? '') !== '' && ! in_array(strtoupper($uniform['size']), \App\Models\StudentUniform::SIZES, true))
+                                            <option value="{{ $uniform['size'] }}">{{ $uniform['size'] }}</option>
+                                        @endif
+                                    </select>
+                                    <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                        <input type="checkbox" wire:model.live="uniforms.{{ $i }}.paid" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                                        Paid
+                                    </label>
+                                    <button type="button" wire:click="removeUniform({{ $i }})" class="ml-auto text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400">Remove</button>
+                                    @error("uniforms.$i.size") <p class="w-full text-xs text-red-500">{{ $message }}</p> @enderror
+                                </div>
+                            @endforeach
+                        </div>
+                        @if(count($uniforms) < 10)
+                            <button type="button" wire:click="addUniform" class="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                                + Add another uniform
+                            </button>
+                        @endif
                     </div>
 
                     <div>
@@ -434,11 +464,6 @@
                     <div class="flex items-center">
                         <input type="checkbox" wire:model="tshirt_collected" id="tshirt_collected" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                         <label for="tshirt_collected" class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">T-shirt Collected</label>
-                    </div>
-
-                    <div class="flex items-center">
-                        <input type="checkbox" wire:model="uniform_paid" id="uniform_paid" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                        <label for="uniform_paid" class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Uniform Payment Completed</label>
                     </div>
                 </div>
             </div>

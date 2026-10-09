@@ -138,6 +138,7 @@ class Index extends Component
             'reviewedThisWeek' => ContentApproval::whereIn('status', ['approved', 'rejected'])
                 ->where('reviewed_at', '>=', now()->startOfWeek())
                 ->count(),
+            'pendingRevisions' => \App\Models\CampContentRevision::where('status', 'pending')->count(),
         ]);
     }
 }

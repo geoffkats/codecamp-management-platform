@@ -431,6 +431,9 @@
                                             <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 {{ $student->uniform_paid ? 'bg-emerald-50 text-emerald-700 ring-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20' : 'bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20' }}">
                                                 {{ $student->uniform_paid ? 'Paid' : 'Pending' }}
                                             </span>
+                                            @if(($student->uniforms_count ?? 0) > 1)
+                                                <span class="mt-0.5 block text-[11px] text-gray-500 dark:text-zinc-400">{{ $student->paid_uniforms_count }}/{{ $student->uniforms_count }} uniforms paid</span>
+                                            @endif
                                         </td>
                                     @endunless
                                 @endif

@@ -1,15 +1,15 @@
-{{-- Curriculum Builder Sidebar --}}
-<style>
-    .curriculum-sortable-chosen {
-        outline: 2px solid #fdba74;
-        outline-offset: 1px;
-        border-radius: 0.5rem;
-    }
-    .dark .curriculum-sortable-chosen {
-        outline-color: #c2410c;
-    }
-</style>
+{{-- Curriculum Builder Sidebar: the <style> must stay inside the root div, or Livewire takes it as the component root. --}}
 <div class="flex h-full min-h-0 flex-col overflow-hidden bg-white select-none dark:bg-gray-900">
+    <style>
+        .curriculum-sortable-chosen {
+            outline: 2px solid #fdba74;
+            outline-offset: 1px;
+            border-radius: 0.5rem;
+        }
+        .dark .curriculum-sortable-chosen {
+            outline-color: #c2410c;
+        }
+    </style>
 
     @if(!$courseId)
         {{-- ═══════════════════════════════════════
@@ -241,8 +241,7 @@
 
                         <div wire:key="module-{{ $module->id }}"
                              data-module-id="{{ $module->id }}"
-                             x-data="{ open: {{ ($selectedModuleId == $module->id || $isModuleActive) ? 'true' : 'false' }} }"
-                             class="mb-0.5">
+                             x-data="{ open: {{ ($selectedModuleId == $module->id || $isModuleActive) ? 'true' : 'false' }} }"                             class="mb-0.5">
 
                             {{-- Module row --}}
                             <div class="flex items-center mx-1.5 rounded-lg {{ $isModuleActive ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/70' }} transition-colors group">
@@ -435,8 +434,8 @@
 
                                     {{-- Preview lesson (student view) --}}
                                     <a href="{{ route('lessons.view', $lesson->id) }}"
-                                       wire:navigate
-                                       title="Preview student view"
+                                       target="_blank" rel="noopener"
+                                       title="Open lesson as students see it (new tab)"
                                        class="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>

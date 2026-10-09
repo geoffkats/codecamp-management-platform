@@ -109,6 +109,55 @@ class StudentProfile extends Model
         return $this->hasMany(StudentGadget::class);
     }
 
+    public function uniforms(): HasMany
+    {
+        return $this->hasMany(StudentUniform::class)->orderBy('id');
+    }
+
+    /**
+     * Replace the student's uniforms and keep the legacy single-uniform columns
+     * in step (dashboards count `uniform_paid = false` as pending).
+     *
+     * @param  array<int, array{size?: ?string, paid?: bool}>  $rows
+     */
+    public function syncUniforms(array $rows): void
+    {
+        $existing = $this->uniforms()->get()->keyBy('id');
+        $keep = [];
+
+        foreach ($rows as $row) {
+            $size = trim((string) ($row['size'] ?? ''));
+            $paid = (bool) ($row['paid'] ?? false);
+
+            if ($size === '' && ! $paid) {
+                continue;
+            }
+
+            $current = isset($row['id']) ? $existing->get((int) $row['id']) : null;
+            $attributes = [
+                'size' => $size !== '' ? $size : null,
+                'paid' => $paid,
+                'paid_at' => $paid ? ($current?->paid_at ?? now()->toDateString()) : null,
+            ];
+
+            if ($current) {
+                $current->update($attributes);
+                $keep[] = $current->id;
+            } else {
+                $keep[] = $this->uniforms()->create($attributes)->id;
+            }
+        }
+
+        $this->uniforms()->whereNotIn('id', $keep)->delete();
+
+        $uniforms = $this->uniforms()->get();
+        $this->update([
+            'uniform_size' => $uniforms->first()?->size,
+            'uniform_paid' => $uniforms->isNotEmpty() && $uniforms->every('paid'),
+            'uniform_payment_date' => $uniforms->isNotEmpty() && $uniforms->every('paid') ? $uniforms->max('paid_at') : null,
+        ]);
+    }
+
     public function attendance(): HasMany
     {
         return $this->hasMany(StudentAttendance::class);

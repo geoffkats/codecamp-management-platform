@@ -125,6 +125,9 @@ class SystemSettings extends Component
             $this->settings[$key] = $this->settings[$key] ?? $value;
         }
 
+        $this->settings['membership_application_fee'] = $this->settings['membership_application_fee']
+            ?? (string) config('membership.application_fee');
+
         $this->loadWebsiteRegistrationSettings();
         $this->loadGoogleAnalyticsSettings();
     }
@@ -198,6 +201,7 @@ class SystemSettings extends Component
             'settings.certificate_executive_director_ict' => 'nullable|string|max:255',
             'settings.certificate_executive_director_codecamp' => 'nullable|string|max:255',
             'settings.certificate_min_progress' => 'nullable|integer|min:0|max:100',
+            'settings.membership_application_fee' => 'required|integer|min:0|max:100000000',
             'certificate_background' => 'nullable|image|max:8192',
             'certificate_signature' => 'nullable|image|max:4096',
             'certificate_signature_ict' => 'nullable|image|max:4096',

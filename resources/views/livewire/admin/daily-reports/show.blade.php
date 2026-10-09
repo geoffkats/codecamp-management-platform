@@ -9,12 +9,12 @@
 
     {{-- Back + actions bar --}}
     <div class="flex items-center justify-between print:hidden">
-        <a href="{{ route('admin.daily-reports.index') }}"
+        <a href="{{ $isReviewer ? route('admin.daily-reports.index') : route('daily-reports.submit') }}"
            class="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
-            All Reports
+            {{ $isReviewer ? 'All Reports' : 'Daily reports' }}
         </a>
         <button onclick="window.print()"
                 class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
@@ -308,4 +308,6 @@
     </div>
     @endif
 
+    <livewire:comments.thread :commentable="$report" :key="'daily-report-comments-'.$report->id"
+        :placeholder="$isReviewer ? 'Leave feedback for the trainer…' : 'Reply to your supervisor…'" />
 </div>

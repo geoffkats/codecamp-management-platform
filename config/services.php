@@ -56,4 +56,25 @@ return [
         'ads_conversion_label' => env('GOOGLE_ADS_CONVERSION_LABEL'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Pesapal (API v3) — membership application fees
+    |--------------------------------------------------------------------------
+    |
+    | PESAPAL_ENV is "sandbox" (test keys from developer.pesapal.com) or "live".
+    | PESAPAL_IPN_ID is optional: when empty the app registers its IPN URL with
+    | Pesapal on first use and caches the id (or run `php artisan pesapal:register-ipn`).
+    |
+    */
+    'pesapal' => [
+        'environment' => env('PESAPAL_ENV', 'sandbox'),
+        'consumer_key' => env('PESAPAL_CONSUMER_KEY'),
+        'consumer_secret' => env('PESAPAL_CONSUMER_SECRET'),
+        'ipn_id' => env('PESAPAL_IPN_ID'),
+        'base_urls' => [
+            'sandbox' => 'https://cybqa.pesapal.com/pesapalv3',
+            'live' => 'https://pay.pesapal.com/v3',
+        ],
+    ],
+
 ];

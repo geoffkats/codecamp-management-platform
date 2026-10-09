@@ -146,6 +146,13 @@
                     {{ ucfirst($camp->status) }}
                 </span>
 
+                @can('review_daily_reports')
+                    <a href="{{ route('admin.camps.report', $camp) }}" wire:navigate
+                       class="flex-shrink-0 text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                        Report
+                    </a>
+                @endcan
+
                 {{-- View link --}}
                 <a href="{{ route('admin.camps.show', $camp) }}"
                    class="flex-shrink-0 inline-flex items-center gap-1 text-sm font-semibold text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 transition-colors">

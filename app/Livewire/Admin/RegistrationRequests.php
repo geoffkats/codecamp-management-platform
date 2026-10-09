@@ -69,13 +69,32 @@ class RegistrationRequests extends Component
         session()->flash('message', 'Registration request status updated.');
     }
 
+    public function markPaidOffline(int $requestId): void
+    {
+        $request = RegistrationRequest::where('type', 'membership')->findOrFail($requestId);
+
+        if ($request->isPaid()) {
+            return;
+        }
+
+        $request->update([
+            'payment_status' => 'paid',
+            'meta' => array_merge($request->meta ?? [], [
+                'paid_offline_by' => Auth::user()->name,
+                'paid_offline_at' => now()->toDateTimeString(),
+            ]),
+        ]);
+
+        session()->flash('message', 'Application fee marked as paid.');
+    }
+
     public function getSelectedRequestProperty(): ?RegistrationRequest
     {
         if (!$this->selectedRequestId) {
             return null;
         }
 
-        return RegistrationRequest::find($this->selectedRequestId);
+        return RegistrationRequest::with('payments')->find($this->selectedRequestId);
     }
 
     public function render()
@@ -111,6 +130,7 @@ class RegistrationRequests extends Component
             'contacted' => RegistrationRequest::where('status', 'contacted')->count(),
             'scheduled' => RegistrationRequest::where('status', 'scheduled')->count(),
             'closed' => RegistrationRequest::where('status', 'closed')->count(),
+            'awaiting_payment' => RegistrationRequest::where('type', 'membership')->where('payment_status', '!=', 'paid')->where('status', '!=', 'closed')->count(),
         ];
 
         return view('livewire.admin.registration-requests', [

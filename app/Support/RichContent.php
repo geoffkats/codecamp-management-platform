@@ -45,7 +45,61 @@ class RichContent
             return self::normalizeEmbeddedMediaUrls($safe);
         }
 
-        return nl2br(e($content));
+        return self::renderPlainText($content);
+    }
+
+    /**
+     * Plain-text lessons keep their line breaks; Scratch scripts typed inside them become Scratch blocks.
+     */
+    private static function renderPlainText(string $content): string
+    {
+        $segments = QuestionText::segments($content);
+
+        if (! collect($segments)->contains('type', 'scratch')) {
+            return nl2br(e($content));
+        }
+
+        return collect($segments)->map(fn (array $segment) => match ($segment['type']) {
+            'scratch' => self::scratchMarkup($segment['content']),
+            'code' => '<pre><code>'.e($segment['content']).'</code></pre>',
+            default => '<p>'.nl2br(e(trim($segment['content'], "\n"))).'</p>',
+        })->implode("\n");
+    }
+
+    private static function scratchMarkup(string $source): string
+    {
+        return '<div class="scratch-blocks not-prose" data-scratch data-scale="0.75">'
+            .'<div class="cau-scratch-label">Scratch blocks</div>'
+            .'<div data-target></div>'
+            .'<pre data-source>'.e($source).'</pre>'
+            .'</div>';
+    }
+
+    /**
+     * Editor code blocks marked as Scratch (<pre><code class="language-scratch">) are drawn as Scratch blocks.
+     */
+    private static function convertScratchBlocks(\DOMDocument $document, DOMElement $wrapper): void
+    {
+        $xpath = new \DOMXPath($document);
+        $blocks = $xpath->query(".//pre[code[contains(concat(' ', normalize-space(@class), ' '), ' language-scratch ')]]", $wrapper);
+
+        foreach (iterator_to_array($blocks) as $pre) {
+            $block = $document->createElement('div');
+            $block->setAttribute('class', 'scratch-blocks not-prose');
+            $block->setAttribute('data-scratch', '');
+            $block->setAttribute('data-scale', '0.75');
+
+            $label = $document->createElement('div', 'Scratch blocks');
+            $label->setAttribute('class', 'cau-scratch-label');
+            $target = $document->createElement('div');
+            $target->setAttribute('data-target', '');
+            $source = $document->createElement('pre');
+            $source->setAttribute('data-source', '');
+            $source->appendChild($document->createTextNode(rtrim($pre->textContent)));
+
+            $block->append($label, $target, $source);
+            $pre->parentNode?->replaceChild($block, $pre);
+        }
     }
 
     /**
@@ -121,6 +175,7 @@ class RichContent
         }
 
         self::sanitizeNode($wrapper);
+        self::convertScratchBlocks($document, $wrapper);
 
         $balanced = '';
         foreach ($wrapper->childNodes as $child) {

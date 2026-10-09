@@ -75,6 +75,7 @@
                                         'approval' => 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
                                         'achievement' => 'text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30',
                                         'course' => 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30',
+                                        'comment' => 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
                                         default => 'text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700',
                                     };
                                 @endphp
@@ -89,7 +90,12 @@
                                     <div class="flex-1">
                                         <p class="font-semibold text-gray-900 dark:text-white">{{ $notification->title }}</p>
                                         <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ $notification->message }}</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ $notification->created_at->diffForHumans() }}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                            {{ $notification->created_at->diffForHumans() }}
+                                            @if(! empty($notification->data['action_url']))
+                                                · <a href="{{ $notification->data['action_url'] }}" class="font-semibold text-orange-600 hover:underline dark:text-orange-400">Open</a>
+                                            @endif
+                                        </p>
                                     </div>
                                     <div class="flex items-center gap-2 ml-4">
                                         @if(!$notification->is_read)

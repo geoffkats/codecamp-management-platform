@@ -108,7 +108,7 @@ class Submit extends Component
             ->where('status', 'active')
             ->count();
 
-        ClubSessionReport::updateOrCreate(
+        $report = ClubSessionReport::updateOrCreate(
             [
                 'code_club_id' => $clubId,
                 'session_date' => $this->sessionDate,
@@ -129,9 +129,9 @@ class Submit extends Component
             ]
         );
 
-        session()->flash('message', 'Session report submitted successfully.');
-        $this->reset(['summary', 'challenges', 'topicsCovered', 'newTechniques', 'followUpRequired', 'teamworkRating', 'collaborationRating']);
-        $this->prefillCounts();
+        session()->flash('message', 'Session report submitted. Your supervisor can now read it and comment.');
+
+        $this->redirectRoute('admin.club-session-reports.show', $report, navigate: true);
     }
 
     public function render()

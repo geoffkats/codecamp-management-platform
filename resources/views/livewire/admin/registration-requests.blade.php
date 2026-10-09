@@ -5,6 +5,14 @@
                 <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Registration Requests</h1>
                 <p class="text-sm text-slate-600 dark:text-slate-400">Review program sign-ups and manage follow-ups.</p>
             </div>
+            <div class="flex items-center gap-3">
+                @if($stats['awaiting_payment'] > 0)
+                    <button type="button" wire:click="$set('filterType', 'membership')" class="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-200">
+                        {{ $stats['awaiting_payment'] }} membership {{ $stats['awaiting_payment'] === 1 ? 'fee' : 'fees' }} unpaid
+                    </button>
+                @endif
+                <a href="{{ route('registration.membership') }}" target="_blank" class="text-xs font-semibold text-orange-600 hover:underline">Open membership form ↗</a>
+            </div>
         </div>
 
         @if(session()->has('message'))
@@ -45,6 +53,7 @@
                 <label class="text-xs uppercase tracking-wide text-slate-500">Program</label>
                 <select wire:model.live="filterType" class="mt-2 w-full rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm text-slate-900 dark:text-white">
                     <option value="all">All Programs</option>
+                    <option value="membership">CodeCamp Membership</option>
                     <option value="codecamp">CodeCamp</option>
                     <option value="school">ICT Schools Program</option>
                     <option value="icdl">ICDL Exam Center</option>
@@ -72,6 +81,7 @@
                             <th class="text-left px-4 py-3">Name</th>
                             <th class="text-left px-4 py-3">Email</th>
                             <th class="text-left px-4 py-3">Organization</th>
+                            <th class="text-left px-4 py-3">Payment</th>
                             <th class="text-left px-4 py-3">Status</th>
                             <th class="text-right px-4 py-3">Actions</th>
                         </tr>
@@ -83,6 +93,15 @@
                                 <td class="px-4 py-3 text-slate-700 dark:text-slate-300">{{ $request->full_name }}</td>
                                 <td class="px-4 py-3 text-slate-700 dark:text-slate-300">{{ $request->email }}</td>
                                 <td class="px-4 py-3 text-slate-600 dark:text-slate-400">{{ $request->organization_name ?? '-' }}</td>
+                                <td class="px-4 py-3">
+                                    @if($request->isMembership())
+                                        <span class="{{ $request->isPaid() ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800' }} rounded-full px-2 py-0.5 text-xs font-semibold">
+                                            {{ $request->isPaid() ? 'Paid' : 'Unpaid' }}
+                                        </span>
+                                    @else
+                                        <span class="text-xs text-slate-400">-</span>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3">
                                     <select wire:change="updateStatus({{ $request->id }}, $event.target.value)" class="rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2 py-1 text-xs text-slate-700 dark:text-slate-200">
                                         <option value="new" @selected($request->status === 'new')>New</option>
@@ -97,7 +116,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-4 py-6 text-center text-slate-500">No registration requests found.</td>
+                                <td colspan="7" class="px-4 py-6 text-center text-slate-500">No registration requests found.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -162,6 +181,73 @@
                                         </div>
                                     @endif
                                 @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    @if($this->selectedRequest->isMembership())
+                        @php $membership = $this->selectedRequest; @endphp
+                        <div class="rounded-xl border border-slate-200 dark:border-zinc-700 p-4 space-y-3">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <p class="text-xs uppercase tracking-wide text-slate-500">Membership details</p>
+                                <span class="{{ $membership->isPaid() ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800' }} rounded-full px-2 py-0.5 text-xs font-semibold">
+                                    Application fee {{ $membership->isPaid() ? 'paid' : 'unpaid' }}
+                                </span>
+                            </div>
+                            <div class="grid sm:grid-cols-3 gap-3">
+                                <div>
+                                    <p class="text-xs text-slate-500">Date of birth</p>
+                                    <p class="font-semibold text-slate-900 dark:text-white">{{ $membership->date_of_birth?->format('d M Y') ?? '-' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-slate-500">Gender / class</p>
+                                    <p class="font-semibold text-slate-900 dark:text-white">{{ $membership->gender ?? '-' }} · {{ $membership->school_level ?? '-' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-slate-500">Camp</p>
+                                    <p class="font-semibold text-slate-900 dark:text-white">{{ $membership->preferred_schedule ?: 'Next available' }}</p>
+                                </div>
+                            </div>
+
+                            @if($membership->payments->isNotEmpty())
+                                <table class="w-full text-xs">
+                                    <thead class="text-slate-500">
+                                        <tr>
+                                            <th class="text-left py-1">Reference</th>
+                                            <th class="text-left py-1">Amount</th>
+                                            <th class="text-left py-1">Method</th>
+                                            <th class="text-left py-1">Status</th>
+                                            <th class="text-left py-1">Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-zinc-800">
+                                        @foreach($membership->payments->sortByDesc('id') as $payment)
+                                            <tr>
+                                                <td class="py-1 font-mono">{{ $payment->confirmation_code ?: $payment->merchant_reference }}</td>
+                                                <td class="py-1">{{ $payment->currency }} {{ number_format($payment->amount) }}</td>
+                                                <td class="py-1">{{ $payment->payment_method ?: '-' }}</td>
+                                                <td class="py-1 capitalize">{{ $payment->status }}</td>
+                                                <td class="py-1">{{ ($payment->paid_at ?? $payment->created_at)->format('d M Y H:i') }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            @endif
+
+                            <div class="flex flex-wrap gap-2 pt-1">
+                                @if(! $membership->isPaid())
+                                    <button type="button" wire:click="markPaidOffline({{ $membership->id }})" wire:confirm="Mark the application fee as paid (cash, bank or mobile money received outside Pesapal)?" class="rounded-lg border border-slate-300 dark:border-zinc-600 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-zinc-800">
+                                        Mark paid (offline)
+                                    </button>
+                                    <a href="{{ $membership->paymentUrl() }}" target="_blank" class="rounded-lg border border-slate-300 dark:border-zinc-600 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-zinc-800">
+                                        Payment link ↗
+                                    </a>
+                                @endif
+                                @if(! empty($membership->meta['student_profile_id']))
+                                    <a href="{{ route('students.show', $membership->meta['student_profile_id']) }}" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">View student</a>
+                                @elseif(auth()->user()->can('manage_students'))
+                                    <a href="{{ route('students.create-codecamp', ['membership' => $membership->id]) }}" class="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-700">Create student from this application</a>
+                                @endif
                             </div>
                         </div>
                     @endif

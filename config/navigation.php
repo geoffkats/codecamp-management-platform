@@ -42,8 +42,10 @@ return [
             ['label' => 'XP Manager', 'route' => 'admin.xp-manager', 'icon' => 'bolt', 'match' => 'admin.xp-manager', 'keywords' => 'points award'],
         ]],
         ['label' => 'Reports', 'icon' => 'document-chart-bar', 'items' => [
+            ['label' => 'Camp Reports', 'route' => 'admin.camp-reports.index', 'icon' => 'document-chart-bar', 'match' => ['admin.camp-reports.*', 'admin.camps.report'], 'keywords' => 'end of camp summary pdf attendance'],
             ['label' => 'Daily Reports', 'route' => 'admin.daily-reports.index', 'icon' => 'document-text', 'match' => 'admin.daily-reports.*'],
             ['label' => 'Club Session Reports', 'route' => 'admin.club-session-reports.index', 'icon' => 'clipboard-document', 'match' => 'admin.club-session-reports.*', 'feature' => 'code_club', 'roles' => ['admin', 'supervisor']],
+            ['label' => 'Revised Content', 'route' => 'camp-revisions.index', 'icon' => 'document-arrow-up', 'match' => 'camp-revisions.*', 'badge' => 'pending_revisions', 'keywords' => 'end of camp trainer improvements'],
             ['label' => 'Teacher Feedback', 'route' => 'admin.feedback', 'icon' => 'chat-bubble-bottom-center-text', 'match' => 'admin.feedback', 'badge' => 'pending_feedback'],
         ]],
         ['label' => 'ICDL', 'icon' => 'computer-desktop', 'items' => [
@@ -76,6 +78,7 @@ return [
         ['label' => 'Camps & Reports', 'icon' => 'flag', 'items' => [
             ['label' => 'Code Camps', 'route' => 'admin.camps.index', 'icon' => 'flag', 'match' => 'admin.camps.*'],
             ['label' => 'Daily Reports', 'route' => 'daily-reports.submit', 'icon' => 'document-text', 'match' => 'daily-reports.*'],
+            ['label' => 'Revised Content', 'route' => 'camp-revisions.index', 'icon' => 'document-arrow-up', 'match' => 'camp-revisions.*', 'keywords' => 'end of camp improvements slides'],
         ]],
     ],
 
@@ -85,7 +88,8 @@ return [
             ['label' => 'Students', 'route' => 'students.index', 'icon' => 'user-group', 'match' => 'students.*'],
             ['label' => 'Club Attendance', 'route' => 'attendance.club', 'icon' => 'calendar-days', 'match' => 'attendance.club', 'feature' => 'code_club'],
             ['label' => 'Daily Code', 'route' => 'attendance.code', 'icon' => 'key', 'match' => 'attendance.code', 'feature' => 'code_club'],
-            ['label' => 'Session Reports', 'route' => 'club-session-reports.submit', 'icon' => 'document-text', 'match' => 'club-session-reports.*', 'feature' => 'code_club'],
+            ['label' => 'Submit Session Report', 'route' => 'club-session-reports.submit', 'icon' => 'document-plus', 'match' => 'club-session-reports.*', 'feature' => 'code_club'],
+            ['label' => 'My Session Reports', 'route' => 'admin.club-session-reports.index', 'icon' => 'document-text', 'match' => 'admin.club-session-reports.*', 'feature' => 'code_club', 'keywords' => 'comments feedback'],
         ]],
         ['label' => 'Teaching', 'icon' => 'academic-cap', 'items' => [
             ['label' => 'Assignments', 'route' => 'assignments.index', 'icon' => 'clipboard-document-check', 'match' => 'assignments.*'],
@@ -123,7 +127,10 @@ return [
             ['label' => 'Leaderboard', 'route' => 'leaderboards.index', 'icon' => 'trophy', 'match' => 'leaderboards.*'],
         ]],
         ['label' => 'Reports', 'icon' => 'document-chart-bar', 'items' => [
+            ['label' => 'Camp Reports', 'route' => 'admin.camp-reports.index', 'icon' => 'document-chart-bar', 'match' => ['admin.camp-reports.*', 'admin.camps.report'], 'keywords' => 'end of camp summary pdf attendance'],
             ['label' => 'Daily Reports', 'route' => 'admin.daily-reports.index', 'icon' => 'document-text', 'match' => 'admin.daily-reports.*'],
+            ['label' => 'Club Session Reports', 'route' => 'admin.club-session-reports.index', 'icon' => 'clipboard-document', 'match' => 'admin.club-session-reports.*', 'feature' => 'code_club'],
+            ['label' => 'Revised Content', 'route' => 'camp-revisions.index', 'icon' => 'document-arrow-up', 'match' => 'camp-revisions.*', 'badge' => 'pending_revisions', 'keywords' => 'end of camp trainer improvements'],
         ]],
     ],
 

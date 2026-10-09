@@ -8,6 +8,7 @@ use App\Models\DailyReport;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -18,6 +19,7 @@ class Index extends Component
 
     public $date;
     public $courseId;
+    #[Url(as: 'camp')]
     public $campId;
     public $instructorId;
     public $status;
@@ -41,6 +43,7 @@ class Index extends Component
     public function render()
     {
         $query = DailyReport::with(['course:id,title', 'instructor:id,name', 'camp:id,name'])
+            ->withCount('comments')
             ->orderByDesc('report_date')
             ->orderByDesc('submitted_at');
 

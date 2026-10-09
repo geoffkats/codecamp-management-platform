@@ -337,4 +337,27 @@
             Submit Report
         </button>
     </div>
+
+    @if($myReports->isNotEmpty())
+        <section class="rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+            <h2 class="border-b border-gray-100 px-5 py-4 text-sm font-bold text-gray-900 dark:border-gray-700 dark:text-white">My recent reports</h2>
+            <ul class="divide-y divide-gray-100 dark:divide-gray-700">
+                @foreach($myReports as $myReport)
+                    <li>
+                        <a href="{{ route('daily-reports.show', $myReport) }}" wire:navigate
+                           class="flex items-center gap-3 px-5 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/40">
+                            <span class="w-20 shrink-0 font-semibold text-gray-900 dark:text-white">{{ $myReport->report_date->format('D j M') }}</span>
+                            <span class="min-w-0 flex-1 truncate text-gray-600 dark:text-gray-300">{{ $myReport->course?->title ?? 'Class' }}</span>
+                            @if($myReport->comments_count)
+                                <span class="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+                                    <flux:icon.chat-bubble-left class="size-3.5" /> {{ $myReport->comments_count }}
+                                </span>
+                            @endif
+                            <flux:icon.chevron-right class="size-4 text-gray-400" />
+                        </a>
+                    </li>
+                @endforeach
+            </ul>
+        </section>
+    @endif
 </div>

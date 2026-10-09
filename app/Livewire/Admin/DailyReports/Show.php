@@ -14,10 +14,8 @@ class Show extends Component
 
     public function mount(DailyReport $report): void
     {
-        $user = Auth::user();
-        if (!(method_exists($user, 'hasRole') && ($user->hasRole('admin') || $user->hasRole('supervisor')))) {
-            abort(403);
-        }
+        abort_unless($report->canComment(Auth::user()), 403);
+
         $this->report->load(['course', 'instructor', 'attendance.student', 'mentions.mentionable', 'reportIssues.assignee', 'attachments']);
     }
 
@@ -25,6 +23,7 @@ class Show extends Component
     {
         return view('livewire.admin.daily-reports.show', [
             'report' => $this->report,
+            'isReviewer' => Auth::user()->can('review_daily_reports'),
         ]);
     }
 }

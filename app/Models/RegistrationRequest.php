@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class RegistrationRequest extends Model
 {
     protected $fillable = [
+        'public_token',
         'type',
         'full_name',
         'email',
@@ -25,6 +28,7 @@ class RegistrationRequest extends Model
         'icdl_modules',
         'message',
         'status',
+        'payment_status',
         'meta',
     ];
 
@@ -34,4 +38,34 @@ class RegistrationRequest extends Model
         'date_of_birth' => 'date',
         'preferred_exam_date' => 'date',
     ];
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(RegistrationPayment::class);
+    }
+
+    public function latestPayment(): HasOne
+    {
+        return $this->hasOne(RegistrationPayment::class)->latestOfMany();
+    }
+
+    public function isMembership(): bool
+    {
+        return $this->type === 'membership';
+    }
+
+    public function isPaid(): bool
+    {
+        return $this->payment_status === 'paid';
+    }
+
+    public function paymentUrl(): ?string
+    {
+        return $this->public_token ? route('registration.membership.pay', $this->public_token) : null;
+    }
+
+    public static function membershipFee(): int
+    {
+        return (int) SystemSetting::get('membership_application_fee', config('membership.application_fee'));
+    }
 }

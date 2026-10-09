@@ -1,13 +1,16 @@
 <div id="curriculum-builder-shell" class="curriculum-builder-shell relative flex overflow-hidden bg-gray-50 dark:bg-gray-950" style="height: 100dvh; max-height: 100dvh;">
-    <aside id="curriculum-outline" class="relative z-20 flex h-full w-72 shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-        @livewire('curriculum.builder-sidebar', [
-            'courseId' => $courseId,
-            'canManageCourse' => $canManageCourse,
-            'selectedType' => $selectedType,
-            'selectedId' => $selectedId,
-            'selectedModuleId' => $this->selectedModuleId,
-        ], key('builder-sidebar-' . ($courseId ?? 'none')))
-    </aside>
+    {{-- The course picker and the lesson editor get the full width. --}}
+    @if($courseId && $viewState !== 'lesson-form')
+        <aside id="curriculum-outline" class="relative z-20 flex h-full w-72 shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+            @livewire('curriculum.builder-sidebar', [
+                'courseId' => $courseId,
+                'canManageCourse' => $canManageCourse,
+                'selectedType' => $selectedType,
+                'selectedId' => $selectedId,
+                'selectedModuleId' => $this->selectedModuleId,
+            ], key('builder-sidebar-' . ($courseId ?? 'none')))
+        </aside>
+    @endif
 
     @include('livewire.curriculum.new-builder.partials.sidebar-toggle')
 

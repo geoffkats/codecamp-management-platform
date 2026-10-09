@@ -398,4 +398,9 @@
             </div>
         </div>
     </div>
+
+    @if($type === 'assignment')
+        <livewire:comments.thread :commentable="$submission" :key="'submission-comments-'.$submission->id"
+            :placeholder="(int) $submission->user_id === (int) auth()->id() ? 'Ask your trainer a question or reply…' : 'Leave a comment for the student…'" />
+    @endif
 </div>

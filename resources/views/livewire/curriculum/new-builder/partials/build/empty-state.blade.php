@@ -1,6 +1,6 @@
 {{-- Course Outline View (shown when a course is selected but no item is open for editing) --}}
 <div class="p-6 md:p-8">
-    <div class="max-w-4xl mx-auto space-y-5">
+    <div class="w-full max-w-[1800px] mx-auto space-y-5">
 
         {{-- Action bar --}}
         @if($canManageCourse)
@@ -134,10 +134,11 @@
                                 </div>
                             @else
                                 @foreach($moduleLessons as $lessonIndex => $lesson)
-                                    <button wire:key="outline-lesson-{{ $lesson->id }}"
-                                            type="button"
+                                    <div wire:key="outline-lesson-{{ $lesson->id }}" class="flex items-center border-t border-gray-100 dark:border-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors">
+                                    <button type="button"
                                             wire:click="selectItem('lesson', {{ $lesson->id }}, {{ $module->id }})"
-                                            class="w-full flex items-center gap-3 px-5 py-3 border-t border-gray-100 dark:border-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors group text-left">
+                                            title="Edit lesson"
+                                            class="flex-1 min-w-0 flex items-center gap-3 pl-5 pr-2 py-3 group text-left">
                                         {{-- Lesson number --}}
                                         <span class="w-5 text-xs font-semibold text-gray-400 dark:text-gray-500 flex-shrink-0 text-right">
                                             {{ $lessonIndex + 1 }}
@@ -179,12 +180,21 @@
                                         @elseif(($lesson->approval_status ?? '') === 'approved')
                                             <span class="text-xs text-green-600 dark:text-green-400 font-medium flex-shrink-0">✓</span>
                                         @endif
-
-                                        {{-- Edit arrow --}}
-                                        <svg class="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-blue-400 flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                                        </svg>
                                     </button>
+                                    <button type="button"
+                                            wire:click="selectItem('lesson', {{ $lesson->id }}, {{ $module->id }})"
+                                            title="Edit this lesson"
+                                            class="flex-shrink-0 inline-flex items-center gap-1 rounded-lg border border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900 px-2.5 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        Edit
+                                    </button>
+                                    <a href="{{ route('lessons.view', $lesson->id) }}" target="_blank" rel="noopener"
+                                       title="Open the lesson as students see it (new tab)"
+                                       class="flex-shrink-0 ml-1.5 mr-4 inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-white dark:hover:bg-gray-800">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                        Open
+                                    </a>
+                                    </div>
                                 @endforeach
 
                                 {{-- Add lesson row --}}

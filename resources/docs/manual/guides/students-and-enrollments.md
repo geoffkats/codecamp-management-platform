@@ -17,6 +17,10 @@ audience: [admin, trainer, facilitator, ict_teacher, operations]
    - **ICT:** the password is optional. Click **Save Student**.
 4. To change details later, click the pencil icon on the student's row.
 
+**Uniforms (CodeCamp):** in **Section D — Uniform & Fees**, each uniform has its own **Size** and **Paid** tick. Click **+ Add another uniform** for students who buy more than one (up to 10). The heading shows how many are paid, for example *1 of 2 paid*.
+
+![Two uniforms on one student, one paid](manual:uniforms.png)
+
 Code Club facilitators can add a whole class at once with **Bulk import**.
 
 ## Do things for many students at once

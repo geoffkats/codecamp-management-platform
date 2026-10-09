@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin\ClubSessionReports;
 
 use App\Models\ClubSessionReport;
+use App\Models\CodeClub;
 use App\Models\School;
 use App\Support\ProgramScope;
 use Illuminate\Support\Facades\Auth;
@@ -19,10 +20,7 @@ class Index extends Component
     public ?string $dateTo = null;
     public ?int $clubId = null;
     public ?int $schoolId = null;
-    public ?string $status = null;
-
-    public ?int $reviewingReportId = null;
-    public string $reviewNotes = '';
+    public string $status = 'all';
 
     public function mount(): void
     {
@@ -44,111 +42,93 @@ class Index extends Component
         }
     }
 
-    public function openReview(int $reportId): void
+    public function setStatus(string $status): void
     {
-        abort_unless(Auth::user()->isAdmin() || Auth::user()->isSupervisor(), 403);
-        $this->authorizeReportAccess(ClubSessionReport::findOrFail($reportId));
-        $this->reviewingReportId = $reportId;
-        $this->reviewNotes = '';
+        $this->status = in_array($status, ['all', 'submitted', 'reviewed'], true) ? $status : 'all';
+        $this->resetPage();
     }
 
-    public function markReviewed(): void
+    public function markReviewed(int $reportId): void
     {
-        abort_unless(Auth::user()->isAdmin() || Auth::user()->isSupervisor(), 403);
+        $user = Auth::user();
+        abort_unless($user->isAdmin() || $user->isSupervisor(), 403);
 
-        $this->validate([
-            'reviewingReportId' => 'required|exists:club_session_reports,id',
-            'reviewNotes' => 'nullable|string|max:2000',
-        ]);
-
-        $report = ClubSessionReport::findOrFail($this->reviewingReportId);
-        $this->authorizeReportAccess($report);
+        $report = ClubSessionReport::findOrFail($reportId);
+        abort_unless($report->canBeViewedBy($user), 403);
 
         $report->update([
             'status' => 'reviewed',
-            'reviewed_by' => Auth::id(),
+            'reviewed_by' => $user->id,
             'reviewed_at' => now(),
-            'admin_notes' => $this->reviewNotes ?: null,
         ]);
 
-        $this->reviewingReportId = null;
-        $this->reviewNotes = '';
         session()->flash('message', 'Report marked as reviewed.');
     }
 
-    private function authorizeReportAccess(ClubSessionReport $report): void
+    private function isReviewer(): bool
     {
-        $user = Auth::user();
-
-        if ($user->isAdmin() || $user->isSupervisor()) {
-            return;
-        }
-
-        abort_unless(in_array((int) $report->code_club_id, $user->activeClubIds(), true), 403);
+        return Auth::user()->isAdmin() || Auth::user()->isSupervisor();
     }
 
-    public function updatedClubId(): void
-    {
-        $this->resetPage();
-        $this->validateSelectedClubFilter();
-    }
-
-    private function validateSelectedClubFilter(): void
-    {
-        if (! $this->clubId) {
-            return;
-        }
-
-        $user = Auth::user();
-
-        if ($user->isAdmin() || $user->isSupervisor()) {
-            return;
-        }
-
-        abort_unless(in_array((int) $this->clubId, $user->activeClubIds(), true), 403);
-    }
-
-    public function render()
+    private function baseQuery()
     {
         $user = Auth::user();
-        $query = ClubSessionReport::with(['club:id,name,school_id', 'facilitator:id,name', 'reviewer:id,name'])
-            ->orderByDesc('session_date');
+        $query = ClubSessionReport::query();
 
-        if (! $user->isAdmin() && ! $user->isSupervisor()) {
-            $query->whereIn('code_club_id', $user->activeClubIds());
+        if (! $this->isReviewer()) {
+            $query->where(fn ($q) => $q->whereIn('code_club_id', $user->activeClubIds())
+                ->orWhere('facilitator_id', $user->id));
         }
 
+        if ($this->clubId) {
+            abort_unless($this->isReviewer() || in_array((int) $this->clubId, $user->activeClubIds(), true), 403);
+            $query->where('code_club_id', $this->clubId);
+        }
+        if ($this->schoolId) {
+            $query->whereHas('club', fn ($q) => $q->where('school_id', $this->schoolId));
+        }
         if ($this->dateFrom) {
             $query->whereDate('session_date', '>=', $this->dateFrom);
         }
         if ($this->dateTo) {
             $query->whereDate('session_date', '<=', $this->dateTo);
         }
-        if ($this->clubId) {
-            $this->validateSelectedClubFilter();
-        }
 
-        if ($this->clubId) {
-            $query->where('code_club_id', $this->clubId);
-        }
-        if ($this->schoolId) {
-            $query->whereHas('club', fn ($q) => $q->where('school_id', $this->schoolId));
-        }
-        if ($this->status) {
-            $query->where('status', $this->status);
-        }
+        return $query;
+    }
 
-        $avgRetention = (clone $query)->get()->avg(fn ($r) => $r->retentionRate());
+    public function render()
+    {
+        $user = Auth::user();
+        $base = $this->baseQuery();
 
-        $visibleClubIds = ProgramScope::visibleClubs($user)->pluck('id');
+        $counts = (clone $base)->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
+
+        $reports = (clone $base)
+            ->when($this->status !== 'all', fn ($q) => $q->where('status', $this->status))
+            ->with(['club:id,name,school_id', 'facilitator', 'reviewer:id,name'])
+            ->withCount('comments')
+            ->orderByRaw("case when status = 'submitted' then 0 else 1 end")
+            ->orderByDesc('session_date')
+            ->paginate(15);
+
+        $recent = (clone $base)->whereDate('session_date', '>=', now()->subDays(30))->get(['attendance_count', 'enrolled_count', 'follow_up_required']);
+        $enrolled = $recent->sum('enrolled_count');
+
+        $visibleClubs = ProgramScope::visibleClubs($user);
 
         return view('livewire.admin.club-session-reports.index', [
-            'reports' => $query->paginate(15),
-            'clubs' => ProgramScope::visibleClubs($user),
-            'schools' => School::when($visibleClubIds->isNotEmpty() && ! $user->isAdmin() && ! $user->isSupervisor(), function ($q) use ($visibleClubIds) {
-                $q->whereIn('id', \App\Models\CodeClub::whereIn('id', $visibleClubIds)->pluck('school_id'));
-            })->orderBy('name')->get(['id', 'name']),
-            'avgRetention' => $avgRetention ? round($avgRetention, 1) : null,
+            'reports' => $reports,
+            'counts' => $counts,
+            'isReviewer' => $this->isReviewer(),
+            'clubs' => $visibleClubs,
+            'schools' => School::when(! $this->isReviewer(), fn ($q) => $q->whereIn('id', CodeClub::whereIn('id', $visibleClubs->pluck('id'))->pluck('school_id')))
+                ->orderBy('name')->get(['id', 'name']),
+            'monthStats' => [
+                'reports' => $recent->count(),
+                'attendance' => $enrolled > 0 ? round($recent->sum('attendance_count') / $enrolled * 100) : null,
+                'followUps' => $recent->where('follow_up_required', true)->count(),
+            ],
         ]);
     }
 }

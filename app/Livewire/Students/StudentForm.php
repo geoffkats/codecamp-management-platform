@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Students;
 
+use App\Models\RegistrationRequest;
 use App\Models\School;
 use App\Models\StudentGadget;
 use App\Models\StudentProfile;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -75,9 +77,9 @@ class StudentForm extends Component
     ];
 
     // Uniform & Fees
-    public $uniform_size = '';
+    /** @var array<int, array{id?: int, size: string, paid: bool}> */
+    public array $uniforms = [['size' => '', 'paid' => false]];
     public $tshirt_collected = false;
-    public $uniform_paid = false;
     public $payment_receipt = null;
 
     public string $registrationSearch = '';
@@ -90,6 +92,9 @@ class StudentForm extends Component
     public string $registrationLookupMessage = '';
 
     public string $registrationLookupError = '';
+
+    #[Locked]
+    public ?int $membershipRequestId = null;
 
     protected CauRegistrationLookupService $cauRegistrationLookup;
 
@@ -125,9 +130,10 @@ class StudentForm extends Component
             'parent2_relationship' => 'nullable|in:mother,father,guardian',
             'parent2_phone' => 'nullable|string|max:255',
             'parent2_email' => 'nullable|email|max:255',
-            'uniform_size' => 'nullable|string|max:10',
+            'uniforms' => 'array|max:10',
+            'uniforms.*.size' => 'nullable|string|max:10',
+            'uniforms.*.paid' => 'boolean',
             'tshirt_collected' => 'boolean',
-            'uniform_paid' => 'boolean',
             'payment_receipt' => 'nullable|file|max:2048',
         ];
 
@@ -202,7 +208,62 @@ class StudentForm extends Component
             $this->student = StudentProfile::with('gadgets')->findOrFail($student);
             $this->authorize('view', $this->student);
             $this->loadStudent();
+        } elseif (! $this->isCodeClubForm && request()->filled('membership')) {
+            $this->prefillFromMembership((int) request()->query('membership'));
         }
+    }
+
+    protected function prefillFromMembership(int $requestId): void
+    {
+        $application = RegistrationRequest::where('type', 'membership')->find($requestId);
+
+        if (! $application) {
+            return;
+        }
+
+        $meta = $application->meta ?? [];
+        $names = preg_split('/\s+/', trim((string) $application->full_name)) ?: [];
+        $first = array_shift($names) ?? '';
+        $last = array_pop($names) ?? '';
+
+        $this->prefillFromExternalRegistration([
+            'first_name' => $first,
+            'middle_name' => implode(' ', $names),
+            'last_name' => $last,
+            'full_name' => $application->full_name,
+            'date_of_birth' => $application->date_of_birth?->format('Y-m-d'),
+            'gender' => $application->gender ? strtolower($application->gender) : null,
+            'class_grade' => $application->school_level,
+            'address' => $meta['address'] ?? null,
+            'tshirt_size' => $meta['tshirt_size'] ?? null,
+            'registration_category' => 'camp',
+            'parent1' => [
+                'name' => $meta['parent_name'] ?? null,
+                'relationship' => isset($meta['parent_relationship']) ? strtolower($meta['parent_relationship']) : null,
+                'phone' => $application->phone,
+                'email' => $application->email,
+            ],
+        ]);
+
+        if (! empty($meta['alt_phone'])) {
+            $this->parent2_phone = (string) $meta['alt_phone'];
+        }
+
+        $this->membershipRequestId = $application->id;
+    }
+
+    protected function closeMembershipRequest(StudentProfile $studentProfile): void
+    {
+        if (! $this->membershipRequestId) {
+            return;
+        }
+
+        $application = RegistrationRequest::find($this->membershipRequestId);
+
+        $application?->update([
+            'status' => 'closed',
+            'meta' => array_merge($application->meta ?? [], ['student_profile_id' => $studentProfile->id]),
+        ]);
     }
 
     public function updatedRegistrationSearch(): void
@@ -311,7 +372,7 @@ class StudentForm extends Component
         }
 
         if (! empty($record['tshirt_size'])) {
-            $this->uniform_size = strtolower((string) $record['tshirt_size']);
+            $this->uniforms[0]['size'] = strtoupper((string) $record['tshirt_size']);
         }
 
         if (($record['registration_category'] ?? null) === 'camp') {
@@ -375,13 +436,26 @@ class StudentForm extends Component
             $this->parent1_relationship = 'guardian';
         }
         
-        // Load uniform data
-        $this->uniform_size = $this->student->uniform_size;
         $this->tshirt_collected = $this->student->tshirt_collected;
-        $this->uniform_paid = $this->student->uniform_paid;
+        $this->uniforms = $this->student->uniforms
+            ->map(fn ($uniform) => ['id' => $uniform->id, 'size' => (string) $uniform->size, 'paid' => (bool) $uniform->paid])
+            ->all() ?: [['size' => (string) $this->student->uniform_size, 'paid' => (bool) $this->student->uniform_paid]];
         
         // Load gadgets
         $this->gadgets = $this->student->gadgets->toArray();
+    }
+
+    public function addUniform(): void
+    {
+        if (count($this->uniforms) < 10) {
+            $this->uniforms[] = ['size' => '', 'paid' => false];
+        }
+    }
+
+    public function removeUniform(int $index): void
+    {
+        unset($this->uniforms[$index]);
+        $this->uniforms = array_values($this->uniforms) ?: [['size' => '', 'paid' => false]];
     }
 
     public function addGadget()
@@ -494,11 +568,11 @@ class StudentForm extends Component
             'github_account' => $this->github_account,
             'student_category' => $this->student_category,
             'photo_path' => $photoPath,
-            'uniform_size' => $this->uniform_size,
             'tshirt_collected' => $this->tshirt_collected,
-            'uniform_paid' => $this->uniform_paid,
             'payment_receipt_path' => $receiptPath,
         ]);
+
+        $studentProfile->syncUniforms($this->uniforms);
 
         if (! $this->isCodeClubForm) {
             foreach ($this->gadgets as $gadget) {
@@ -516,6 +590,7 @@ class StudentForm extends Component
             }
         }
 
+        $this->closeMembershipRequest($studentProfile);
         $this->afterCreateStudent($user, $studentProfile);
     }
 
@@ -560,10 +635,10 @@ class StudentForm extends Component
             'scratch_password' => $this->scratch_password,
             'github_account' => $this->github_account,
             'student_category' => $this->student_category,
-            'uniform_size' => $this->uniform_size,
             'tshirt_collected' => $this->tshirt_collected,
-            'uniform_paid' => $this->uniform_paid,
         ]);
+
+        $this->student->syncUniforms($this->uniforms);
 
         // Update gadgets
         if (! $this->isCodeClubForm) {
