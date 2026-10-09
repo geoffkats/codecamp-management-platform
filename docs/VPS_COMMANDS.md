@@ -141,6 +141,13 @@ php artisan db:seed --class=MbotRoboticsLessonSeeder --force
 php artisan db:seed --class=ArduinoAcebottRoboticsLessonSeeder --force
 ```
 
+**AI & Machine Learning with mBlock** (10 lessons, 135-question bank, 15-question quizzes, upload assignments, final exam drawing 40 from the bank). Safe to re-run.
+
+```bash
+cd /var/www/codecamp
+php artisan db:seed --class=AiMachineLearningMblockSeeder --force
+```
+
 Type `yes` if it asks about production.
 
 ---

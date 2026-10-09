@@ -1,0 +1,844 @@
+<?php
+
+/*
+ * Lesson content for "AI & Machine Learning with mBlock".
+ *
+ * Lesson HTML goes through App\Support\RichContent: only inline styles survive (no Tailwind classes,
+ * no <section>/<details>/<button>), so every visual component below is a styled <div>/<table>.
+ */
+
+$hero = function (int $number, string $title, string $tagline, string $meta): string {
+    return '<div style="background:#1e3a8a;color:#ffffff;border-radius:16px;padding:28px 32px;margin:0 0 28px 0;">'
+        .'<div style="display:inline-block;background:#f97316;color:#ffffff;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 12px;border-radius:999px;">Lesson '.$number.'</div>'
+        .'<h1 style="color:#ffffff;margin:14px 0 8px 0;font-size:30px;line-height:1.2;">'.$title.'</h1>'
+        .'<p style="color:#dbeafe;margin:0 0 14px 0;font-size:17px;">'.$tagline.'</p>'
+        .'<p style="color:#bfdbfe;margin:0;font-size:13px;">'.$meta.'</p>'
+        .'</div>';
+};
+
+$box = function (string $kind, string $label, string $html): string {
+    $palette = [
+        'key' => ['#eff6ff', '#2563eb', '#1e3a8a'],
+        'tip' => ['#ecfdf5', '#059669', '#064e3b'],
+        'warn' => ['#fffbeb', '#d97706', '#78350f'],
+        'try' => ['#f5f3ff', '#7c3aed', '#4c1d95'],
+        'teacher' => ['#f8fafc', '#475569', '#1e293b'],
+        'think' => ['#fff1f2', '#e11d48', '#881337'],
+    ];
+    [$bg, $border, $text] = $palette[$kind] ?? $palette['key'];
+
+    return '<div style="background:'.$bg.';border-left:6px solid '.$border.';border-radius:12px;padding:16px 20px;margin:20px 0;color:'.$text.';">'
+        .'<p style="margin:0 0 6px 0;font-weight:700;color:'.$border.';text-transform:uppercase;font-size:13px;letter-spacing:.06em;">'.$label.'</p>'
+        .'<div style="color:'.$text.';">'.$html.'</div>'
+        .'</div>';
+};
+
+$block = function (string $text, string $kind = 'ml'): string {
+    $colors = [
+        'ml' => ['#0d9488', '#ffffff'],
+        'event' => ['#ffbf00', '#3b2f00'],
+        'control' => ['#ffab19', '#3b2600'],
+        'looks' => ['#9966ff', '#ffffff'],
+        'sound' => ['#cf63cf', '#ffffff'],
+        'operator' => ['#59c059', '#ffffff'],
+        'data' => ['#ff8c1a', '#ffffff'],
+        'robot' => ['#2563eb', '#ffffff'],
+    ];
+    [$bg, $fg] = $colors[$kind] ?? $colors['ml'];
+
+    return '<span style="display:inline-block;background:'.$bg.';color:'.$fg.';font-family:ui-monospace,Consolas,monospace;font-size:14px;font-weight:600;padding:2px 10px;border-radius:999px;margin:2px 0;">'.$text.'</span>';
+};
+
+$steps = function (array $items): string {
+    $html = '<ol>';
+    foreach ($items as $item) {
+        $html .= '<li style="margin-bottom:8px;">'.$item.'</li>';
+    }
+
+    return $html.'</ol>';
+};
+
+$table = function (array $headers, array $rows): string {
+    $html = '<table style="width:100%;border-collapse:collapse;margin:16px 0;"><thead><tr>';
+    foreach ($headers as $header) {
+        $html .= '<th style="background:#1e3a8a;color:#ffffff;text-align:left;padding:10px 12px;">'.$header.'</th>';
+    }
+    $html .= '</tr></thead><tbody>';
+    foreach ($rows as $row) {
+        $html .= '<tr>';
+        foreach ($row as $cell) {
+            $html .= '<td style="padding:10px 12px;vertical-align:top;">'.$cell.'</td>';
+        }
+        $html .= '</tr>';
+    }
+
+    return $html.'</tbody></table>';
+};
+
+$h2 = fn (string $text): string => '<h2 style="margin-top:36px;padding-bottom:6px;border-bottom:3px solid #f97316;">'.$text.'</h2>';
+
+$checklist = function (array $items): string {
+    $html = '<div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:12px;padding:16px 20px;margin:20px 0;color:#1e293b;">'
+        .'<p style="margin:0 0 8px 0;font-weight:700;color:#1e3a8a;">Before you submit, check that you can:</p><ul>';
+    foreach ($items as $item) {
+        $html .= '<li style="margin-bottom:6px;">'.$item.'</li>';
+    }
+
+    return $html.'</ul></div>';
+};
+
+$sources = function (array $links): string {
+    $html = '<p style="font-size:13px;color:#64748b;margin-top:32px;"><strong>Further reading:</strong> ';
+    $parts = [];
+    foreach ($links as $label => $url) {
+        $parts[] = '<a href="'.$url.'">'.$label.'</a>';
+    }
+
+    return $html.implode(' · ', $parts).'</p>';
+};
+
+$ml2 = 'Machine Learning 2.0';
+
+$addExtension = $steps([
+    'Open <strong>mBlock 5</strong> (desktop V5.6.0 or newer, or <a href="https://ide.mblock.cc">mBlock Web</a>).',
+    'Click the <strong>Sprites</strong> tab and select a sprite (the Panda is fine).',
+    'At the bottom of the blocks area, click <strong>+ extension</strong>.',
+    'Find <strong>'.$ml2.'</strong> and click <strong>+ Add</strong>. A new Machine Learning 2.0 category appears.',
+    'Click <strong>Create/Manage model</strong> to open the training page.',
+]);
+
+$fileTypes = ['mblock', 'sb3', 'png', 'jpg', 'jpeg', 'pdf', 'zip', 'mp4', 'docx'];
+
+$assignmentDefaults = [
+    'file_types' => $fileTypes,
+    'upload_question' => 'Upload your evidence: your <strong>.mblock</strong> project file plus screenshots (PNG/JPG) of your training page and your code. You may add a short video (MP4) or zip everything together. Up to 3 files, 20 MB each.',
+];
+
+return [
+    'course' => [
+        'title' => 'AI & Machine Learning with mBlock',
+        'slug' => 'ai-machine-learning-with-mblock',
+        'short_description' => 'Train your own image, sound and pose AI models with mBlock 5 Machine Learning 2.0, then use them in games and robots.',
+        'description' => '<p><strong>AI &amp; Machine Learning with mBlock</strong> is a hands-on course for learners aged 9–15. Students discover what artificial intelligence is, then <strong>train their own machine learning models</strong> with the mBlock 5 <strong>Machine Learning 2.0</strong> extension: image models that recognise objects and faces, audio models that hear claps and whistles, and pose models that read body movements.</p><p>Every model is connected to code: games on the stage, and robots such as mBot2 and CyberPi that react to what the AI sees and hears. The course ends with object detection (AI Camera 2.0 and PictoBlox), responsible AI, a capstone project and a final exam.</p><p>Each lesson has illustrated notes, a 15-question quiz drawn from the course question bank, and a practical assignment where students upload their <strong>.mblock</strong> files and screenshots as evidence.</p>',
+        'difficulty_level' => 'Beginner',
+        'estimated_duration' => 20,
+        'category' => 'Artificial Intelligence',
+        'tags' => ['ai', 'machine-learning', 'mblock', 'machine-learning-2.0', 'image-recognition', 'pose-detection', 'audio-recognition', 'object-detection', 'stem'],
+        'requirements' => [
+            'Laptop or desktop with a webcam and microphone',
+            'mBlock 5 desktop V5.6.0 or newer, or mBlock Web in Chrome',
+            'A free mBlock account (needed for cloud AI blocks)',
+            'Optional: mBot2 or CyberPi for the robot lessons',
+            'Optional: AI Camera 2.0 or PictoBlox for object detection',
+            'Basic block coding (events, loops, if/else) is helpful but not required',
+        ],
+        'what_you_learn' => [
+            'Explain AI, machine learning, training data, labels and confidence in simple words',
+            'Train image models with the Machine Learning 2.0 extension',
+            'Train audio models that recognise sounds',
+            'Train pose models that recognise body movements',
+            'Use the recognition result, confidence and recognition result is blocks in programs',
+            'Improve a model with better, more varied data and test its accuracy',
+            'Send AI results to robots like mBot2 and CyberPi',
+            'Use cloud AI for speech, text recognition, translation and text to speech',
+            'Understand object detection and compare mBlock with PictoBlox',
+            'Discuss bias, privacy and fairness in AI, and build a capstone AI project',
+        ],
+    ],
+
+    'modules' => [
+        [
+            'title' => 'Module 1: Meet Artificial Intelligence',
+            'description' => 'What AI is, where we meet it every day, and how machines learn from examples.',
+            'overview' => 'Learners build the vocabulary for the whole course: AI, machine learning, data, labels, training, testing and confidence.',
+            'hours' => 4,
+            'lessons' => [
+                [
+                    'title' => 'Lesson 1: What Is Artificial Intelligence?',
+                    'summary' => 'Discover what AI is, where we use it every day, and the difference between normal programs and machine learning.',
+                    'question_of_day' => 'Can a computer think? How would you know?',
+                    'objectives' => "Define artificial intelligence and machine learning in your own words.\nGive five examples of AI you meet every day.\nExplain the difference between a rule-based program and a machine learning model.\nList the three model types in mBlock Machine Learning 2.0.",
+                    'guidance' => "Warm-up (10 min): show a phone unlocking with a face, or a voice assistant answering. Ask: is this magic?\nTeach (25 min): rules vs learning using the cat-detector example in the notes.\nUnplugged activity (25 min): \"Human Classifier\" — one learner sorts picture cards into groups without being told the rule; others guess the rule.\nTour (30 min): open mBlock, add Machine Learning 2.0 and show the Image, Audio and Pose project types (no training yet).\nWrap-up (10 min): quiz and assignment brief.",
+                    'difficulty' => 'beginner',
+                    'minutes' => 120,
+                    'content' => implode('', [
+                        $hero(1, 'What Is Artificial Intelligence?', 'Meet the smart technology hiding in your phone, your games and your robots.', 'Module 1 · 2 hours · No hardware needed'),
+                        $box('key', 'In this lesson you will', '<ul><li>Explain what <strong>artificial intelligence (AI)</strong> and <strong>machine learning (ML)</strong> mean.</li><li>Spot AI in everyday life.</li><li>Compare a normal program with a machine learning model.</li><li>Take a first look at mBlock’s <strong>Machine Learning 2.0</strong> extension.</li></ul>'),
+                        $h2('1. AI is all around you'),
+                        '<p><strong>Artificial intelligence</strong> is when a computer does something that normally needs human intelligence: seeing, hearing, understanding language, making decisions or learning from experience.</p>',
+                        $table(['Where you meet it', 'What the AI does'], [
+                            ['Phone face unlock', 'Recognises <strong>your</strong> face and not your friend’s'],
+                            ['Voice assistants', 'Turns your speech into text, then works out what you want'],
+                            ['YouTube and TikTok', 'Recommends the next video you are likely to enjoy'],
+                            ['Google Translate', 'Translates between Luganda, English, Swahili and more'],
+                            ['Self-driving cars', 'Detects people, cars and road signs in camera images'],
+                            ['Games', 'Controls characters that react to how you play'],
+                        ]),
+                        $h2('2. Normal programs vs machine learning'),
+                        '<p>In a <strong>normal program</strong>, a human writes every rule: <em>“if the distance is less than 10 cm, turn left.”</em> The computer follows the rules exactly.</p>',
+                        '<p>Some problems are too hard to write rules for. Try writing rules that always recognise a cat in a photo: pointy ears? Some cats have folded ears. Whiskers? So do dogs. Fur colour? Cats come in every colour.</p>',
+                        '<p>In <strong>machine learning</strong>, we do not write the rules. We give the computer lots of <strong>examples</strong> (photos labelled “cat” and “not cat”) and it <strong>learns the pattern itself</strong>. The result is called a <strong>model</strong>.</p>',
+                        $table(['', 'Normal program', 'Machine learning'], [
+                            ['<strong>Who makes the rules?</strong>', 'The programmer', 'The computer learns them from data'],
+                            ['<strong>What you give it</strong>', 'Instructions', 'Examples (data) with labels'],
+                            ['<strong>Good for</strong>', 'Clear, simple rules (maths, timers)', 'Messy real-world things (faces, voices, poses)'],
+                            ['<strong>Can it be wrong?</strong>', 'Only if the rules are wrong', 'Yes — it gives a best guess with a confidence score'],
+                        ]),
+                        $box('key', 'Key idea', '<p><strong>AI</strong> is the big goal (smart machines). <strong>Machine learning</strong> is one way to reach it: learning from examples instead of hand-written rules. Everything we build in this course is machine learning.</p>'),
+                        $h2('3. Activity: be a human classifier'),
+                        $box('try', 'Unplugged activity', $steps([
+                            'Your teacher gives one learner (the “model”) a pile of picture cards.',
+                            'The teacher secretly decides a rule, for example “animals that can fly” vs “animals that cannot”.',
+                            'The teacher shows a few cards and says only the group name: “Group A” or “Group B”. This is <strong>training</strong>.',
+                            'Now the “model” sorts new cards on their own. This is <strong>testing</strong>.',
+                            'The class guesses the secret rule. Did the model learn it? Which cards confused it, and why?',
+                        ])),
+                        $h2('4. AI in mBlock'),
+                        '<p>mBlock 5 is a block-coding tool from Makeblock, built on Scratch 3. It has several AI extensions. The most important for this course is <strong>Machine Learning 2.0</strong>, which lets you train three kinds of models:</p>',
+                        $table(['Model type', 'Learns from', 'Example project'], [
+                            ['<strong>Image</strong>', 'Webcam pictures or uploaded images', 'Recognise rock, paper or scissors hand shapes'],
+                            ['<strong>Audio</strong>', 'Short sound recordings', 'A robot that reacts when you clap or whistle'],
+                            ['<strong>Pose</strong>', 'Your body position from the webcam', 'A dance game controlled by your arms'],
+                        ]),
+                        '<p>Machine Learning 2.0 uses <strong>TensorFlow.js</strong>, a real AI library from Google, and a trick called <strong>transfer learning</strong>: it starts from a model that already knows a lot about images, sounds or bodies, then quickly learns <em>your</em> examples. Training happens <strong>inside your browser</strong> — your photos and recordings are not uploaded to Makeblock.</p>',
+                        $box('try', 'Quick tour: find Machine Learning 2.0', $addExtension.'<p>Look at the three project types — <strong>Image Project</strong>, <strong>Audio Project</strong> and <strong>Pose Project</strong> — but do not train anything yet. That starts in Lesson 3.</p>'),
+                        $box('think', 'Think about it', '<p>AI is powerful but not perfect. It can be fooled, and it only knows what it was shown. Keep asking: <em>What data was this AI trained on? Who could it get wrong?</em></p>'),
+                        $h2('Vocabulary'),
+                        $table(['Word', 'Meaning'], [
+                            ['Artificial intelligence (AI)', 'Computers doing tasks that normally need human intelligence'],
+                            ['Machine learning (ML)', 'Computers learning patterns from examples instead of fixed rules'],
+                            ['Model', 'What the computer creates after learning; it makes predictions'],
+                            ['Data', 'The examples we give the computer (pictures, sounds, poses)'],
+                            ['Prediction', 'The model’s best guess about new data'],
+                        ]),
+                        $sources([
+                            'mBlock AI learning' => 'https://mblock.cc/pages/ai-learning',
+                            'FAQ on Machine Learning 2.0' => 'https://support.makeblock.com/hc/en-us/articles/24646380612887-FAQ-on-Machine-Learning-2-0',
+                        ]),
+                    ]),
+                    'assignment' => [
+                        'title' => 'Assignment: AI Around Me Poster',
+                        'description' => '<p>Make a one-page poster showing five ways AI is used in your home, school or community.</p>',
+                        'instructions' => '<ol><li>Find <strong>five</strong> examples of AI in your life (phone, TV, games, shops, transport, farming…).</li><li>For each one write: what the AI does, and whether it uses <strong>images, sounds, text or movement</strong>.</li><li>Add one example where a <strong>normal program</strong> (no AI) is good enough, and explain why.</li><li>Draw it on paper and take a clear photo, or make it in Canva, Word or Google Slides and export a PDF/PNG.</li><li>Bonus: add a screenshot of mBlock showing the Machine Learning 2.0 project types.</li></ol>',
+                        'prompt_question' => 'Which of your five AI examples do you find most useful, and what data do you think it was trained on?',
+                        'upload_question' => 'Upload a photo or PDF of your poster (and your optional mBlock screenshot).',
+                        'xp' => 50,
+                    ],
+                ],
+                [
+                    'title' => 'Lesson 2: How Machines Learn — Data, Labels and Training',
+                    'summary' => 'Learn the machine learning workflow: collect data, label it, train a model, test it and use it. Understand confidence and why good data matters.',
+                    'question_of_day' => 'If you only ever saw black cats, would you recognise a white one?',
+                    'objectives' => "Describe the five steps of the machine learning workflow.\nExplain classes, labels, training data and test data.\nRead a confidence score and explain what it means.\nExplain why varied, balanced data makes a better model.",
+                    'guidance' => "Recap (10 min): rules vs learning.\nTeach (30 min): the workflow diagram, classes and labels, confidence bars.\nActivity (35 min): \"Bad data detective\" — groups review the three datasets in the notes and predict what will go wrong.\nDemo (30 min): teacher trains a quick 2-class image model live (e.g. pen vs nothing) and shows confidence changing.\nWrap-up (15 min): quiz and assignment.",
+                    'difficulty' => 'beginner',
+                    'minutes' => 120,
+                    'content' => implode('', [
+                        $hero(2, 'How Machines Learn', 'Data in, model out: the five steps every AI project follows.', 'Module 1 · 2 hours · Webcam for the demo'),
+                        $box('key', 'In this lesson you will', '<ul><li>Follow the <strong>machine learning workflow</strong>.</li><li>Understand <strong>classes</strong>, <strong>labels</strong> and <strong>samples</strong>.</li><li>Read <strong>confidence</strong> scores.</li><li>Learn why <strong>good data</strong> beats more data.</li></ul>'),
+                        $h2('1. The machine learning workflow'),
+                        $table(['Step', 'What happens', 'In mBlock Machine Learning 2.0'], [
+                            ['<strong>1. Collect</strong>', 'Gather examples (data)', 'Webcam pictures, sound recordings or poses'],
+                            ['<strong>2. Label</strong>', 'Put each example in a named group (class)', 'Name each class, e.g. “Rock”, “Paper”'],
+                            ['<strong>3. Train</strong>', 'The computer finds patterns in the labelled data', 'Click <strong>Train Model</strong>'],
+                            ['<strong>4. Test</strong>', 'Try the model on <em>new</em> examples it has never seen', 'Watch the live preview bars'],
+                            ['<strong>5. Use</strong>', 'Put the model to work in a program', 'Click <strong>Use model</strong>, then code with the new blocks'],
+                        ]),
+                        $box('tip', 'Remember it', '<p><strong>C-L-T-T-U</strong>: <em>Collect, Label, Train, Test, Use.</em> If your model is not good enough after testing, go back to <strong>Collect</strong> and improve your data.</p>'),
+                        $h2('2. Classes, labels and samples'),
+                        '<ul><li>A <strong>class</strong> is a group the model can choose from: “Happy”, “Sad”, “Nothing”.</li><li>A <strong>label</strong> is the class name attached to an example.</li><li>A <strong>sample</strong> is one example: one photo, one sound clip, one pose.</li></ul>',
+                        '<p>This kind of model is a <strong>classifier</strong>: it looks at new data and decides which class it belongs to. Learning from labelled examples is called <strong>supervised learning</strong> — like a teacher supervising with the right answers.</p>',
+                        $box('warn', 'Always add a “nothing” class', '<p>A classifier <em>must</em> pick one of its classes. If you only train “Rock”, “Paper” and “Scissors”, then an empty room will still be called one of them! Add a <strong>Background</strong> or <strong>Nothing</strong> class with examples of no hand at all.</p>'),
+                        $h2('3. Confidence: how sure is the model?'),
+                        '<p>A model does not just give an answer, it gives a <strong>confidence</strong> (probability) for every class. In mBlock’s live preview you see bars like this:</p>',
+                        $table(['Class', 'Confidence', ''], [
+                            ['Rock', '0.86', '<span style="display:inline-block;width:172px;height:12px;background:#2563eb;border-radius:6px;"></span>'],
+                            ['Paper', '0.10', '<span style="display:inline-block;width:20px;height:12px;background:#93c5fd;border-radius:6px;"></span>'],
+                            ['Scissors', '0.04', '<span style="display:inline-block;width:8px;height:12px;background:#93c5fd;border-radius:6px;"></span>'],
+                        ]),
+                        '<p>The confidences add up to 1 (100%). The <strong>recognition result</strong> is the class with the highest confidence — here <strong>Rock</strong>, at 86%. In code you can say: <em>only act if confidence is above 0.8</em>, so the program ignores unsure guesses.</p>',
+                        $h2('4. Good data makes good models'),
+                        $table(['Rule', 'Why it matters'], [
+                            ['<strong>Enough samples</strong>', 'A few examples are not enough to find the pattern. Aim for 20–50 images per class to start.'],
+                            ['<strong>Balanced classes</strong>', 'If “Rock” has 100 samples and “Paper” has 5, the model will guess “Rock” too often.'],
+                            ['<strong>Variety</strong>', 'Different angles, distances, backgrounds, lighting and people. Otherwise it only works in one situation.'],
+                            ['<strong>Correct labels</strong>', 'A paper photo saved in the “Rock” class teaches the model the wrong thing.'],
+                            ['<strong>Test with new data</strong>', 'Testing with the training photos is cheating — the model has already seen them.'],
+                        ]),
+                        $box('try', 'Activity: bad data detective', '<p>What will go wrong with each dataset? Discuss in groups.</p><ol><li>A “happy face” model trained only on photos of one learner in a bright room.</li><li>A fruit model with 80 banana photos and 6 mango photos.</li><li>A “thumbs up / thumbs down” model where half of the thumbs-down photos were saved in the thumbs-up class by mistake.</li></ol>'),
+                        $h2('5. Underfitting and overfitting'),
+                        '<ul><li><strong>Underfitting</strong>: the model has not learned enough. It gets lots wrong even on easy examples. Fix: more data, more training.</li><li><strong>Overfitting</strong>: the model memorised the training examples (including the background, your shirt, the lighting) and fails on anything new. Fix: more <em>varied</em> data.</li></ul>',
+                        $box('think', 'Think about it', '<p>Machine Learning 2.0 trains in your browser, and Makeblock says the training data is not sent to their servers. Why is that good for privacy when you are training with photos of your face?</p>'),
+                        $h2('Vocabulary'),
+                        $table(['Word', 'Meaning'], [
+                            ['Class', 'A group or category the model can predict'],
+                            ['Label', 'The class name attached to a training example'],
+                            ['Sample', 'One example of data'],
+                            ['Training', 'The computer learning patterns from labelled samples'],
+                            ['Testing', 'Checking the model on new data it has not seen'],
+                            ['Confidence', 'How sure the model is, from 0 to 1 (0% to 100%)'],
+                            ['Supervised learning', 'Learning from examples that have the correct labels'],
+                            ['Bias', 'When data or a model unfairly favours some cases over others'],
+                        ]),
+                        $sources(['FAQ on Machine Learning 2.0' => 'https://support.makeblock.com/hc/en-us/articles/24646380612887-FAQ-on-Machine-Learning-2-0']),
+                    ]),
+                    'assignment' => [
+                        'title' => 'Assignment: Design a Dataset',
+                        'description' => '<p>Plan the data for a machine learning model before you build it.</p>',
+                        'instructions' => '<ol><li>Choose a classifier idea, for example “ripe vs unripe banana”, “happy vs sad face”, or “recycling vs rubbish”.</li><li>List your <strong>classes</strong> (at least 3, including a “Nothing/Background” class).</li><li>For each class, write how many samples you will collect and <strong>three ways you will add variety</strong> (angles, lighting, people…).</li><li>Write one way your model could be <strong>biased</strong> and how you will prevent it.</li><li>Fill the plan on paper (photo it) or in a document (PDF/DOCX) and upload it.</li></ol>',
+                        'prompt_question' => 'What is your classifier idea, and why did you include a Nothing/Background class?',
+                        'upload_question' => 'Upload your dataset plan (photo, PDF or DOCX).',
+                        'xp' => 60,
+                    ],
+                ],
+            ],
+        ],
+
+        [
+            'title' => 'Module 2: Image Models with Machine Learning 2.0',
+            'description' => 'Train image classifiers with the webcam and use them in games.',
+            'overview' => 'Learners train, test and improve image models, then build a Rock-Paper-Scissors AI game.',
+            'hours' => 4,
+            'lessons' => [
+                [
+                    'title' => 'Lesson 3: Train Your First Image Model',
+                    'summary' => 'Use Machine Learning 2.0 to train an image model with the webcam, then use the recognition blocks to make a sprite react.',
+                    'question_of_day' => 'How many photos do you think a computer needs to tell your face from your friend’s?',
+                    'objectives' => "Add the Machine Learning 2.0 extension and create an Image Project.\nCollect webcam samples for at least three classes.\nTrain the model and test it in the live preview.\nUse start recognition, recognition result, confidence of and recognition result is in a program.",
+                    'guidance' => "Setup check (10 min): webcam permissions in mBlock/Chrome.\nGuided build (40 min): follow the steps in the notes exactly with the class; everyone trains Thumbs up / Thumbs down / Nothing.\nCoding (40 min): build the Panda reaction program.\nExtension (20 min): learners invent their own classes.\nWrap-up (10 min): save as .mblock, quiz.",
+                    'difficulty' => 'beginner',
+                    'minutes' => 120,
+                    'content' => implode('', [
+                        $hero(3, 'Train Your First Image Model', 'Teach mBlock to recognise thumbs up, thumbs down — or anything you choose.', 'Module 2 · 2 hours · Webcam required'),
+                        $box('key', 'In this lesson you will', '<ul><li>Create an <strong>Image Project</strong> in Machine Learning 2.0.</li><li>Collect samples with the webcam and train a model.</li><li>Test it with the live preview.</li><li>Code a sprite that reacts to what the camera sees.</li></ul>'),
+                        $h2('1. Add the extension'),
+                        $addExtension,
+                        $h2('2. Create an image model'),
+                        $steps([
+                            'On the <strong>New project</strong> page, click <strong>New model</strong> under <strong>Image Project</strong>.',
+                            'Give the model a name, for example <em>Thumbs</em>.',
+                            'Rename the first class to <strong>Thumbs up</strong> and the second to <strong>Thumbs down</strong>.',
+                            'Click <strong>Add a class</strong> and name it <strong>Nothing</strong>.',
+                            'Allow the browser to use your webcam when asked.',
+                        ]),
+                        $h2('3. Collect your data'),
+                        $steps([
+                            'Under <strong>Thumbs up</strong>, click <strong>Webcam</strong>. Hold up a thumbs up and press and hold the record button to capture samples.',
+                            'Move your hand while recording: closer, further, left, right, slightly turned. Aim for <strong>30+ samples</strong>.',
+                            'Do the same for <strong>Thumbs down</strong>.',
+                            'For <strong>Nothing</strong>, record the background with no hand, and also your face with no thumb.',
+                            'You can also click <strong>Upload</strong> to add pictures from files.',
+                        ]),
+                        $box('tip', 'Pro tips for better data', '<ul><li>Keep the number of samples in each class roughly <strong>the same</strong>.</li><li>Use <strong>both hands</strong> and let a friend record too.</li><li>Do not let your face be the only difference between classes!</li></ul>'),
+                        $h2('4. Train and test'),
+                        $steps([
+                            'Click <strong>Train Model</strong> and wait for training to finish. (The <strong>Advanced</strong> button lets you change training settings later — leave it for now.)',
+                            'Look at the <strong>preview</strong> on the right. Show each gesture and watch the confidence bars.',
+                            'Try tricky tests: a different background, another person, a sideways thumb.',
+                            'If a class is often wrong, add more samples for it and train again.',
+                        ]),
+                        $box('warn', 'One model per project type', '<p>In this version of Machine Learning 2.0 you can keep <strong>one model per task type</strong>. If you create a new image model, it <strong>overwrites</strong> the old one. Save your .mblock project before experimenting.</p>'),
+                        $h2('5. Use the model in code'),
+                        '<p>Click <strong>Use model</strong> in the upper-right corner. Four new blocks appear:</p>',
+                        $table(['Block', 'What it does'], [
+                            [$block('start recognition'), 'Takes a new picture from the camera and runs the model. Each time it runs, the values below are refreshed.'],
+                            [$block('recognition result'), 'The name of the class with the highest confidence, e.g. “Thumbs up”. Empty until start recognition has run.'],
+                            [$block('confidence of ( )'), 'A number from 0 to 1: how sure the model is for the class you pick.'],
+                            [$block('recognition result is ( ) ?'), 'True/false. Perfect inside an '.$block('if ⟨ ⟩ then', 'control').' block.'],
+                        ]),
+                        $h2('6. Program: the Panda judge'),
+                        '<p>Build this script on the Panda sprite:</p>',
+                        $table(['Step', 'Blocks'], [
+                            ['1', $block('when green flag clicked', 'event')],
+                            ['2', $block('forever', 'control')],
+                            ['3', '&nbsp;&nbsp;'.$block('start recognition')],
+                            ['4', '&nbsp;&nbsp;'.$block('if recognition result is (Thumbs up) ? then', 'control').' → '.$block('say (Great job!)', 'looks')],
+                            ['5', '&nbsp;&nbsp;'.$block('if recognition result is (Thumbs down) ? then', 'control').' → '.$block('say (Oh no!)', 'looks')],
+                            ['6', '&nbsp;&nbsp;'.$block('if recognition result is (Nothing) ? then', 'control').' → '.$block('say ( )', 'looks')],
+                        ]),
+                        $box('try', 'Challenge', '<ol><li>Show the confidence: '.$block('say (join (recognition result) (confidence of (Thumbs up)))', 'looks').'.</li><li>Only react if '.$block('confidence of (Thumbs up) > 0.8', 'operator').'.</li><li>Add a sound and a costume change for each class.</li></ol>'),
+                        $h2('7. Save your project'),
+                        '<p>Type a name in the title box, then click <strong>File → Save to your computer</strong>. This makes a <strong>.mblock</strong> file. You will upload it for your assignment.</p>',
+                        $checklist([
+                            'Show your model recognising all three classes in the preview',
+                            'Explain what the confidence number means',
+                            'Run the Panda judge program',
+                            'Find your saved .mblock file',
+                        ]),
+                        $sources([
+                            'How to Create an Image Model' => 'https://support.makeblock.com/hc/en-us/articles/24646281738391-How-to-Create-an-Image-Model',
+                            'How to Apply a Created Model to a Project' => 'https://support.makeblock.com/hc/en-us/articles/24646486312471-How-to-Apply-a-Created-Model-to-a-Project',
+                        ]),
+                    ]),
+                    'assignment' => [
+                        'title' => 'Assignment: My First Image Model',
+                        'description' => '<p>Train your own image model with at least three classes and make a sprite react to it.</p>',
+                        'instructions' => '<ol><li>Create an Image Project in Machine Learning 2.0 with <strong>at least 3 classes</strong>, one of them “Nothing”.</li><li>Collect at least <strong>20 samples per class</strong> with variety.</li><li>Train and test the model.</li><li>Program a sprite to react differently to each class.</li><li>Take screenshots of: the training page with the confidence bars, and your code.</li><li>Save as <strong>.mblock</strong> and upload with the screenshots.</li></ol>',
+                        'prompt_question' => 'What classes did your model learn, how many samples did each have, and which class was hardest to recognise?',
+                        'xp' => 80,
+                    ],
+                ],
+                [
+                    'title' => 'Lesson 4: Rock, Paper, Scissors AI Game',
+                    'summary' => 'Build a full Rock-Paper-Scissors game against the computer using an image model, variables and random numbers, then measure your model’s accuracy.',
+                    'question_of_day' => 'Can you beat an AI at Rock, Paper, Scissors?',
+                    'objectives' => "Train a 4-class image model (Rock, Paper, Scissors, Nothing).\nUse variables and pick random to make the computer play.\nCompare the player’s move with the computer’s and keep score.\nMeasure accuracy over 20 tests and improve the model.",
+                    'guidance' => "Recap (10 min): the four ML 2.0 blocks.\nTrain (25 min): RPS model with lots of variety.\nCode (50 min): game logic in stages; check each stage works.\nAccuracy lab (25 min): 20 tests per learner, record in the table, retrain.\nWrap-up (10 min).",
+                    'difficulty' => 'intermediate',
+                    'minutes' => 120,
+                    'content' => implode('', [
+                        $hero(4, 'Rock, Paper, Scissors AI Game', 'Your hand is the controller. The webcam is the referee.', 'Module 2 · 2 hours · Webcam required'),
+                        $box('key', 'In this lesson you will', '<ul><li>Train a 4-class hand-shape model.</li><li>Build a game with variables, random numbers and scoring.</li><li>Measure your model’s <strong>accuracy</strong> and improve it.</li></ul>'),
+                        $h2('1. Train the hand model'),
+                        $steps([
+                            'Open Machine Learning 2.0 → <strong>Create/Manage model</strong> → <strong>Image Project</strong> → <strong>New model</strong>, name it <em>RPS</em>.',
+                            'Make 4 classes: <strong>Rock</strong>, <strong>Paper</strong>, <strong>Scissors</strong>, <strong>Nothing</strong>.',
+                            'Collect 40+ samples per class. Move your hand around the frame, rotate it, use both hands.',
+                            'Click <strong>Train Model</strong>, test in the preview, then <strong>Use model</strong>.',
+                        ]),
+                        $h2('2. Plan the game'),
+                        $table(['Player', 'Computer', 'Winner'], [
+                            ['Rock', 'Scissors', 'Player (rock crushes scissors)'],
+                            ['Paper', 'Rock', 'Player (paper covers rock)'],
+                            ['Scissors', 'Paper', 'Player (scissors cut paper)'],
+                            ['Same move', 'Same move', 'Draw'],
+                            ['Anything else', '', 'Computer'],
+                        ]),
+                        $h2('3. Build it step by step'),
+                        '<p><strong>Variables</strong> (Variables category → Make a Variable): <em>player</em>, <em>computer</em>, <em>playerScore</em>, <em>aiScore</em>.</p>',
+                        $table(['Stage', 'Blocks'], [
+                            ['Start', $block('when green flag clicked', 'event').' '.$block('set playerScore to 0', 'data').' '.$block('set aiScore to 0', 'data')],
+                            ['Each round', $block('when space key pressed', 'event').' '.$block('say (3… 2… 1… show me!) for 2 seconds', 'looks')],
+                            ['Read the hand', $block('start recognition').' '.$block('set player to (recognition result)', 'data')],
+                            ['Ignore unsure guesses', $block('if (confidence of (player)) < 0.7 then', 'control').' '.$block('say (I can’t see your hand clearly!)', 'looks').' '.$block('stop this script', 'control')],
+                            ['Computer move', $block('set computer to (item (pick random 1 to 3) of [moves])', 'data').' — a list containing Rock, Paper, Scissors'],
+                            ['Decide', $block('if player = computer then say Draw', 'control').' else check the three winning rows from the table'],
+                            ['Score', $block('change playerScore by 1', 'data').' or '.$block('change aiScore by 1', 'data')],
+                        ]),
+                        $box('tip', 'Debugging tip', '<p>Tick the checkbox next to each variable so it shows on the stage. Then you can see what the model recognised and what the computer chose.</p>'),
+                        $h2('4. Accuracy lab'),
+                        '<p><strong>Accuracy</strong> = correct predictions ÷ total tests. Test your model 20 times (about 5 per class) with your hand in new positions and record the results:</p>',
+                        $table(['Shown', 'Times tested', 'Times correct', 'Accuracy'], [
+                            ['Rock', '5', '…', '… / 5'],
+                            ['Paper', '5', '…', '… / 5'],
+                            ['Scissors', '5', '…', '… / 5'],
+                            ['Nothing', '5', '…', '… / 5'],
+                            ['<strong>Total</strong>', '<strong>20</strong>', '…', '<strong>… %</strong>'],
+                        ]),
+                        $box('try', 'Improve your model', '<p>Find the class with the lowest accuracy. Add 15 more <em>varied</em> samples to that class and the class it gets confused with. Train again and repeat the 20 tests. Did accuracy go up?</p>'),
+                        $box('warn', 'If the model stops working', '<p>Makeblock suggests: change location if lighting or contrast is poor, keep your hand at a similar distance during training and play, and retrain with data from the new place.</p>'),
+                        $checklist([
+                            'Play a full game with the score showing',
+                            'Explain why the game ignores low-confidence results',
+                            'Show your before-and-after accuracy table',
+                        ]),
+                        $sources(['How to Create an Image Model' => 'https://support.makeblock.com/hc/en-us/articles/24646281738391-How-to-Create-an-Image-Model']),
+                    ]),
+                    'assignment' => [
+                        'title' => 'Assignment: Rock, Paper, Scissors AI',
+                        'description' => '<p>Submit your working RPS game and your accuracy test results.</p>',
+                        'instructions' => '<ol><li>Build the Rock-Paper-Scissors game with a 4-class image model.</li><li>The game must keep score and ignore low-confidence results.</li><li>Run the 20-test accuracy lab <strong>before and after</strong> improving your data.</li><li>Upload your <strong>.mblock</strong> file, a screenshot of your code, and a photo/screenshot of your accuracy table.</li><li>Optional: a 30-second video of you playing.</li></ol>',
+                        'prompt_question' => 'What was your accuracy before and after improving the data, and what did you change?',
+                        'xp' => 100,
+                    ],
+                ],
+            ],
+        ],
+
+        [
+            'title' => 'Module 3: Sound Models',
+            'description' => 'Teach the computer to hear: audio classification with Machine Learning 2.0.',
+            'overview' => 'Learners record background noise and sound classes, train an audio model, and build voice/sound-controlled projects.',
+            'hours' => 2,
+            'lessons' => [
+                [
+                    'title' => 'Lesson 5: Teach the Computer to Hear — Audio Models',
+                    'summary' => 'Train an audio model that recognises claps, whistles, snaps or short words, and use it to control a sprite.',
+                    'question_of_day' => 'How does a phone know you said “Hey Google” and not “Hey Goo-gull”?',
+                    'objectives' => "Create an Audio Project in Machine Learning 2.0.\nRecord background noise and at least two sound classes.\nExplain why the background noise class is needed.\nBuild a sprite that moves or changes when it hears each sound.",
+                    'guidance' => "Classroom noise is the main problem. Train in small groups in turns, or move groups to a quieter space.\nTeach (15 min): sound as data, background noise.\nTrain (35 min): clap / whistle / snap.\nCode (40 min): sound-controlled sprite.\nTest and improve (20 min).\nWrap-up (10 min).",
+                    'difficulty' => 'beginner',
+                    'minutes' => 120,
+                    'content' => implode('', [
+                        $hero(5, 'Teach the Computer to Hear', 'Claps, whistles and snaps become commands with an audio model.', 'Module 3 · 2 hours · Microphone required'),
+                        $box('key', 'In this lesson you will', '<ul><li>Turn sounds into training data.</li><li>Create an <strong>Audio Project</strong> and train it.</li><li>Control a sprite with sounds.</li></ul>'),
+                        $h2('1. Sound is data too'),
+                        '<p>A microphone turns sound into numbers. The model looks at the pattern of a short sound — how loud, how high or low, how it changes — and learns which pattern belongs to which class. Your phone’s “Hey Google” and “Hey Siri” wake words work the same way.</p>',
+                        $h2('2. Create the audio model'),
+                        $steps([
+                            'Open Machine Learning 2.0 → <strong>Create/Manage model</strong>.',
+                            'Click <strong>New model</strong> under <strong>Audio Project</strong> and name it <em>Sounds</em>.',
+                            'First record the <strong>Background Noise</strong> class: stay quiet and record for <strong>at least 20 seconds</strong>, then click <strong>Extract Samples</strong>.',
+                            'Rename the next class to <strong>Clap</strong> and record claps for <strong>at least 8 seconds</strong>. Extract samples.',
+                            'Add a class <strong>Whistle</strong> (or <strong>Snap</strong>) and record for at least 8 seconds.',
+                            'Click <strong>Train Model</strong>, then test in the preview.',
+                        ]),
+                        $box('key', 'Why background noise?', '<p>The model is always listening. Without a Background Noise class it would force every quiet moment, every chair scrape and every cough into “Clap” or “Whistle”. The background class teaches it what <strong>“no command”</strong> sounds like.</p>'),
+                        $box('tip', 'Better sound data', '<ul><li>Keep the microphone at the <strong>same distance</strong> while training and playing.</li><li>Vary the sound a little: soft and loud claps, different people.</li><li>If it fails, try another microphone or move closer — Makeblock’s FAQ recommends both.</li></ul>'),
+                        $h2('3. Program: the sound-controlled cat'),
+                        $table(['Step', 'Blocks'], [
+                            ['1', $block('when green flag clicked', 'event').' '.$block('forever', 'control')],
+                            ['2', '&nbsp;&nbsp;'.$block('start recognition')],
+                            ['3', '&nbsp;&nbsp;'.$block('if recognition result is (Clap) ? then', 'control').' → '.$block('move 30 steps', 'robot').' '.$block('play sound (pop)', 'sound')],
+                            ['4', '&nbsp;&nbsp;'.$block('if recognition result is (Whistle) ? then', 'control').' → '.$block('turn ↻ 90 degrees', 'robot')],
+                        ]),
+                        $box('try', 'Challenges', '<ol><li><strong>Clap counter</strong>: a variable that counts claps and shows the total.</li><li><strong>Secret door</strong>: the sprite only opens after Clap → Whistle in that order.</li><li><strong>Word commands</strong>: train short words like “go” and “stop”. Which is easier for the model, words or claps? Why?</li></ol>'),
+                        $box('think', 'Think about it', '<p>Smart speakers listen all the time for a wake word. What are the privacy risks? Machine Learning 2.0 trains in your browser — how is that different from a speaker that sends recordings to the cloud?</p>'),
+                        $checklist([
+                            'Show your model telling claps from background noise',
+                            'Explain why the Background Noise class must be recorded first',
+                            'Control a sprite with at least two different sounds',
+                        ]),
+                        $sources(['How to Create an Audio Model' => 'https://support.makeblock.com/hc/en-us/articles/24646331170455-How-to-Create-an-Audio-Model']),
+                    ]),
+                    'assignment' => [
+                        'title' => 'Assignment: Sound-Controlled Project',
+                        'description' => '<p>Build a project controlled by at least two sounds you trained.</p>',
+                        'instructions' => '<ol><li>Train an Audio Project with Background Noise plus <strong>at least 2 sound classes</strong>.</li><li>Program a sprite (or game) that does something different for each sound.</li><li>Test it 10 times per sound and write down how many were correct.</li><li>Upload the <strong>.mblock</strong> file, screenshots of the training page and code, and optionally a short video.</li></ol>',
+                        'prompt_question' => 'Which sounds did you train, how accurate was each one in your 10 tests, and what made the model make mistakes?',
+                        'xp' => 90,
+                    ],
+                ],
+            ],
+        ],
+
+        [
+            'title' => 'Module 4: Pose Models and AI Robots',
+            'description' => 'Recognise body poses and connect AI results to robots.',
+            'overview' => 'Learners train pose models, build movement games, and send AI results to mBot2 and CyberPi with Upload Mode Broadcast.',
+            'hours' => 4,
+            'lessons' => [
+                [
+                    'title' => 'Lesson 6: Your Body Is the Controller — Pose Models',
+                    'summary' => 'Train a pose model that recognises body positions and use it to build an exercise or dance game.',
+                    'question_of_day' => 'How could a computer tell if you are doing a jumping jack correctly?',
+                    'objectives' => "Create a Pose Project and collect pose samples.\nExplain how pose detection differs from image classification.\nApply Makeblock’s tips on position and lighting.\nBuild a movement game that scores correct poses.",
+                    'guidance' => "Space is needed: learners must be visible from head to knees. Push desks back or use the corridor.\nTeach (15 min): keypoints and skeletons.\nTrain (35 min): Arms up / T-pose / Nothing.\nCode (45 min): Simon Says pose game.\nPlay and improve (15 min). Wrap-up (10 min).",
+                    'difficulty' => 'intermediate',
+                    'minutes' => 120,
+                    'content' => implode('', [
+                        $hero(6, 'Your Body Is the Controller', 'Pose models read your arms, legs and head — no buttons needed.', 'Module 4 · 2 hours · Webcam and space to move'),
+                        $box('key', 'In this lesson you will', '<ul><li>Understand <strong>pose detection</strong> and keypoints.</li><li>Train a <strong>Pose Project</strong>.</li><li>Build a “Simon Says” movement game.</li></ul>'),
+                        $h2('1. How pose detection works'),
+                        '<p>An image model looks at the <em>whole picture</em>. A pose model first finds <strong>keypoints</strong> on your body — nose, eyes, shoulders, elbows, wrists, hips, knees, ankles — and joins them into a stick-figure <strong>skeleton</strong>. Then it learns which skeleton shapes belong to which class.</p>',
+                        $table(['Image model', 'Pose model'], [
+                            ['Looks at all the pixels', 'Looks at body keypoints'],
+                            ['Can be distracted by clothes and background', 'Mostly ignores clothes and background'],
+                            ['Good for objects, faces, hand shapes', 'Good for exercise, dance, sign-like gestures'],
+                        ]),
+                        $box('warn', 'Position matters', '<p>Makeblock notes that pose models also track <strong>where you are</strong> in the webcam frame. If you train standing on the left and play standing on the right, results can get worse. Train from a few positions, or keep a fixed spot (mark it with tape).</p>'),
+                        $h2('2. Train the pose model'),
+                        $steps([
+                            'Open Machine Learning 2.0 → <strong>Create/Manage model</strong> → <strong>New model</strong> under <strong>Pose Project</strong>, name it <em>Moves</em>.',
+                            'Stand back so the camera sees you from head to at least your knees.',
+                            'Create classes: <strong>Arms up</strong>, <strong>T-pose</strong>, <strong>Hands on head</strong>, <strong>Nothing</strong> (standing normally).',
+                            'For each class click <strong>Webcam</strong> and <strong>long press to collect</strong> while holding the pose. Turn slightly, step a little closer and further.',
+                            'Click <strong>Train Model</strong>. Test every pose in the preview, then click <strong>Use model</strong>.',
+                        ]),
+                        $box('tip', 'Pose tips', '<ul><li>Good, even lighting — avoid a bright window behind you.</li><li>Wear clothes that contrast with the wall.</li><li>Only one person in the frame during training.</li></ul>'),
+                        $h2('3. Program: Simon Says'),
+                        '<p>Make a list called <em>poses</em> with Arms up, T-pose and Hands on head, and a variable <em>target</em>.</p>',
+                        $table(['Step', 'Blocks'], [
+                            ['1', $block('when green flag clicked', 'event').' '.$block('set score to 0', 'data').' '.$block('repeat 10', 'control')],
+                            ['2', '&nbsp;&nbsp;'.$block('set target to (item (pick random 1 to 3) of [poses])', 'data').' '.$block('say (join (Simon says: ) (target)) for 2 seconds', 'looks')],
+                            ['3', '&nbsp;&nbsp;'.$block('wait 1 seconds', 'control').' '.$block('start recognition')],
+                            ['4', '&nbsp;&nbsp;'.$block('if recognition result is (target) ? then', 'control').' → '.$block('change score by 1', 'data').' '.$block('say (Yes!)', 'looks')],
+                            ['5', '&nbsp;&nbsp;else → '.$block('say (Not quite!)', 'looks')],
+                        ]),
+                        $box('try', 'Challenges', '<ol><li><strong>Fitness coach</strong>: count how many times you go from Nothing → Arms up → Nothing (one jumping jack).</li><li><strong>Speed round</strong>: make the wait shorter every round.</li><li><strong>Dance mirror</strong>: the Panda switches costume to copy your pose.</li></ol>'),
+                        $box('think', 'Think about it', '<p>Would a pose model trained only on tall learners work for short learners? What about someone using a wheelchair? How would you collect fairer data?</p>'),
+                        $checklist([
+                            'Show at least three poses recognised in the preview',
+                            'Explain what keypoints are',
+                            'Play Simon Says and get a score',
+                        ]),
+                        $sources([
+                            'FAQ on Machine Learning 2.0' => 'https://support.makeblock.com/hc/en-us/articles/24646380612887-FAQ-on-Machine-Learning-2-0',
+                            'Dance with your robot (Makeblock blog)' => 'https://www.makeblock.com/blogs/how-to-tutorials/how-to-dance-with-your-robot',
+                        ]),
+                    ]),
+                    'assignment' => [
+                        'title' => 'Assignment: Pose-Controlled Game',
+                        'description' => '<p>Create a movement game controlled by at least three poses.</p>',
+                        'instructions' => '<ol><li>Train a Pose Project with <strong>at least 3 poses plus Nothing</strong>.</li><li>Build Simon Says, a fitness counter, or your own pose game with a score.</li><li>Ask a classmate to play. Does the model work for them? Record what happens.</li><li>Upload the <strong>.mblock</strong> file, screenshots of training and code, and a photo or short video of someone playing.</li></ol>',
+                        'prompt_question' => 'Which poses did you train, and did the model work as well for your classmate as for you? Why or why not?',
+                        'xp' => 100,
+                    ],
+                ],
+                [
+                    'title' => 'Lesson 7: AI Meets Robots — mBot2 and CyberPi',
+                    'summary' => 'Send machine learning results from the mBlock stage to a real robot with the Upload Mode Broadcast extension.',
+                    'question_of_day' => 'If a robot could see your hand signals, what would you tell it to do?',
+                    'objectives' => "Explain why the model runs on the computer and the robot receives messages.\nAdd the Upload Mode Broadcast extension to a sprite.\nSend recognition results as messages and receive them on mBot2 or CyberPi.\nBuild a gesture- or pose-controlled robot.",
+                    'guidance' => "If you have no robots, CyberPi alone works; if neither, learners simulate the robot with a second sprite.\nTeach (15 min): computer = brain, robot = body, broadcast = nerves.\nSetup (20 min): connect device, Upload mode, firmware.\nBuild (55 min): gesture-controlled mBot2.\nDemo (20 min). Wrap-up (10 min).",
+                    'difficulty' => 'intermediate',
+                    'minutes' => 120,
+                    'content' => implode('', [
+                        $hero(7, 'AI Meets Robots', 'Your model sees the gesture. Your robot does the move.', 'Module 4 · 2 hours · mBot2 or CyberPi recommended'),
+                        $box('key', 'In this lesson you will', '<ul><li>Connect an AI model on the computer to a robot.</li><li>Use the <strong>Upload Mode Broadcast</strong> extension.</li><li>Build a robot that obeys hand signals or poses.</li></ul>'),
+                        $h2('1. Brain and body'),
+                        '<p>Machine Learning 2.0 runs on the <strong>computer</strong> (it needs the webcam and a lot of computing power). The robot runs its own uploaded program. To connect them, the sprite sends <strong>messages</strong> to the robot:</p>',
+                        $table(['Part', 'Job', 'Like…'], [
+                            ['Webcam + ML model on the sprite', 'Sees and recognises', 'Eyes and brain'],
+                            ['Upload Mode Broadcast message', 'Carries the result', 'Nerves'],
+                            ['mBot2 / CyberPi program', 'Moves, lights up, plays sound', 'Muscles'],
+                        ]),
+                        $h2('2. Set up the robot'),
+                        $steps([
+                            'Click the <strong>Devices</strong> tab, click <strong>+ Add</strong> and choose <strong>CyberPi</strong> (mBot2 uses CyberPi as its controller).',
+                            'Connect with the USB cable and click <strong>Connect</strong>. Update firmware if asked.',
+                            'Switch the device to <strong>Upload</strong> mode.',
+                            'Click <strong>+ extension</strong> on the device and add <strong>Upload Mode Broadcast</strong>.',
+                        ]),
+                        $h2('3. Set up the sprite'),
+                        $steps([
+                            'Click the <strong>Sprites</strong> tab and select the Panda.',
+                            'Add the <strong>Machine Learning 2.0</strong> extension and train an image model: <strong>Forward</strong> (open palm), <strong>Stop</strong> (fist), <strong>Left</strong>, <strong>Right</strong> (point), <strong>Nothing</strong>.',
+                            'Also add the <strong>Upload Mode Broadcast</strong> extension to the sprite.',
+                        ]),
+                        $h2('4. Code both sides'),
+                        $table(['Sprite (computer)', 'CyberPi / mBot2 (robot)'], [
+                            [
+                                $block('when green flag clicked', 'event').'<br>'.$block('forever', 'control').'<br>&nbsp;&nbsp;'.$block('start recognition').'<br>&nbsp;&nbsp;'.$block('if confidence of (recognition result) > 0.8 then', 'control').'<br>&nbsp;&nbsp;&nbsp;&nbsp;'.$block('send upload mode message (recognition result)', 'robot').'<br>&nbsp;&nbsp;'.$block('wait 0.5 seconds', 'control'),
+                                $block('when receiving upload mode message (Forward)', 'event').' → '.$block('move forward at 50 % power', 'robot').'<br>'.$block('when receiving upload mode message (Stop)', 'event').' → '.$block('stop encoder motor', 'robot').'<br>'.$block('when receiving upload mode message (Left)', 'event').' → '.$block('turn left 90°', 'robot').'<br>'.$block('when receiving upload mode message (Right)', 'event').' → '.$block('turn right 90°', 'robot'),
+                            ],
+                        ]),
+                        '<p>Upload the robot program first. Keep the USB connected (or use the wireless adapter), then click the green flag on the stage.</p>',
+                        $box('warn', 'Safety first', '<ul><li>Test on the floor, not on a table edge.</li><li>Start with low motor power (30–50%).</li><li>Always train and test the <strong>Stop</strong> class first — and keep a hand near the robot.</li></ul>'),
+                        $box('try', 'Project ideas from Makeblock', '<ul><li><strong>Rhythm Artist</strong>: poses make mBot2 sing and dance.</li><li><strong>Emotion Reader</strong>: a facial-expression image model makes CyberPi show matching faces on its screen.</li><li><strong>Meow Translator</strong>: an audio model recognises cat sounds and CyberPi displays what the cat “said”.</li></ul>'),
+                        $box('teacher', 'No robot?', '<p>Use a second sprite as the “robot”: replace the robot blocks with '.$block('broadcast (Forward)', 'event').' and '.$block('when I receive (Forward)', 'event').' on a car sprite. The idea is exactly the same.</p>'),
+                        $checklist([
+                            'Explain why the model runs on the computer, not the robot',
+                            'Show the robot reacting to at least three gestures',
+                            'Show the Stop gesture working every time',
+                        ]),
+                        $sources([
+                            'How to Apply a Created Model to a Project' => 'https://support.makeblock.com/hc/en-us/articles/24646486312471-How-to-Apply-a-Created-Model-to-a-Project',
+                            'mBlock AI learning' => 'https://mblock.cc/pages/ai-learning',
+                        ]),
+                    ]),
+                    'assignment' => [
+                        'title' => 'Assignment: Gesture-Controlled Robot',
+                        'description' => '<p>Control mBot2, CyberPi (or a robot sprite) with your trained model.</p>',
+                        'instructions' => '<ol><li>Train an image or pose model with at least <strong>Forward, Stop and one turn</strong>, plus Nothing.</li><li>Send results with <strong>Upload Mode Broadcast</strong> (or broadcast to a robot sprite if you have no hardware).</li><li>Program the robot to react to every message.</li><li>Upload your <strong>.mblock</strong> file, screenshots of the sprite and robot code, and a short video (MP4) of the robot obeying you.</li></ol>',
+                        'prompt_question' => 'Which gestures control your robot, and how did you stop the robot from reacting to unsure guesses?',
+                        'xp' => 120,
+                    ],
+                ],
+            ],
+        ],
+
+        [
+            'title' => 'Module 5: Cloud AI, Object Detection and Responsible AI',
+            'description' => 'Use ready-made cloud AI, explore object detection, and think about fairness and privacy.',
+            'overview' => 'Learners compare training their own models with using pre-trained cloud AI, meet object detection with AI Camera 2.0 and PictoBlox, and discuss bias.',
+            'hours' => 4,
+            'lessons' => [
+                [
+                    'title' => 'Lesson 8: Cloud AI — Speech, Text, Translate and Talk',
+                    'summary' => 'Use pre-trained AI services in mBlock: speech recognition, text recognition, translation and text to speech, and compare them with models you train yourself.',
+                    'question_of_day' => 'What is the difference between an AI you train and an AI someone else trained for you?',
+                    'objectives' => "Add the Cognitive Services, Translate and Text to Speech extensions.\nRecognise speech and printed text with cloud AI.\nBuild a talking translator.\nCompare pre-trained cloud AI with Machine Learning 2.0 (data, internet, privacy).",
+                    'guidance' => "Learners must sign in to an mBlock account and be online. Cloud services have daily call limits, so do not leave them in a fast forever loop.\nMicrosoft retired emotion and gender detection in 2023, so face blocks may not work: use them as a discussion point, not a lab.\nTeach (15 min). Lab 1 speech (25 min). Lab 2 translator (35 min). Lab 3 OCR (15 min). Compare and discuss (20 min). Wrap-up (10 min).",
+                    'difficulty' => 'intermediate',
+                    'minutes' => 120,
+                    'content' => implode('', [
+                        $hero(8, 'Cloud AI: Speech, Text, Translate and Talk', 'Use powerful AI that was trained by someone else — and learn the trade-offs.', 'Module 5 · 2 hours · Internet, microphone, mBlock account'),
+                        $box('key', 'In this lesson you will', '<ul><li>Use <strong>pre-trained cloud AI</strong> blocks.</li><li>Turn speech into text, text into speech, and translate between languages.</li><li>Compare cloud AI with your own Machine Learning 2.0 models.</li></ul>'),
+                        $h2('1. Train it yourself vs use a ready-made model'),
+                        $table(['', 'Machine Learning 2.0 (you train)', 'Cognitive Services (cloud, pre-trained)'], [
+                            ['Who trained it?', 'You, with your own data', 'Microsoft, with huge datasets'],
+                            ['What can it recognise?', 'Only the classes you taught it', 'General things: speech, printed text, objects'],
+                            ['Internet needed?', 'No — trains in the browser', 'Yes, and you must sign in'],
+                            ['Your data', 'Stays on your computer', 'Sent to cloud servers for processing'],
+                            ['Limits', 'One model per type', 'Daily usage limits'],
+                        ]),
+                        $h2('2. Add the extensions'),
+                        $steps([
+                            'Sign in to your <strong>mBlock account</strong> (top right).',
+                            'On the <strong>Sprites</strong> tab, click <strong>+ extension</strong>.',
+                            'Add <strong>Cognitive Services</strong>, <strong>Translate</strong> and <strong>Text to Speech</strong>.',
+                        ]),
+                        $h2('3. Lab 1: speech recognition'),
+                        $table(['Step', 'Blocks'], [
+                            ['1', $block('when space key pressed', 'event')],
+                            ['2', $block('recognize speech in (English) for (5) secs', 'ml')],
+                            ['3', $block('say (speech recognition result)', 'looks')],
+                        ]),
+                        '<p>Say a short sentence clearly. Try the same sentence fast, slowly, with an accent, and in a noisy room. When does it make mistakes?</p>',
+                        $h2('4. Lab 2: the talking translator'),
+                        $table(['Step', 'Blocks'], [
+                            ['1', $block('when space key pressed', 'event').' '.$block('recognize speech in (English) for (5) secs', 'ml')],
+                            ['2', $block('set language to (Spanish)', 'sound').' — Text to Speech'],
+                            ['3', $block('speak (translate (speech recognition result) to (Spanish))', 'sound')],
+                            ['4', $block('say (translate (speech recognition result) to (Spanish))', 'looks')],
+                        ]),
+                        $box('tip', 'Voices', '<p>'.$block('set voice to (alto)', 'sound').' changes the voice. Try different voices and languages. Check whether your language (for example Swahili) is in the list — not every language is supported by every service.</p>'),
+                        $h2('5. Lab 3: reading printed text'),
+                        '<p>Hold a page with large printed words up to the webcam and use '.$block('recognize printed (English) text after (2) secs', 'ml').' then '.$block('say (text recognition result)', 'looks').'. This is called <strong>OCR</strong> (optical character recognition). Can it read handwriting? Try '.$block('recognize handwritten English text after (2) secs', 'ml').'.</p>',
+                        $box('warn', 'About face and emotion blocks', '<p>Cognitive Services also lists blocks for age, emotion, gender and smile. In 2023 Microsoft <strong>retired emotion and gender detection</strong> and restricted others because of concerns about privacy, stereotyping and whether emotions can really be read from a face. These blocks may not return results. Discuss: <em>should a computer guess your age, gender or feelings from a photo?</em></p>'),
+                        $box('teacher', 'Older extension: Teachable Machine', '<p>mBlock also has the original <strong>Teachable Machine</strong> extension (hold the <strong>Learn</strong> button to collect samples, then <strong>Use the model</strong>; open the recognition window before recognising). Machine Learning 2.0 replaces it with more classes, audio and pose models — use ML 2.0 for new projects.</p>'),
+                        $checklist([
+                            'Turn your speech into text on the stage',
+                            'Build the talking translator',
+                            'Give two differences between cloud AI and Machine Learning 2.0',
+                        ]),
+                        $sources([
+                            'Extension — Cognitive Services' => 'https://support.makeblock.com/hc/en-us/articles/16237936289687-Extension-Cognitive-Services',
+                            'Microsoft responsible AI and facial recognition' => 'https://azure.microsoft.com/en-us/blog/responsible-ai-investments-and-safeguards-for-facial-recognition/',
+                        ]),
+                    ]),
+                    'assignment' => [
+                        'title' => 'Assignment: Talking Translator',
+                        'description' => '<p>Build a program that listens, translates and speaks.</p>',
+                        'instructions' => '<ol><li>Use speech recognition to capture what you say.</li><li>Translate it into at least <strong>two</strong> different languages.</li><li>Speak and display each translation with Text to Speech.</li><li>Test 5 sentences and note any mistakes the AI made.</li><li>Upload your <strong>.mblock</strong> file, screenshots of the code and stage, and optionally a short video.</li></ol>',
+                        'prompt_question' => 'Which mistakes did the speech recognition or translation make, and what might have caused them?',
+                        'xp' => 100,
+                    ],
+                ],
+                [
+                    'title' => 'Lesson 9: Object Detection and Responsible AI',
+                    'summary' => 'Learn how object detection finds and labels many things in one picture, try it with AI Camera 2.0 or PictoBlox, and explore bias, privacy and fairness.',
+                    'question_of_day' => 'If an AI makes a mistake, who is responsible?',
+                    'objectives' => "Explain the difference between image classification and object detection.\nDescribe bounding boxes, labels and confidence thresholds.\nUse object detection in PictoBlox or with AI Camera 2.0.\nIdentify bias in a dataset and suggest fixes.",
+                    'guidance' => "If you have neither AI Camera 2.0 nor PictoBlox installed, run the object detection part as a demo video plus the unplugged bounding-box activity.\nTeach (20 min): classification vs detection.\nHands-on (40 min): PictoBlox Object Detection or AI Camera 2.0.\nEthics workshop (40 min): bias experiment + discussion cards.\nWrap-up (20 min): capstone planning starts.",
+                    'difficulty' => 'intermediate',
+                    'minutes' => 120,
+                    'content' => implode('', [
+                        $hero(9, 'Object Detection and Responsible AI', 'Find every object in the picture — and make sure AI is fair to everyone.', 'Module 5 · 2 hours · PictoBlox or AI Camera 2.0 optional'),
+                        $box('key', 'In this lesson you will', '<ul><li>Compare <strong>classification</strong> and <strong>object detection</strong>.</li><li>Try object detection with PictoBlox or AI Camera 2.0.</li><li>Investigate <strong>bias</strong> and <strong>privacy</strong> in AI.</li></ul>'),
+                        $h2('1. Classification vs detection'),
+                        $table(['Image classification', 'Object detection'], [
+                            ['One answer for the <strong>whole picture</strong>', 'Finds <strong>many objects</strong> in one picture'],
+                            ['“This picture is: Cat”', '“Cat here, dog there, person over there”'],
+                            ['No location', 'Draws a <strong>bounding box</strong> around each object'],
+                            ['What Machine Learning 2.0 image models do', 'What self-driving cars and AI Camera 2.0 do'],
+                        ]),
+                        '<p>Each detected object has a <strong>label</strong> (what it is), a <strong>bounding box</strong> (x, y, width, height) and a <strong>confidence</strong>. A <strong>confidence threshold</strong> (e.g. 0.5) hides detections the model is unsure about.</p>',
+                        $h2('2. Option A: AI Camera 2.0 with mBot2'),
+                        '<p>Makeblock’s <strong>AI Camera 2.0</strong> runs AI directly on the camera. It can recognise about <strong>80 object types</strong>, faces and expressions, 12 hand gestures, 12 body postures, colours, lines, QR codes and printed text. In mBlock, use blocks such as '.$block('Start Item Recognition', 'robot').', '.$block('Start Gesture Recognition', 'robot').' and '.$block('Start Posture Recognition', 'robot').'. You can even train your own model on Makeblock’s <strong>mTraining</strong> platform and load it onto the camera.</p>',
+                        $h2('3. Option B: PictoBlox object detection'),
+                        $steps([
+                            'Install <strong>PictoBlox</strong> (by STEMpedia) — it is also block-based, like mBlock.',
+                            'Add the <strong>Object Detection</strong> extension. It is pre-trained on about 90 everyday objects (person, bottle, chair, cup, phone…).',
+                            'Turn the video on and use the block to analyse the image from the camera.',
+                            'Use the blocks for <strong>object count</strong>, <strong>class</strong>, <strong>x/y position</strong> and <strong>confidence</strong>, and set the threshold to 0.5.',
+                            'Make a sprite say how many people and bottles it sees.',
+                        ]),
+                        $box('tip', 'mBlock or PictoBlox?', '<p>We use <strong>mBlock Machine Learning 2.0</strong> to <em>train</em> image, audio and pose models. PictoBlox adds ready-made <strong>object, face, hand (21 points) and body (17 points) detection</strong>. The ideas you learned — data, labels, confidence — work the same in both.</p>'),
+                        $box('try', 'Unplugged: be the detector', '<p>Print a busy street photo. Draw a box around every person, car and bicycle and write a label and your confidence (0–1) on each box. Compare with a partner: where did you disagree? That disagreement is exactly why labelling data is hard.</p>'),
+                        $h2('4. Responsible AI'),
+                        $table(['Idea', 'What it means', 'Example'], [
+                            ['<strong>Bias</strong>', 'The AI works better for some people or things than others', 'A face model trained mostly on light-skinned faces fails more often on dark-skinned faces'],
+                            ['<strong>Privacy</strong>', 'Personal data must be protected', 'Photos of your face sent to a server without asking'],
+                            ['<strong>Transparency</strong>', 'People should know when AI is used and how', 'A school camera that tracks attendance should say so'],
+                            ['<strong>Accountability</strong>', 'Humans stay responsible for AI decisions', 'A teacher checks AI marking before results are final'],
+                            ['<strong>Safety</strong>', 'AI must not put people in danger', 'A robot must stop when the model is unsure'],
+                        ]),
+                        $box('try', 'Bias experiment', $steps([
+                            'Train a Machine Learning 2.0 image model “Person / Nothing” using samples of <strong>only one learner</strong>.',
+                            'Test it on five other learners. Record how many are recognised.',
+                            'Retrain with samples from <strong>many</strong> learners (different heights, skin tones, glasses, headscarves).',
+                            'Test again. What changed? What does this tell you about real-world AI?',
+                        ])),
+                        $box('think', 'Discussion cards', '<ol><li>Should shops use cameras that recognise customers’ faces?</li><li>Microsoft stopped selling emotion detection. Do you agree? Can a camera really know how you feel?</li><li>An AI marks your homework wrong. Who should you complain to?</li><li>What data about you is OK to use for training AI? What is not?</li></ol>'),
+                        $checklist([
+                            'Explain the difference between classification and detection',
+                            'Describe what a bounding box and a threshold are',
+                            'Show the results of your bias experiment',
+                        ]),
+                        $sources([
+                            'Use Recognition Features of AI Camera 2.0' => 'https://support.makeblock.com/hc/en-us/articles/30900768675223-Use-Recognition-Features-of-AI-Camera-2-0',
+                            'PictoBlox Object Detection' => 'https://ai.thestempedia.com/extension/object-detection/',
+                            'MIT AI & Ethics for Middle School' => 'https://thecenter.mit.edu/wp-content/uploads/2020/07/MIT-AI-Ethics-Education-Curriculum.pdf',
+                        ]),
+                    ]),
+                    'assignment' => [
+                        'title' => 'Assignment: Bias Investigation Report',
+                        'description' => '<p>Run the bias experiment and report what you found.</p>',
+                        'instructions' => '<ol><li>Train a model with data from <strong>one person only</strong> and test it on at least 5 people.</li><li>Retrain with <strong>varied</strong> data and test again.</li><li>Make a short report (1 page): your results table, what changed, and two rules for fair AI.</li><li>Optional: screenshots of PictoBlox or AI Camera 2.0 object detection.</li><li>Upload the report (PDF, DOCX or photo) and your <strong>.mblock</strong> file.</li></ol>',
+                        'prompt_question' => 'What did your bias experiment show, and what is one rule you would give companies that build AI?',
+                        'xp' => 100,
+                    ],
+                ],
+            ],
+        ],
+
+        [
+            'title' => 'Module 6: Capstone and Final Exam',
+            'description' => 'Plan, build and present an AI project, then sit the final exam.',
+            'overview' => 'Learners combine everything into one AI project and take the final exam drawn from the course question bank.',
+            'hours' => 2,
+            'lessons' => [
+                [
+                    'title' => 'Lesson 10: Capstone AI Project and Final Exam',
+                    'summary' => 'Design, build and present your own AI project that solves a real problem, then take the final exam drawn from the course question bank.',
+                    'question_of_day' => 'What problem in your school or community could AI help solve?',
+                    'objectives' => "Plan an AI project with a clear problem, data plan and test plan.\nBuild it with Machine Learning 2.0 (image, audio or pose) and code.\nTest accuracy and explain its limits and fairness.\nPresent the project and pass the final exam.",
+                    'guidance' => "This lesson can stretch over two sessions.\nPlan (20 min): use the project canvas.\nBuild (60 min).\nDemo day (30 min): 2-minute demos with the rubric.\nFinal exam (separate sitting, 60 min): 40 questions drawn at random from the full course bank.",
+                    'difficulty' => 'advanced',
+                    'minutes' => 180,
+                    'content' => implode('', [
+                        $hero(10, 'Capstone AI Project and Final Exam', 'Use everything you learned to build AI that helps people.', 'Module 6 · 3 hours + 60-minute exam'),
+                        $box('key', 'In this lesson you will', '<ul><li>Plan and build your own AI project.</li><li>Test it, explain its limits and present it.</li><li>Take the <strong>final exam</strong>.</li></ul>'),
+                        $h2('1. Choose a project'),
+                        $table(['Idea', 'Model type', 'What it does'], [
+                            ['Waste sorter', 'Image', 'Recognises plastic, paper and food waste and tells you which bin'],
+                            ['Fitness coach', 'Pose', 'Counts squats or jumping jacks and cheers you on'],
+                            ['Classroom helper', 'Audio', 'A clap pattern turns the robot lights on and off'],
+                            ['Plant doctor', 'Image', 'Healthy leaf vs diseased leaf (use photos from your garden)'],
+                            ['Sign helper', 'Image or pose', 'Recognises a few hand signs and speaks the word with Text to Speech'],
+                            ['Robot guard', 'Image + robot', 'mBot2 moves only when it sees the correct “password” card'],
+                        ]),
+                        $h2('2. Project canvas'),
+                        $table(['Question', 'Your answer'], [
+                            ['<strong>Problem</strong>: who has the problem?', '…'],
+                            ['<strong>AI type</strong>: image, audio or pose? Why?', '…'],
+                            ['<strong>Classes</strong>: list them (include Nothing/Background)', '…'],
+                            ['<strong>Data plan</strong>: how many samples, from whom, what variety?', '…'],
+                            ['<strong>Output</strong>: what happens for each class (sprite, sound, robot, speech)?', '…'],
+                            ['<strong>Test plan</strong>: how will you measure accuracy?', '…'],
+                            ['<strong>Fairness</strong>: who might the model get wrong?', '…'],
+                        ]),
+                        $h2('3. Build, test, improve'),
+                        $steps([
+                            'Train your model with Machine Learning 2.0 (C-L-T-T-U: Collect, Label, Train, Test, Use).',
+                            'Code the program. Use a <strong>confidence threshold</strong> so it ignores unsure guesses.',
+                            'Test 20 times and record accuracy. Improve the weakest class and test again.',
+                            'Ask two classmates to test it. Note any problems.',
+                            'Save your <strong>.mblock</strong> file.',
+                        ]),
+                        $h2('4. Demo day rubric'),
+                        $table(['Criterion', 'Points'], [
+                            ['Model works reliably (accuracy evidence)', '30'],
+                            ['Program uses the model well (threshold, clear outputs)', '25'],
+                            ['Data quality: enough, balanced, varied', '20'],
+                            ['Explains limits, fairness and privacy', '15'],
+                            ['Presentation and creativity', '10'],
+                        ]),
+                        $h2('5. Final exam'),
+                        $box('warn', 'About the exam', '<ul><li>The final exam is attached to this lesson.</li><li>Each attempt draws <strong>40 questions at random</strong> from the whole course question bank, so every learner gets a different paper.</li><li>You have <strong>60 minutes</strong> and <strong>2 attempts</strong>. The pass mark is <strong>70%</strong>.</li></ul>'),
+                        $box('tip', 'How to revise', '<ul><li>Re-read the vocabulary tables from Lessons 1 and 2.</li><li>Know the four Machine Learning 2.0 blocks and what each does.</li><li>Know the differences between image, audio and pose models.</li><li>Remember the robot link (Upload Mode Broadcast), cloud AI vs your own models, object detection vs classification, and bias.</li><li>Retake your lesson quizzes for practice.</li></ul>'),
+                        $checklist([
+                            'Complete the project canvas',
+                            'Show a working model with an accuracy table',
+                            'Present your project in under 3 minutes',
+                            'Take the final exam',
+                        ]),
+                    ]),
+                    'assignment' => [
+                        'title' => 'Assignment: Capstone AI Project',
+                        'description' => '<p>Submit your capstone AI project with full evidence.</p>',
+                        'instructions' => '<ol><li>Complete the <strong>project canvas</strong> (photo, PDF or DOCX).</li><li>Build the project with a Machine Learning 2.0 model and a confidence threshold.</li><li>Include your <strong>accuracy table</strong> (before and after improvement).</li><li>Upload: your <strong>.mblock</strong> file, the canvas/report, and a short demo video (MP4) or screenshots. Zip them if you have more than 3 files.</li></ol>',
+                        'prompt_question' => 'What problem does your AI project solve, what was its final accuracy, and who might it still get wrong?',
+                        'upload_question' => 'Upload your capstone evidence: .mblock project, project canvas/report, and demo video or screenshots (zip if more than 3 files).',
+                        'xp' => 200,
+                    ],
+                    'final_exam' => true,
+                ],
+            ],
+        ],
+    ],
+
+    'assignment_defaults' => $assignmentDefaults,
+];

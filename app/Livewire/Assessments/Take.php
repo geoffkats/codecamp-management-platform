@@ -138,6 +138,8 @@ class Take extends Component
             $this->attemptId = $this->attempt->id;
         }
 
+        $this->prepareMultiSelectAnswers();
+
         if ($this->assessment->time_limit_minutes) {
             $totalSeconds = $this->assessment->time_limit_minutes * 60;
             $elapsed = $this->startedAt
@@ -268,6 +270,24 @@ class Take extends Component
             $attempt->update(['answers' => $this->answers]);
             $this->lastSavedAt = now();
             $this->dispatch('progress-saved');
+        }
+    }
+
+    /**
+     * Checkboxes bound with wire:model only collect values into an array when the bound value is
+     * already an array; otherwise Livewire treats it as one boolean and ticks every option.
+     */
+    protected function prepareMultiSelectAnswers(): void
+    {
+        foreach ($this->getQuestions() as $question) {
+            if ($question->question_type !== 'multiple_select') {
+                continue;
+            }
+
+            $answer = $this->answers[$question->id] ?? null;
+            if (! is_array($answer)) {
+                $this->answers[$question->id] = filled($answer) && ! is_bool($answer) ? [$answer] : [];
+            }
         }
     }
 
