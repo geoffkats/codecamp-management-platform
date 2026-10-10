@@ -5,6 +5,7 @@ namespace App\Livewire\Courses;
 use App\Models\Course;
 use App\Models\ContentApproval;
 use App\Models\CourseEnrollment;
+use App\Services\Courses\CourseArchiver;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -202,15 +203,15 @@ class Edit extends Component
         return $this->redirect(route('courses.show', $this->course), navigate: true);
     }
 
-    public function deleteCourse()
+    public function deleteCourse(CourseArchiver $archiver)
     {
-        if ($this->course->enrollments()->count() > 0) {
-            session()->flash('error', 'Cannot delete course with active enrollments.');
+        if (! auth()->user()->can('delete', $this->course)) {
+            session()->flash('error', 'You do not have permission to delete this course.');
             return;
         }
 
-        $this->course->delete();
-        session()->flash('message', 'Course deleted successfully!');
+        $archiver->archiveCourse($this->course);
+        session()->flash('message', "“{$this->course->title}” was deleted. You can restore it from Archived for {$archiver->restoreWindowDays()} days.");
         return $this->redirect(route('courses.index'), navigate: true);
     }
 

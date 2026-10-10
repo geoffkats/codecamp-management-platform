@@ -36,6 +36,10 @@
             'draft' => ['Drafts', $stats['draft']],
             'pending' => ['Awaiting approval', $stats['pending']],
         ];
+    if (! $isIctTeacher && $this->canSeeArchived()) {
+        $statusChips['archived'] = ['Archived', $stats['archived']];
+    }
+    $showingArchived = $filterStatus === 'archived';
     $loadingTargets = 'search,filterStatus,filterCategory,filterDifficulty,sortBy,setStatus,clearFilters,setView';
 @endphp
 
@@ -156,6 +160,16 @@
             </div>
         </section>
 
+        @foreach(['message' => 'bg-emerald-50 text-emerald-800 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-200 dark:ring-emerald-500/30', 'error' => 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-500/10 dark:text-red-200 dark:ring-red-500/30'] as $flashKey => $flashClass)
+            @if(session($flashKey))
+                <div wire:key="flash-{{ $flashKey }}" class="rounded-2xl px-4 py-3 text-sm font-semibold ring-1 {{ $flashClass }}">{{ session($flashKey) }}</div>
+            @endif
+        @endforeach
+
+        @if($showingArchived)
+            <p class="px-1 text-sm text-gray-500">Deleted courses stay here for {{ $restoreWindowDays }} days. Restoring brings back the course with its modules, lessons, quizzes and assignments. Student enrolments are never removed.</p>
+        @endif
+
         {{-- Results --}}
         <div wire:loading.class="opacity-60" wire:target="{{ $loadingTargets }}" class="transition-opacity">
             @if($courses->count() > 0)
@@ -223,19 +237,24 @@
                                             <span class="truncate text-xs font-medium text-gray-600 dark:text-zinc-400">{{ $course->instructor->name ?? 'No instructor' }}</span>
                                         </div>
                                         <div class="flex shrink-0 items-center gap-0.5">
-                                            @if(! $isIctTeacher && \Illuminate\Support\Facades\Route::has('curriculum.builder'))
-                                                <a href="{{ route('curriculum.builder', ['course' => $course->id]) }}" wire:navigate title="Open in curriculum builder" class="rounded-lg p-2 text-gray-400 transition hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-500/10">
-                                                    <flux:icon name="squares-2x2" variant="mini" class="size-4" />
+                                            @if($course->trashed())
+                                                @include('livewire.courses.partials.restore-course-button', ['course' => $course])
+                                            @else
+                                                @if(! $isIctTeacher && \Illuminate\Support\Facades\Route::has('curriculum.builder'))
+                                                    <a href="{{ route('curriculum.builder', ['course' => $course->id]) }}" wire:navigate title="Open in curriculum builder" class="rounded-lg p-2 text-gray-400 transition hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-500/10">
+                                                        <flux:icon name="squares-2x2" variant="mini" class="size-4" />
+                                                    </a>
+                                                @endif
+                                                @can('update', $course)
+                                                    <a href="{{ route('courses.edit', $course) }}" wire:navigate title="Edit course" class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
+                                                        <flux:icon name="pencil-square" variant="mini" class="size-4" />
+                                                    </a>
+                                                @endcan
+                                                @include('livewire.courses.partials.delete-course-button', ['course' => $course])
+                                                <a href="{{ route('courses.show', $course) }}" wire:navigate class="ml-1 inline-flex items-center gap-1 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-orange-600 dark:bg-white dark:text-gray-900 dark:hover:bg-orange-500 dark:hover:text-white">
+                                                    Open <flux:icon name="arrow-right" variant="micro" class="size-3.5" />
                                                 </a>
                                             @endif
-                                            @can('update', $course)
-                                                <a href="{{ route('courses.edit', $course) }}" wire:navigate title="Edit course" class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
-                                                    <flux:icon name="pencil-square" variant="mini" class="size-4" />
-                                                </a>
-                                            @endcan
-                                            <a href="{{ route('courses.show', $course) }}" wire:navigate class="ml-1 inline-flex items-center gap-1 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-orange-600 dark:bg-white dark:text-gray-900 dark:hover:bg-orange-500 dark:hover:text-white">
-                                                Open <flux:icon name="arrow-right" variant="micro" class="size-3.5" />
-                                            </a>
                                         </div>
                                     </div>
                                 </div>
@@ -293,13 +312,18 @@
                                             <td class="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-zinc-300">{{ number_format($course->enrollments_count) }}</td>
                                             <td class="px-4 py-3">
                                                 <div class="flex items-center justify-end gap-0.5">
-                                                    @if(! $isIctTeacher && \Illuminate\Support\Facades\Route::has('curriculum.builder'))
-                                                        <a href="{{ route('curriculum.builder', ['course' => $course->id]) }}" wire:navigate title="Curriculum builder" class="rounded-lg p-2 text-gray-400 hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-500/10"><flux:icon name="squares-2x2" variant="mini" class="size-4" /></a>
+                                                    @if($course->trashed())
+                                                        @include('livewire.courses.partials.restore-course-button', ['course' => $course])
+                                                    @else
+                                                        @if(! $isIctTeacher && \Illuminate\Support\Facades\Route::has('curriculum.builder'))
+                                                            <a href="{{ route('curriculum.builder', ['course' => $course->id]) }}" wire:navigate title="Curriculum builder" class="rounded-lg p-2 text-gray-400 hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-500/10"><flux:icon name="squares-2x2" variant="mini" class="size-4" /></a>
+                                                        @endif
+                                                        @can('update', $course)
+                                                            <a href="{{ route('courses.edit', $course) }}" wire:navigate title="Edit" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-zinc-800"><flux:icon name="pencil-square" variant="mini" class="size-4" /></a>
+                                                        @endcan
+                                                        @include('livewire.courses.partials.delete-course-button', ['course' => $course])
+                                                        <a href="{{ route('courses.show', $course) }}" wire:navigate title="Open" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-zinc-800"><flux:icon name="arrow-right" variant="mini" class="size-4" /></a>
                                                     @endif
-                                                    @can('update', $course)
-                                                        <a href="{{ route('courses.edit', $course) }}" wire:navigate title="Edit" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-zinc-800"><flux:icon name="pencil-square" variant="mini" class="size-4" /></a>
-                                                    @endcan
-                                                    <a href="{{ route('courses.show', $course) }}" wire:navigate title="Open" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-zinc-800"><flux:icon name="arrow-right" variant="mini" class="size-4" /></a>
                                                 </div>
                                             </td>
                                         </tr>

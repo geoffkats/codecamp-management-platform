@@ -397,11 +397,13 @@
                 <flux:button type="button" wire:click="saveDraft" variant="primary">
                     Save Changes
                 </flux:button>
-                @if($course->enrollments()->count() === 0)
-                    <flux:button type="button" wire:click="deleteCourse" variant="danger" wire:confirm="Are you sure you want to delete this course?">
+                @can('delete', $course)
+                    @php $enrolled = $course->enrollments()->count(); @endphp
+                    <flux:button type="button" wire:click="deleteCourse" variant="danger"
+                                 wire:confirm="Delete this course?{{ $enrolled ? ' '.$enrolled.' enrolled '.\Illuminate\Support\Str::plural('student', $enrolled).' will no longer see it.' : '' }} You can restore it from Courses → Archived.">
                         Delete Course
                     </flux:button>
-                @endif
+                @endcan
             </div>
         </form>
     </div>

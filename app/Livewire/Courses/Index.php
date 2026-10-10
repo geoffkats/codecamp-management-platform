@@ -3,6 +3,7 @@
 namespace App\Livewire\Courses;
 
 use App\Models\Course;
+use App\Services\Courses\CourseArchiver;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -92,6 +93,36 @@ class Index extends Component
         $this->viewMode = $mode === 'list' ? 'list' : 'grid';
     }
 
+    public function archiveCourse(int $courseId, CourseArchiver $archiver): void
+    {
+        $course = $this->scopedQuery()->find($courseId);
+        if (! $course || ! Auth::user()->can('delete', $course)) {
+            session()->flash('error', 'You do not have permission to delete this course.');
+
+            return;
+        }
+
+        $archiver->archiveCourse($course);
+        session()->flash('message', "“{$course->title}” was deleted. You can restore it from Archived for {$archiver->restoreWindowDays()} days.");
+    }
+
+    public function restoreCourse(int $courseId, CourseArchiver $archiver): void
+    {
+        $course = $this->scopedQuery()->onlyTrashed()->find($courseId);
+        if (! $course || ! Auth::user()->can('delete', $course)) {
+            session()->flash('error', 'You do not have permission to restore this course.');
+
+            return;
+        }
+
+        try {
+            $archiver->restoreCourse($course);
+            session()->flash('message', "“{$course->title}” was restored.");
+        } catch (\RuntimeException $e) {
+            session()->flash('error', $e->getMessage());
+        }
+    }
+
     public function clearFilters(): void
     {
         $this->search = '';
@@ -99,6 +130,13 @@ class Index extends Component
         $this->filterCategory = 'all';
         $this->filterDifficulty = 'all';
         $this->resetPage();
+    }
+
+    public function canSeeArchived(): bool
+    {
+        $user = Auth::user();
+
+        return (bool) ($user?->isAdmin() || $user?->hasPermission('delete_courses'));
     }
 
     private function scopedQuery()
@@ -152,7 +190,9 @@ class Index extends Component
 
         // Status filter
         if ($this->filterStatus && $this->filterStatus !== 'all') {
-            if ($this->filterStatus === 'published') {
+            if ($this->filterStatus === 'archived') {
+                $this->canSeeArchived() ? $query->onlyTrashed() : $query->whereRaw('1 = 0');
+            } elseif ($this->filterStatus === 'published') {
                 $query->where('is_published', true);
             } elseif ($this->filterStatus === 'draft') {
                 $query->where('is_published', false);
@@ -230,6 +270,7 @@ class Index extends Component
             'live' => (clone $scoped)->where('is_published', true)->count(),
             'draft' => (clone $scoped)->where('is_published', false)->count(),
             'pending' => (clone $scoped)->where('approval_status', 'pending')->count(),
+            'archived' => $this->canSeeArchived() ? (clone $scoped)->onlyTrashed()->count() : 0,
             'students' => \App\Models\CourseEnrollment::whereIn('course_id', (clone $scoped)->select('courses.id'))->count(),
         ];
 
@@ -242,6 +283,7 @@ class Index extends Component
             'difficultyOptions' => $difficultyOptions,
             'difficulties' => $difficulties,
             'isIctTeacher' => $isIctTeacher,
+            'restoreWindowDays' => app(CourseArchiver::class)->restoreWindowDays(),
             'pageTitle' => $isIctTeacher ? 'ICT Modules' : 'Courses',
             'pageSubtitle' => $isIctTeacher
                 ? 'Modules available for your school'

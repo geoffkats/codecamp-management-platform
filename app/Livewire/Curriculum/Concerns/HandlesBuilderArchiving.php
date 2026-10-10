@@ -3,11 +3,10 @@
 namespace App\Livewire\Curriculum\Concerns;
 
 use App\Models\Assessment;
-use App\Models\Assignment;
 use App\Models\Course;
 use App\Models\CourseModule;
 use App\Models\Lesson;
-use App\Models\Quiz;
+use App\Services\Courses\CourseArchiver;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -284,89 +283,31 @@ trait HandlesBuilderArchiving
 
     private function archiveCourseWithChildren(Course $course): void
     {
-        $course->modules()->withTrashed()->each(function ($module) {
-            $this->archiveModuleWithChildren($module);
-        });
-
-        $course->delete();
+        app(CourseArchiver::class)->archiveCourse($course);
     }
 
     private function restoreCourseWithChildren(Course $course): void
     {
-        if ($course->deleted_at && $course->deleted_at->addDays($this->restoreWindowDays)->isPast()) {
-            throw new \RuntimeException('Restore period has expired for this course.');
-        }
-
-        $course->modules()->withTrashed()->get()->each(function ($module) {
-            $this->restoreModuleWithChildren($module, false);
-        });
-
-        $course->restore();
+        app(CourseArchiver::class)->restoreCourse($course);
     }
 
     private function archiveModuleWithChildren(CourseModule $module): void
     {
-        $module->lessons()->withTrashed()->each(function ($lesson) {
-            $this->archiveLessonWithChildren($lesson);
-        });
-
-        $module->delete();
+        app(CourseArchiver::class)->archiveModule($module);
     }
 
     private function restoreModuleWithChildren(CourseModule $module, bool $enforceWindow = true): void
     {
-        if ($enforceWindow && $module->deleted_at && $module->deleted_at->addDays($this->restoreWindowDays)->isPast()) {
-            throw new \RuntimeException('Restore period has expired for this module.');
-        }
-
-        $module->lessons()->withTrashed()->get()->each(function ($lesson) use ($enforceWindow) {
-            $this->restoreLessonWithChildren($lesson, $enforceWindow);
-        });
-
-        $module->restore();
+        app(CourseArchiver::class)->restoreModule($module, $enforceWindow);
     }
 
     private function archiveLessonWithChildren(Lesson $lesson): void
     {
-        Assessment::where('lesson_id', $lesson->id)->withTrashed()->get()->each(function ($assessment) {
-            $assessment->delete();
-        });
-
-        Assignment::where('lesson_id', $lesson->id)->withTrashed()->get()->each(function ($assignment) {
-            $assignment->delete();
-        });
-
-        Quiz::where('lesson_id', $lesson->id)->withTrashed()->get()->each(function ($quiz) {
-            $quiz->delete();
-        });
-
-        $lesson->delete();
+        app(CourseArchiver::class)->archiveLesson($lesson);
     }
 
     private function restoreLessonWithChildren(Lesson $lesson, bool $enforceWindow = true): void
     {
-        if ($enforceWindow && $lesson->deleted_at && $lesson->deleted_at->addDays($this->restoreWindowDays)->isPast()) {
-            throw new \RuntimeException('Restore period has expired for this lesson.');
-        }
-
-        Assessment::withTrashed()->where('lesson_id', $lesson->id)->get()->each(function ($assessment) use ($enforceWindow) {
-            if (!$enforceWindow || !$assessment->deleted_at || !$assessment->deleted_at->addDays($this->restoreWindowDays)->isPast()) {
-                $assessment->restore();
-            }
-        });
-
-        Assignment::withTrashed()->where('lesson_id', $lesson->id)->get()->each(function ($assignment) use ($enforceWindow) {
-            if (!$enforceWindow || !$assignment->deleted_at || !$assignment->deleted_at->addDays($this->restoreWindowDays)->isPast()) {
-                $assignment->restore();
-            }
-        });
-
-        Quiz::withTrashed()->where('lesson_id', $lesson->id)->get()->each(function ($quiz) use ($enforceWindow) {
-            if (!$enforceWindow || !$quiz->deleted_at || !$quiz->deleted_at->addDays($this->restoreWindowDays)->isPast()) {
-                $quiz->restore();
-            }
-        });
-
-        $lesson->restore();
+        app(CourseArchiver::class)->restoreLesson($lesson, $enforceWindow);
     }
 }

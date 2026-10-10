@@ -71,6 +71,10 @@ class CoursePolicy
      */
     public function delete(User $user, Course $course): bool
     {
+        if ($user->isAdmin()) {
+            return true;
+        }
+
         if (!$user->hasPermission('delete_courses')) {
             return false;
         }
