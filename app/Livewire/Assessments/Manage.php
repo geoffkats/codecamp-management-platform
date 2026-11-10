@@ -59,6 +59,46 @@ class Manage extends Component
         $this->resetPage();
     }
 
+    public function trash(int $assessmentId): void
+    {
+        $assessment = $this->scoped()->find($assessmentId);
+        if (! $assessment) {
+            session()->flash('error', 'That assessment is not available.');
+
+            return;
+        }
+
+        $assessment->delete();
+        session()->flash('message', "“{$assessment->title}” was moved to trash. Students no longer see it, and you can restore it from Trash.");
+    }
+
+    public function restore(int $assessmentId): void
+    {
+        $assessment = $this->scoped()->onlyTrashed()->find($assessmentId);
+        if (! $assessment) {
+            session()->flash('error', 'That assessment is not in trash.');
+
+            return;
+        }
+
+        $assessment->restore();
+        session()->flash('message', "“{$assessment->title}” was restored.");
+    }
+
+    public function forceDelete(int $assessmentId): void
+    {
+        $assessment = $this->scoped()->onlyTrashed()->find($assessmentId);
+        if (! $assessment) {
+            session()->flash('error', 'That assessment is not in trash.');
+
+            return;
+        }
+
+        $title = $assessment->title;
+        $assessment->forceDelete();
+        session()->flash('message', "“{$title}” was deleted permanently. Questions in the bank were kept.");
+    }
+
     protected function scoped(): Builder
     {
         $user = Auth::user();
@@ -89,9 +129,10 @@ class Manage extends Component
             ->when($this->search !== '', fn ($q) => $q->where('title', 'like', '%'.$this->search.'%'))
             ->when($this->course !== '', fn ($q) => $q->where('course_id', $this->course))
             ->when($this->type !== '', fn ($q) => $q->where('assessment_type', $this->type))
+            ->when($this->view === 'trash', fn ($q) => $q->onlyTrashed())
             ->when($this->view === 'grading', fn ($q) => $q->whereHas('attempts', fn ($a) => static::pendingAttempts($a)))
             ->when($this->view === 'empty', fn ($q) => $q->where('assessment_type', '!=', 'assignment')->whereDoesntHave('questions'))
-            ->orderByDesc('updated_at')
+            ->orderByDesc($this->view === 'trash' ? 'deleted_at' : 'updated_at')
             ->paginate(20);
 
         $base = $this->scoped();
@@ -101,6 +142,7 @@ class Manage extends Component
             'assignments' => (clone $base)->where('assessment_type', 'assignment')->count(),
             'grading' => (clone $base)->whereHas('attempts', fn ($a) => static::pendingAttempts($a))->count(),
             'empty' => (clone $base)->where('assessment_type', '!=', 'assignment')->whereDoesntHave('questions')->count(),
+            'trash' => (clone $base)->onlyTrashed()->count(),
         ];
 
         return view('livewire.assessments.manage', [

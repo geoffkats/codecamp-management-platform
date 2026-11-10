@@ -4,6 +4,7 @@
         'all' => ['label' => 'All', 'count' => $stats['total']],
         'grading' => ['label' => 'Needs grading', 'count' => $stats['grading']],
         'empty' => ['label' => 'No questions yet', 'count' => $stats['empty']],
+        'trash' => ['label' => 'Trash', 'count' => $stats['trash']],
     ];
     $select = 'w-full rounded-xl border-0 bg-gray-50 py-2.5 pl-3 pr-8 text-sm text-gray-700 ring-1 ring-gray-200 focus:ring-2 focus:ring-orange-500 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700';
 @endphp
@@ -56,6 +57,12 @@
         <div class="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
             <flux:icon name="check-circle" variant="mini" class="size-5 text-emerald-500" />
             {{ session('message') }}
+        </div>
+    @endif
+    @if(session('error'))
+        <div class="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-300">
+            <flux:icon name="exclamation-triangle" variant="mini" class="size-5 text-rose-500" />
+            {{ session('error') }}
         </div>
     @endif
 
@@ -131,9 +138,17 @@
                                 @if($assessment->is_locked)
                                     <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600"><flux:icon name="lock-closed" variant="micro" class="size-3" />Locked</span>
                                 @endif
+                                @if($assessment->trashed())
+                                    <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-600/20"><flux:icon name="trash" variant="micro" class="size-3" />In trash</span>
+                                @endif
                             </div>
-                            <a href="{{ route('assessments.edit', $assessment) }}" wire:navigate
-                               class="block truncate text-[15px] font-semibold text-gray-900 hover:text-orange-600 dark:text-white dark:hover:text-orange-400">{{ $assessment->title }}</a>
+                            @if($assessment->trashed())
+                                <p class="truncate text-[15px] font-semibold text-gray-900 dark:text-white">{{ $assessment->title }}</p>
+                                <p class="mt-0.5 text-xs text-rose-600">Moved to trash {{ $assessment->deleted_at?->diffForHumans() }}</p>
+                            @else
+                                <a href="{{ route('assessments.edit', $assessment) }}" wire:navigate
+                                   class="block truncate text-[15px] font-semibold text-gray-900 hover:text-orange-600 dark:text-white dark:hover:text-orange-400">{{ $assessment->title }}</a>
+                            @endif
                             <div class="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs text-gray-500 dark:text-gray-400">
                                 <span class="inline-flex items-center gap-1 font-medium text-gray-600 dark:text-gray-300"><flux:icon name="academic-cap" variant="micro" class="size-3.5 text-orange-400" />{{ $assessment->course?->title ?? 'No course' }}</span>
                                 @if($assessment->lesson?->module)
@@ -169,25 +184,45 @@
                     </div>
 
                     <div class="flex shrink-0 items-center gap-1.5 md:justify-end">
-                        @if($assessment->pending_attempts_count > 0)
-                            <a href="{{ route('assessments.show', $assessment) }}" wire:navigate
-                               class="inline-flex items-center gap-1.5 rounded-xl bg-rose-500 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-rose-600">
-                                <flux:icon name="pencil-square" variant="micro" class="size-4" /> Grade
-                            </a>
-                        @endif
-                        <a href="{{ route('assessments.edit', $assessment) }}" wire:navigate
-                           class="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-orange-600">
-                            <flux:icon name="pencil" variant="micro" class="size-4" /> {{ $noQuestions ? 'Add questions' : 'Edit' }}
-                        </a>
-                        <flux:dropdown position="bottom" align="end">
-                            <button type="button" class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800" aria-label="More actions">
-                                <flux:icon name="ellipsis-vertical" variant="mini" class="size-5" />
+                        @if($assessment->trashed())
+                            <button type="button" wire:click="restore({{ $assessment->id }})"
+                                    class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700">
+                                <flux:icon name="arrow-uturn-left" variant="micro" class="size-4" /> Restore
                             </button>
-                            <flux:menu>
-                                <flux:menu.item href="{{ route('assessments.show', $assessment) }}" wire:navigate icon="chart-bar">Results &amp; submissions</flux:menu.item>
-                                <flux:menu.item href="{{ $builderUrl }}" wire:navigate icon="squares-2x2">Open in curriculum builder</flux:menu.item>
-                            </flux:menu>
-                        </flux:dropdown>
+                            <button type="button" wire:click="forceDelete({{ $assessment->id }})"
+                                    wire:confirm="Delete “{{ $assessment->title }}” forever? Student attempts for this assessment are removed. Questions in the bank stay. This cannot be undone."
+                                    class="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-rose-700">
+                                <flux:icon name="trash" variant="micro" class="size-4" /> Delete forever
+                            </button>
+                        @else
+                            @if($assessment->pending_attempts_count > 0)
+                                <a href="{{ route('assessments.show', $assessment) }}" wire:navigate
+                                   class="inline-flex items-center gap-1.5 rounded-xl bg-rose-500 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-rose-600">
+                                    <flux:icon name="pencil-square" variant="micro" class="size-4" /> Grade
+                                </a>
+                            @endif
+                            <a href="{{ route('assessments.edit', $assessment) }}" wire:navigate
+                               class="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-orange-600">
+                                <flux:icon name="pencil" variant="micro" class="size-4" /> {{ $noQuestions ? 'Add questions' : 'Edit' }}
+                            </a>
+                            <button type="button" wire:click="trash({{ $assessment->id }})"
+                                    wire:confirm="Move “{{ $assessment->title }}” to trash? Students will no longer see it. You can restore it from Trash."
+                                    title="Move to trash"
+                                    class="rounded-lg p-2 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10">
+                                <flux:icon name="trash" variant="mini" class="size-5" />
+                            </button>
+                            <flux:dropdown position="bottom" align="end">
+                                <button type="button" class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800" aria-label="More actions">
+                                    <flux:icon name="ellipsis-vertical" variant="mini" class="size-5" />
+                                </button>
+                                <flux:menu>
+                                    <flux:menu.item href="{{ route('assessments.show', $assessment) }}" wire:navigate icon="chart-bar">Results &amp; submissions</flux:menu.item>
+                                    <flux:menu.item href="{{ $builderUrl }}" wire:navigate icon="squares-2x2">Open in curriculum builder</flux:menu.item>
+                                    <flux:menu.separator />
+                                    <flux:menu.item wire:click="trash({{ $assessment->id }})" wire:confirm="Move “{{ $assessment->title }}” to trash? Students will no longer see it. You can restore it from Trash." variant="danger" icon="trash">Move to trash</flux:menu.item>
+                                </flux:menu>
+                            </flux:dropdown>
+                        @endif
                     </div>
                 </div>
             @endforeach
@@ -199,10 +234,13 @@
             <div class="mx-auto mb-4 flex size-16 items-center justify-center rounded-2xl bg-orange-100 text-orange-500 dark:bg-orange-900/30">
                 <flux:icon :name="$hasFilters || $view !== 'all' ? 'magnifying-glass' : 'clipboard-document-check'" class="size-8" />
             </div>
-            @if($hasFilters || $view !== 'all')
+            @if($view === 'trash' && ! $hasFilters)
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Trash is empty</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Assessments you delete show up here. You can restore them, or delete them forever.</p>
+            @elseif($hasFilters || $view !== 'all')
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white">Nothing matches</h3>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    {{ $view === 'grading' ? 'All caught up — no attempts are waiting to be graded.' : 'Try a different search or clear the filters.' }}
+                    {{ $view === 'grading' ? 'All caught up — no attempts are waiting to be graded.' : ($view === 'trash' ? 'Nothing in trash matches these filters.' : 'Try a different search or clear the filters.') }}
                 </p>
                 <button type="button" wire:click="clearFilters" class="mt-4 rounded-xl bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-700 hover:bg-orange-100">Show all assessments</button>
             @else

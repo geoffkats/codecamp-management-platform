@@ -44,6 +44,50 @@ it('is linked from the sidebar for staff and forbidden for students', function (
     $this->actingAs(userWithRole('student'))->get(route('assessments.manage'))->assertForbidden();
 });
 
+it('moves an assessment to trash, restores it, and can delete it forever', function () {
+    $teacher = userWithRole('teacher');
+    $course = Course::factory()->create(['instructor_id' => $teacher->id]);
+    $assessment = Assessment::factory()->create(['course_id' => $course->id, 'title' => 'Day 1 Quiz']);
+    $foreign = Assessment::factory()->create(['title' => 'Foreign Quiz']);
+
+    Livewire::actingAs($teacher)->test(Manage::class)
+        ->assertSee('Move to trash')
+        ->assertSee('Trash')
+        ->call('trash', $assessment->id);
+
+    expect($assessment->fresh()->trashed())->toBeTrue();
+    expect($foreign->fresh()->trashed())->toBeFalse();
+
+    Livewire::actingAs($teacher)->test(Manage::class)
+        ->assertDontSee('Day 1 Quiz')
+        ->set('view', 'trash')
+        ->assertSee('Day 1 Quiz')
+        ->assertSee('Restore')
+        ->assertSee('Delete forever')
+        ->call('restore', $assessment->id);
+
+    expect($assessment->fresh()->trashed())->toBeFalse();
+
+    $assessment->delete();
+
+    Livewire::actingAs($teacher)->test(Manage::class)
+        ->call('forceDelete', $assessment->id);
+
+    expect(Assessment::withTrashed()->find($assessment->id))->toBeNull();
+    expect(Assessment::find($foreign->id))->not->toBeNull();
+});
+
+it('refuses to trash an assessment from another teacher', function () {
+    $teacher = userWithRole('teacher');
+    $foreign = Assessment::factory()->create(['title' => 'Foreign Quiz']);
+
+    Livewire::actingAs($teacher)->test(Manage::class)
+        ->call('trash', $foreign->id)
+        ->assertSee('That assessment is not available.');
+
+    expect($foreign->fresh()->trashed())->toBeFalse();
+});
+
 it('opens a specific assessment in the curriculum builder from a link', function () {
     $teacher = userWithRole('teacher');
     $course = Course::factory()->create(['instructor_id' => $teacher->id]);
