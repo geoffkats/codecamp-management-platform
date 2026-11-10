@@ -3,8 +3,8 @@
 use App\Support\LessonBlocks;
 
 return [
-    'hero' => fn (int $day, string $title, string $tagline): string => LessonBlocks::hero(
-        'Day '.$day.' · 2 hours',
+    'hero' => fn (string $kicker, string $title, string $tagline): string => LessonBlocks::hero(
+        $kicker,
         $title,
         $tagline,
         'Web Development 1 · Code Academy Uganda'

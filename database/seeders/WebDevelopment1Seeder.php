@@ -21,9 +21,9 @@ class WebDevelopment1Seeder extends Seeder
     private const BASE_TAGS = ['web-development-1', 'web1'];
 
     /**
-     * Rewrites Web Development 1 as a 3-week camp: 15 lessons of 2 hours,
-     * a 10-question bank quiz each day, and a project assignment to upload.
-     * Day 15's quiz draws 15 questions from the whole bank.
+     * Rewrites the original Web Development 1 syllabus in place: 21 lessons of
+     * 2 hours, a 10-question quiz each, and a project to upload. The last
+     * lesson's quiz draws 15 questions from the whole bank.
      *
      * Safe to re-run: php artisan db:seed --class=WebDevelopment1Seeder
      */
@@ -59,26 +59,27 @@ class WebDevelopment1Seeder extends Seeder
         $finalLesson = null;
 
         foreach ($data['modules'] as $moduleIndex => $moduleData) {
-            $module = CourseModule::updateOrCreate(
-                ['course_id' => $course->id, 'title' => $moduleData['title']],
-                [
-                    'description' => $moduleData['description'],
-                    'overview' => $moduleData['overview'],
-                    'order_index' => $moduleIndex + 1,
-                    'estimated_duration_hours' => $moduleData['hours'],
-                    'is_active' => true,
-                    'approval_status' => 'approved',
-                    'approved_at' => now(),
-                    'approved_by' => $instructor->id,
-                ]
-            );
+            $module = $this->moduleFor($course, $moduleData['title']);
+            $module->fill([
+                'title' => $moduleData['title'],
+                'description' => $moduleData['description'],
+                'overview' => $moduleData['overview'],
+                'order_index' => $moduleIndex + 1,
+                'estimated_duration_hours' => $moduleData['hours'],
+                'is_active' => true,
+                'approval_status' => 'approved',
+                'approved_at' => now(),
+                'approved_by' => $instructor->id,
+            ]);
+            $module->save();
 
             foreach ($moduleData['lessons'] as $lessonIndex => $lessonData) {
                 $lesson = Lesson::withoutEvents(fn () => $this->seedLesson($course, $module, $lessonIndex, $globalOrder, $lessonData, $instructor));
                 $keptSlugs[] = $lesson->slug;
+                $isFinal = (bool) ($lessonData['final'] ?? false);
 
                 if (isset($bank[$globalOrder])) {
-                    $quiz = $this->seedQuiz($lesson, $globalOrder, $globalOrder === 15);
+                    $quiz = $this->seedQuiz($lesson, $isFinal);
                     $ids = $this->seedBankQuestions($writer, $bank[$globalOrder], $globalOrder, $course, $module, $instructor);
                     $quiz->pinQuestions($ids);
                     $allQuestionIds = array_merge($allQuestionIds, $ids);
@@ -86,11 +87,11 @@ class WebDevelopment1Seeder extends Seeder
 
                 $this->seedAssignment($lesson, $lessonData['assignment'], $data['assignment_defaults']);
 
-                if ($globalOrder === 15) {
+                if ($isFinal) {
                     $finalLesson = $lesson;
                 }
 
-                $this->command->info("Seeded day {$globalOrder}: {$lesson->title}");
+                $this->command->info("Seeded lesson {$globalOrder}: {$lesson->title}");
                 $globalOrder++;
             }
         }
@@ -102,8 +103,13 @@ class WebDevelopment1Seeder extends Seeder
                 ->where('assessment_type', 'quiz')
                 ->first();
             $final?->pinQuestions($allQuestionIds);
-            $this->command->info('Day 15 quiz pool: '.count($allQuestionIds).' questions, '.self::FINAL_QUIZ_SIZE.' per attempt.');
+            $this->command->info('Final quiz pool: '.count($allQuestionIds).' questions, '.self::FINAL_QUIZ_SIZE.' per attempt.');
         }
+
+        CourseModule::query()
+            ->where('course_id', $course->id)
+            ->whereIn('title', ['Week 1: HTML', 'Week 2: CSS', 'Week 3: Bootstrap'])
+            ->update(['is_active' => false]);
 
         $hidden = Lesson::withoutEvents(function () use ($course, $keptSlugs) {
             return Lesson::withTrashed()
@@ -112,14 +118,37 @@ class WebDevelopment1Seeder extends Seeder
                 ->update(['is_published' => false, 'is_active' => false]);
         });
 
-        $this->command->info("Hid {$hidden} older Web 1 lesson(s) that are not part of the 15-day camp.");
-        $this->command->info('Web Development 1 camp notes are ready.');
+        $this->command->info("Hid {$hidden} Web 1 lesson(s) that are not part of the syllabus.");
+        $this->command->info('Web Development 1 notes are ready.');
+    }
+
+    private function moduleFor(Course $course, string $title): CourseModule
+    {
+        $module = CourseModule::withTrashed()
+            ->where('course_id', $course->id)
+            ->get()
+            ->first(fn (CourseModule $existing) => trim((string) $existing->title) === trim($title));
+
+        if ($module?->trashed()) {
+            $module->restore();
+        }
+
+        return $module ?? new CourseModule([
+            'course_id' => $course->id,
+            'title' => $title,
+        ]);
     }
 
     private function seedLesson(Course $course, CourseModule $module, int $lessonIndex, int $globalOrder, array $lessonData, User $instructor): Lesson
     {
+        $slug = Str::slug($lessonData['title']);
+        $existing = Lesson::withTrashed()->where('course_id', $course->id)->where('slug', $slug)->first();
+        if ($existing?->trashed()) {
+            $existing->restore();
+        }
+
         return Lesson::updateOrCreate(
-            ['course_id' => $course->id, 'slug' => Str::slug($lessonData['title'])],
+            ['course_id' => $course->id, 'slug' => $slug],
             [
                 'module_id' => $module->id,
                 'title' => $lessonData['title'],
@@ -144,15 +173,15 @@ class WebDevelopment1Seeder extends Seeder
         );
     }
 
-    private function seedQuiz(Lesson $lesson, int $day, bool $final): Assessment
+    private function seedQuiz(Lesson $lesson, bool $final): Assessment
     {
         return Assessment::updateOrCreate(
             ['course_id' => $lesson->course_id, 'lesson_id' => $lesson->id, 'assessment_type' => 'quiz'],
             [
-                'title' => $final ? 'Day 15 review quiz: Web Development 1' : "Day {$day} quiz",
+                'title' => $final ? 'Web Development 1 review quiz' : 'Quiz: '.$lesson->title,
                 'description' => $final
                     ? '<p>'.self::FINAL_QUIZ_SIZE.' questions drawn from the whole Web 1 bank, so the review mixes HTML, CSS, and Bootstrap. Pass mark: 70%. You can try twice.</p>'
-                    : '<p>'.self::QUIZ_SIZE.' questions from today’s lesson. Pass mark: 70%. You can try 3 times.</p>',
+                    : '<p>'.self::QUIZ_SIZE.' questions from this lesson. Pass mark: 70%. You can try 3 times.</p>',
                 'max_attempts' => $final ? 2 : 3,
                 'time_limit_minutes' => $final ? 25 : 15,
                 'passing_score' => 70,
@@ -180,7 +209,7 @@ class WebDevelopment1Seeder extends Seeder
 
         foreach (array_slice($rows, 0, self::QUIZ_SIZE) as $index => $row) {
             [$kind, $difficulty, $text, $answer, $explanation] = $row;
-            $key = sprintf('web1-L%d-Q%02d', $day, $index + 1);
+            $key = sprintf('web1-v2-L%d-Q%02d', $day, $index + 1);
 
             $existing = Question::withTrashed()->where('settings->bank_key', $key)->first();
             if ($existing?->trashed()) {
@@ -322,8 +351,8 @@ class WebDevelopment1Seeder extends Seeder
     private function weekTag(int $day): string
     {
         return match (true) {
-            $day <= 5 => 'html',
-            $day <= 10 => 'css',
+            $day <= 7 => 'html',
+            $day <= 14 => 'css',
             default => 'bootstrap',
         };
     }
