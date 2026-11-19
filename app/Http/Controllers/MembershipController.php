@@ -98,8 +98,8 @@ class MembershipController extends Controller
 
         $this->sendEmails($application);
 
-        return redirect()->route('registration.membership.pay', $application->public_token)
-            ->with('message', 'Application received. We have emailed the details to '.$application->email.'.')
+        return redirect()->route('registration.thank-you')
+            ->with('message', 'Application received for '.$application->full_name.'. We have emailed '.$application->email.' and our team will be in touch.')
             ->with('registration_conversion', ['type' => 'membership', 'id' => $application->id]);
     }
 

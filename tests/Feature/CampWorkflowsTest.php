@@ -152,22 +152,22 @@ function membershipPayload(array $overrides = []): array
     ], $overrides);
 }
 
-it('takes a membership application, emails the parent and opens the payment screen', function () {
+it('takes a membership application and emails the parent', function () {
     Mail::fake();
 
     $response = $this->post(route('registration.membership.store'), membershipPayload());
 
     $application = RegistrationRequest::where('type', 'membership')->firstOrFail();
-    $response->assertRedirect(route('registration.membership.pay', $application->public_token));
+    $response->assertRedirect(route('registration.thank-you'));
 
     expect($application->payment_status)->toBe('unpaid')
         ->and($application->meta['parent_name'])->toBe('Grace Okello');
     Mail::assertSent(MembershipApplicationReceived::class, fn ($mail) => $mail->hasTo('grace@example.com'));
 
-    $this->get(route('registration.membership.pay', $application->public_token))
+    $this->get(route('registration.membership'))
         ->assertOk()
-        ->assertSee('UGX 200,000')
-        ->assertSee('Brian Okello Mukasa');
+        ->assertSee('Membership application')
+        ->assertDontSee('Pesapal');
 });
 
 it('sends the parent to Pesapal and marks the application paid once Pesapal confirms', function () {

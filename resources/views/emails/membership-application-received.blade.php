@@ -22,18 +22,10 @@
                                 <h2 style="margin:0 0 8px;font-size:20px;color:#0f172a;">Thank you, {{ $application->meta['parent_name'] ?? 'parent' }}!</h2>
                                 <p style="margin:0;color:#475569;font-size:14px;line-height:1.6;">
                                     We have received the membership application for <strong>{{ $application->full_name }}</strong>.
-                                    To complete it, please pay the application fee of <strong>UGX {{ number_format($fee) }}</strong>.
+                                    Our team will contact you on {{ $application->phone }} to confirm the place and arrange the next step.
                                 </p>
                             </td>
                         </tr>
-                        @if($payUrl && ! $application->isPaid())
-                            <tr>
-                                <td style="padding:16px 24px;" align="center">
-                                    <a href="{{ $payUrl }}" style="display:inline-block;background-color:#ea580c;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:14px 28px;border-radius:10px;">Pay application fee</a>
-                                    <p style="margin:10px 0 0;color:#64748b;font-size:12px;">Mobile Money (MTN, Airtel) or card, through Pesapal. You can use this link any time.</p>
-                                </td>
-                            </tr>
-                        @endif
                         <tr>
                             <td style="padding:8px 24px 24px;">
                                 <h3 style="margin:0 0 8px;font-size:15px;color:#0f172a;">Application details</h3>
@@ -42,7 +34,7 @@
                         </tr>
                         <tr>
                             <td style="padding:0 24px 24px;color:#475569;font-size:13px;line-height:1.6;">
-                                After payment our team will confirm the child's place and share camp details. Reply to this email if anything above is wrong.
+                                Reply to this email if anything above is wrong.
                             </td>
                         </tr>
                         <tr>

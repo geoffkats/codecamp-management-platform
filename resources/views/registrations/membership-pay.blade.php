@@ -9,7 +9,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $paid ? 'Payment received' : 'Pay application fee' }} - Code Academy Uganda</title>
+        <title>{{ $paid ? 'Payment received' : 'Application received' }} - Code Academy Uganda</title>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @include('partials.analytics.head')
     </head>
@@ -21,7 +21,7 @@
                 <div class="text-center">
                     <p class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Code Camp membership</p>
                     <h1 class="text-3xl md:text-4xl font-bold text-blue-900 dark:text-white mt-3">
-                        {{ $paid ? 'Payment received' : 'Pay the application fee' }}
+                        {{ $paid ? 'Payment received' : 'Application received' }}
                     </h1>
                 </div>
 
@@ -52,22 +52,9 @@
                                 <p class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">Your last payment did not go through. You can try again below.</p>
                             @endif
 
-                            @if($canPayOnline)
-                                <form method="POST" action="{{ route('registration.membership.checkout', $application->public_token) }}" class="mt-6">
-                                    @csrf
-                                    <button type="submit" class="w-full inline-flex items-center justify-center px-6 py-3.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-semibold text-lg transition-all">
-                                        {{ $payment ? 'Try payment again' : 'Pay now' }}
-                                    </button>
-                                </form>
-                                <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">You'll be taken to Pesapal to pay with MTN or Airtel Mobile Money, or a Visa/Mastercard card.</p>
-                                @if($awaiting)
-                                    <a href="{{ request()->url() }}" class="mt-3 inline-block text-sm font-semibold text-orange-600 hover:underline">Refresh payment status</a>
-                                @endif
-                            @else
-                                <p class="mt-6 rounded-lg bg-gray-50 px-3 py-3 text-sm text-gray-700 dark:bg-blue-950 dark:text-gray-200">
-                                    Online payment isn't available right now. Our team will contact you on {{ $application->phone }} with payment details.
-                                </p>
-                            @endif
+                            <p class="mt-6 rounded-lg bg-gray-50 px-3 py-3 text-sm text-gray-700 dark:bg-blue-950 dark:text-gray-200">
+                                Online payment is not used for this application. Our team will contact you on {{ $application->phone }}.
+                            </p>
                         @endif
                     </div>
 
@@ -91,7 +78,7 @@
                 </div>
 
                 <p class="text-center text-xs text-gray-500 dark:text-gray-400">
-                    Keep this page's link (also in your email) to come back and pay later.
+                    Keep this page if you want a record of the application. Our team uses the phone number above.
                 </p>
             </div>
         </div>

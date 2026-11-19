@@ -24,7 +24,7 @@
                 <a href="{{ route('registration.membership') }}" class="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-orange-300 bg-white p-5 shadow-sm hover:border-orange-500 dark:border-blue-700 dark:bg-blue-900">
                     <span>
                         <span class="block font-bold text-blue-900 dark:text-white">Registering a child for Code Camp?</span>
-                        <span class="block text-sm text-gray-600 dark:text-gray-300">Apply for Code Camp membership and pay the application fee online in one go.</span>
+                        <span class="block text-sm text-gray-600 dark:text-gray-300">Fill in the membership form. Our team will contact you to finish enrolment.</span>
                     </span>
                     <span class="shrink-0 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white">Apply for membership →</span>
                 </a>
