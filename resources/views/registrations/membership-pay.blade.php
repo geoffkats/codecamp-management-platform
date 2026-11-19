@@ -62,7 +62,7 @@
                         @foreach([
                             'Child' => $application->full_name,
                             'School & class' => trim($application->organization_name.' · '.$application->school_level, ' ·'),
-                            'Camp' => $application->preferred_schedule ?: 'Next available camp',
+                            'Course' => $application->course_interest,
                             'Parent / guardian' => $meta['parent_name'] ?? null,
                             'Contact' => $application->phone.' · '.$application->email,
                             'Reference' => '#'.$application->id,

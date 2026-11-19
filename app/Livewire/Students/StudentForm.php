@@ -225,16 +225,21 @@ class StudentForm extends Component
         $names = preg_split('/\s+/', trim((string) $application->full_name)) ?: [];
         $first = array_shift($names) ?? '';
         $last = array_pop($names) ?? '';
+        $address = trim(implode(', ', array_filter([
+            $meta['address'] ?? null,
+            $meta['area'] ?? null,
+        ])));
 
         $this->prefillFromExternalRegistration([
-            'first_name' => $first,
-            'middle_name' => implode(' ', $names),
-            'last_name' => $last,
+            'first_name' => $meta['first_name'] ?? $first,
+            'middle_name' => $meta['middle_name'] ?? implode(' ', $names),
+            'last_name' => $meta['last_name'] ?? $last,
             'full_name' => $application->full_name,
             'date_of_birth' => $application->date_of_birth?->format('Y-m-d'),
             'gender' => $application->gender ? strtolower($application->gender) : null,
+            'nationality' => $meta['nationality'] ?? null,
             'class_grade' => $application->school_level,
-            'address' => $meta['address'] ?? null,
+            'address' => $address !== '' ? $address : null,
             'tshirt_size' => $meta['tshirt_size'] ?? null,
             'registration_category' => 'camp',
             'parent1' => [
@@ -245,7 +250,19 @@ class StudentForm extends Component
             ],
         ]);
 
-        if (! empty($meta['alt_phone'])) {
+        if (! empty($meta['parent2_name'])) {
+            $this->parent2_name = (string) $meta['parent2_name'];
+        }
+
+        $parent2Relationship = isset($meta['parent2_relationship']) ? strtolower((string) $meta['parent2_relationship']) : '';
+
+        if (in_array($parent2Relationship, ['mother', 'father', 'guardian'], true)) {
+            $this->parent2_relationship = $parent2Relationship;
+        }
+
+        if (! empty($meta['parent2_phone'])) {
+            $this->parent2_phone = (string) $meta['parent2_phone'];
+        } elseif (! empty($meta['alt_phone'])) {
             $this->parent2_phone = (string) $meta['alt_phone'];
         }
 

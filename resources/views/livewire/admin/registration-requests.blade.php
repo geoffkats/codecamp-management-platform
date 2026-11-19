@@ -204,8 +204,8 @@
                                     <p class="font-semibold text-slate-900 dark:text-white">{{ $membership->gender ?? '-' }} · {{ $membership->school_level ?? '-' }}</p>
                                 </div>
                                 <div>
-                                    <p class="text-xs text-slate-500">Camp</p>
-                                    <p class="font-semibold text-slate-900 dark:text-white">{{ $membership->preferred_schedule ?: 'Next available' }}</p>
+                                    <p class="text-xs text-slate-500">Course</p>
+                                    <p class="font-semibold text-slate-900 dark:text-white">{{ $membership->course_interest ?: '-' }}</p>
                                 </div>
                             </div>
 

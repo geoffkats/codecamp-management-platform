@@ -138,16 +138,27 @@ it('lets a trainer send revised content and a supervisor approve it', function (
 function membershipPayload(array $overrides = []): array
 {
     return array_merge([
-        'child_name' => 'Brian Okello Mukasa',
+        'first_name' => 'Brian',
+        'middle_name' => 'Okello',
+        'last_name' => 'Mukasa',
         'date_of_birth' => now()->subYears(10)->toDateString(),
         'gender' => 'Male',
+        'nationality' => 'Uganda',
         'school' => 'Kampala Parents School',
         'class_grade' => 'P.5',
+        'course_interest' => 'Scratch & Game Design',
         'tshirt_size' => 'M',
+        'laptop' => 'Has their own laptop',
+        'experience' => 'New to coding',
         'parent_name' => 'Grace Okello',
         'parent_relationship' => 'Mother',
         'email' => 'grace@example.com',
         'phone' => '0772000000',
+        'address' => 'Plot 12, Ntinda Road',
+        'area' => 'Ntinda',
+        'emergency_name' => 'Peter Okello',
+        'emergency_phone' => '0772000001',
+        'pickup_person' => 'Grace Okello, mother',
         'consent' => '1',
     ], $overrides);
 }
@@ -161,12 +172,17 @@ it('takes a membership application and emails the parent', function () {
     $response->assertRedirect(route('registration.thank-you'));
 
     expect($application->payment_status)->toBe('unpaid')
-        ->and($application->meta['parent_name'])->toBe('Grace Okello');
+        ->and($application->full_name)->toBe('Brian Okello Mukasa')
+        ->and($application->preferred_schedule)->toBeNull()
+        ->and($application->meta['parent_name'])->toBe('Grace Okello')
+        ->and($application->meta['emergency_name'])->toBe('Peter Okello');
     Mail::assertSent(MembershipApplicationReceived::class, fn ($mail) => $mail->hasTo('grace@example.com'));
 
     $this->get(route('registration.membership'))
         ->assertOk()
         ->assertSee('Membership application')
+        ->assertSee('Emergency contact name')
+        ->assertDontSee('First camp')
         ->assertDontSee('Pesapal');
 });
 

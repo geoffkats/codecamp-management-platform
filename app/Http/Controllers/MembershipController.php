@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Mail\MembershipApplicationReceived;
 use App\Mail\RegistrationRequestSubmitted;
-use App\Models\CodeCamp;
 use App\Models\RegistrationPayment;
 use App\Models\RegistrationRequest;
 use App\Models\StudentUniform;
@@ -30,48 +29,86 @@ class MembershipController extends Controller
         'Not sure yet',
     ];
 
+    public const RELATIONSHIPS = ['Mother', 'Father', 'Guardian'];
+
+    public const LAPTOPS = [
+        'Has their own laptop',
+        'Will need a camp laptop',
+        'Not sure yet',
+    ];
+
+    public const EXPERIENCE = [
+        'New to coding',
+        'Some Scratch or block coding',
+        'Already writes some code',
+    ];
+
+    public const HOW_HEARD = [
+        'School',
+        'Friend or family',
+        'Social media',
+        'Website',
+        'Event or exhibition',
+        'Other',
+    ];
+
     public function create(): View
     {
         return view('registrations.membership', [
-            'camps' => $this->openCamps(),
             'courses' => self::COURSES,
             'sizes' => StudentUniform::SIZES,
-            'fee' => RegistrationRequest::membershipFee(),
+            'relationships' => self::RELATIONSHIPS,
+            'laptops' => self::LAPTOPS,
+            'experienceLevels' => self::EXPERIENCE,
+            'sources' => self::HOW_HEARD,
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $camps = $this->openCamps();
-
         $data = $request->validate([
-            'child_name' => ['required', 'string', 'max:255'],
+            'first_name' => ['required', 'string', 'max:100'],
+            'middle_name' => ['nullable', 'string', 'max:100'],
+            'last_name' => ['required', 'string', 'max:100'],
             'date_of_birth' => ['required', 'date', 'before:today', 'after:'.now()->subYears(25)->toDateString()],
             'gender' => ['required', Rule::in(['Male', 'Female'])],
+            'nationality' => ['required', 'string', 'max:100'],
             'school' => ['required', 'string', 'max:255'],
             'class_grade' => ['required', 'string', 'max:100'],
-            'camp_id' => ['nullable', Rule::in($camps->pluck('id')->all())],
-            'course_interest' => ['nullable', Rule::in(self::COURSES)],
-            'tshirt_size' => ['nullable', Rule::in(StudentUniform::SIZES)],
+            'course_interest' => ['required', Rule::in(self::COURSES)],
+            'tshirt_size' => ['required', Rule::in(StudentUniform::SIZES)],
+            'laptop' => ['required', Rule::in(self::LAPTOPS)],
+            'experience' => ['required', Rule::in(self::EXPERIENCE)],
             'medical_notes' => ['nullable', 'string', 'max:1000'],
             'parent_name' => ['required', 'string', 'max:255'],
-            'parent_relationship' => ['required', Rule::in(['Mother', 'Father', 'Guardian'])],
+            'parent_relationship' => ['required', Rule::in(self::RELATIONSHIPS)],
+            'parent_occupation' => ['nullable', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:50'],
-            'alt_phone' => ['nullable', 'string', 'max:50'],
-            'address' => ['nullable', 'string', 'max:500'],
-            'how_heard' => ['nullable', 'string', 'max:255'],
+            'parent2_name' => ['nullable', 'string', 'max:255'],
+            'parent2_relationship' => ['nullable', Rule::in(self::RELATIONSHIPS)],
+            'parent2_phone' => ['nullable', 'string', 'max:50'],
+            'address' => ['required', 'string', 'max:500'],
+            'area' => ['required', 'string', 'max:255'],
+            'emergency_name' => ['required', 'string', 'max:255'],
+            'emergency_phone' => ['required', 'string', 'max:50'],
+            'pickup_person' => ['required', 'string', 'max:255'],
+            'how_heard' => ['nullable', Rule::in(self::HOW_HEARD)],
             'consent' => ['accepted'],
         ], [
             'consent.accepted' => 'Please confirm the details are correct and you agree to the camp terms.',
         ]);
 
-        $camp = filled($data['camp_id'] ?? null) ? $camps->firstWhere('id', (int) $data['camp_id']) : null;
+        $fullName = trim(implode(' ', array_filter([
+            $data['first_name'],
+            $data['middle_name'] ?? null,
+            $data['last_name'],
+        ])));
 
         $application = RegistrationRequest::create([
             'public_token' => Str::random(48),
             'type' => 'membership',
-            'full_name' => $data['child_name'],
+            'full_name' => $fullName,
             'email' => $data['email'],
             'phone' => $data['phone'],
             'organization_name' => $data['school'],
@@ -79,20 +116,33 @@ class MembershipController extends Controller
             'date_of_birth' => $data['date_of_birth'],
             'gender' => $data['gender'],
             'program_interest' => 'Code Camp membership',
-            'course_interest' => $data['course_interest'] ?? null,
-            'preferred_schedule' => $camp?->name,
+            'course_interest' => $data['course_interest'],
             'message' => $data['medical_notes'] ?? null,
             'status' => 'new',
             'payment_status' => 'unpaid',
             'meta' => array_filter([
+                'first_name' => $data['first_name'],
+                'middle_name' => $data['middle_name'] ?? null,
+                'last_name' => $data['last_name'],
+                'nationality' => $data['nationality'],
                 'parent_name' => $data['parent_name'],
                 'parent_relationship' => $data['parent_relationship'],
-                'alt_phone' => $data['alt_phone'] ?? null,
-                'address' => $data['address'] ?? null,
-                'camp_id' => $camp?->id,
-                'tshirt_size' => $data['tshirt_size'] ?? null,
+                'parent_occupation' => $data['parent_occupation'] ?? null,
+                'parent2_name' => $data['parent2_name'] ?? null,
+                'parent2_relationship' => $data['parent2_relationship'] ?? null,
+                'parent2_phone' => $data['parent2_phone'] ?? null,
+                'alt_phone' => $data['parent2_phone'] ?? null,
+                'address' => $data['address'],
+                'area' => $data['area'],
+                'tshirt_size' => $data['tshirt_size'],
+                'laptop' => $data['laptop'],
+                'experience' => $data['experience'],
                 'medical_notes' => $data['medical_notes'] ?? null,
+                'emergency_name' => $data['emergency_name'],
+                'emergency_phone' => $data['emergency_phone'],
+                'pickup_person' => $data['pickup_person'],
                 'how_heard' => $data['how_heard'] ?? null,
+                'photo_consent' => $request->boolean('photo_consent') ? 'Yes' : 'No',
             ], fn ($value) => filled($value)),
         ]);
 
@@ -196,11 +246,6 @@ class MembershipController extends Controller
         return RegistrationPayment::where('merchant_reference', $reference)
             ->where('order_tracking_id', $tracking)
             ->first();
-    }
-
-    private function openCamps()
-    {
-        return CodeCamp::whereIn('status', ['upcoming', 'active'])->orderBy('start_date')->get(['id', 'name', 'start_date', 'end_date', 'status']);
     }
 
     private function sendEmails(RegistrationRequest $application): void
