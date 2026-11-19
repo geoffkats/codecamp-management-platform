@@ -20,15 +20,6 @@ use Illuminate\View\View;
 
 class MembershipController extends Controller
 {
-    public const COURSES = [
-        'Scratch & Game Design',
-        'Web Development',
-        'Python Programming',
-        'Mobile App Development',
-        'Robotics & Electronics',
-        'Not sure yet',
-    ];
-
     public const RELATIONSHIPS = ['Mother', 'Father', 'Guardian'];
 
     public const LAPTOPS = [
@@ -55,7 +46,6 @@ class MembershipController extends Controller
     public function create(): View
     {
         return view('registrations.membership', [
-            'courses' => self::COURSES,
             'sizes' => StudentUniform::SIZES,
             'relationships' => self::RELATIONSHIPS,
             'laptops' => self::LAPTOPS,
@@ -75,7 +65,6 @@ class MembershipController extends Controller
             'nationality' => ['required', 'string', 'max:100'],
             'school' => ['required', 'string', 'max:255'],
             'class_grade' => ['required', 'string', 'max:100'],
-            'course_interest' => ['required', Rule::in(self::COURSES)],
             'tshirt_size' => ['required', Rule::in(StudentUniform::SIZES)],
             'laptop' => ['required', Rule::in(self::LAPTOPS)],
             'experience' => ['required', Rule::in(self::EXPERIENCE)],
@@ -116,7 +105,6 @@ class MembershipController extends Controller
             'date_of_birth' => $data['date_of_birth'],
             'gender' => $data['gender'],
             'program_interest' => 'Code Camp membership',
-            'course_interest' => $data['course_interest'],
             'message' => $data['medical_notes'] ?? null,
             'status' => 'new',
             'payment_status' => 'unpaid',

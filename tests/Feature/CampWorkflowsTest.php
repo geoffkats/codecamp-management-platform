@@ -146,7 +146,6 @@ function membershipPayload(array $overrides = []): array
         'nationality' => 'Uganda',
         'school' => 'Kampala Parents School',
         'class_grade' => 'P.5',
-        'course_interest' => 'Scratch & Game Design',
         'tshirt_size' => 'M',
         'laptop' => 'Has their own laptop',
         'experience' => 'New to coding',

@@ -14,11 +14,11 @@
     <body class="min-h-full bg-white text-slate-900 dark:bg-slate-950 dark:text-white">
         @include('partials.analytics.body')
         <div class="lg:grid lg:min-h-screen lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
-            <aside class="relative overflow-hidden bg-slate-950 px-6 py-10 text-white sm:px-10 lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:justify-between lg:px-12 lg:py-12">
-                <div class="pointer-events-none absolute -right-16 -top-20 size-72 rounded-full bg-orange-500/30 blur-3xl"></div>
-                <div class="pointer-events-none absolute -bottom-24 -left-10 size-72 rounded-full bg-blue-500/20 blur-3xl"></div>
+            <aside class="relative flex min-h-[32rem] flex-col justify-between overflow-hidden text-white lg:sticky lg:top-0 lg:h-screen lg:min-h-screen">
+                <img src="{{ asset('images/membership/membership-camp.jpg') }}" alt="" class="absolute inset-0 h-full w-full object-cover">
+                <div class="absolute inset-0 bg-black/45"></div>
 
-                <div class="relative">
+                <div class="relative px-6 py-10 sm:px-10 lg:px-12 lg:py-12">
                     <a href="{{ route('home') }}" class="text-sm font-semibold tracking-wide text-orange-200 hover:text-white">Code Academy Uganda</a>
                     <p class="mt-10 text-xs font-bold uppercase tracking-[0.2em] text-orange-300">Code Camp</p>
                     <h1 class="mt-3 max-w-md text-4xl font-extrabold leading-tight sm:text-5xl">Membership application</h1>
@@ -27,9 +27,9 @@
                     </p>
                 </div>
 
-                <ul class="relative mt-10 space-y-4 text-sm text-slate-200 lg:mt-0">
+                <ul class="relative mt-10 space-y-4 px-6 pb-10 text-sm text-slate-200 sm:px-10 lg:mt-0 lg:px-12 lg:pb-12">
                     @foreach([
-                        'Child details, school, course and T-shirt size',
+                        'Child details, school and T-shirt size',
                         'Parents, home address and a second contact',
                         'Emergency contact and who may pick the child up',
                     ] as $point)
@@ -112,16 +112,6 @@
 
                         <div class="grid gap-5 sm:grid-cols-2">
                             <div>
-                                <label class="{{ $label }}" for="course_interest">Course they want to start with</label>
-                                <select id="course_interest" name="course_interest" required class="{{ $input }}">
-                                    <option value="">Select a course</option>
-                                    @foreach($courses as $course)
-                                        <option value="{{ $course }}" @selected(old('course_interest') === $course)>{{ $course }}</option>
-                                    @endforeach
-                                </select>
-                                @error('course_interest')<p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>@enderror
-                            </div>
-                            <div>
                                 <label class="{{ $label }}" for="tshirt_size">T-shirt size</label>
                                 <select id="tshirt_size" name="tshirt_size" required class="{{ $input }}">
                                     <option value="">Select</option>
@@ -131,9 +121,6 @@
                                 </select>
                                 @error('tshirt_size')<p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>@enderror
                             </div>
-                        </div>
-
-                        <div class="grid gap-5 sm:grid-cols-2">
                             <div>
                                 <label class="{{ $label }}" for="laptop">Laptop for class</label>
                                 <select id="laptop" name="laptop" required class="{{ $input }}">
