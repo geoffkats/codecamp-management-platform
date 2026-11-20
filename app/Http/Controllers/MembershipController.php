@@ -83,6 +83,9 @@ class MembershipController extends Controller
             'emergency_phone' => ['required', 'string', 'max:50'],
             'pickup_person' => ['required', 'string', 'max:255'],
             'how_heard' => ['nullable', Rule::in(self::HOW_HEARD)],
+            'term_report_1' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'term_report_2' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'term_report_3' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'consent' => ['accepted'],
         ], [
             'consent.accepted' => 'Please confirm the details are correct and you agree to the camp terms.',
@@ -133,6 +136,16 @@ class MembershipController extends Controller
                 'photo_consent' => $request->boolean('photo_consent') ? 'Yes' : 'No',
             ], fn ($value) => filled($value)),
         ]);
+
+        $reports = [];
+        foreach (['term_report_1', 'term_report_2', 'term_report_3'] as $field) {
+            $reports[$field] = $request->file($field)->store('membership-reports/'.$application->id, 'public');
+        }
+
+        $application->update([
+            'meta' => array_merge($application->meta ?? [], $reports),
+        ]);
+        $application->refresh();
 
         $this->sendEmails($application);
 

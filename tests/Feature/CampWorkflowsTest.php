@@ -158,12 +158,16 @@ function membershipPayload(array $overrides = []): array
         'emergency_name' => 'Peter Okello',
         'emergency_phone' => '0772000001',
         'pickup_person' => 'Grace Okello, mother',
+        'term_report_1' => UploadedFile::fake()->image('term-1.jpg'),
+        'term_report_2' => UploadedFile::fake()->image('term-2.jpg'),
+        'term_report_3' => UploadedFile::fake()->image('term-3.jpg'),
         'consent' => '1',
     ], $overrides);
 }
 
 it('takes a membership application and emails the parent', function () {
     Mail::fake();
+    Storage::fake('public');
 
     $response = $this->post(route('registration.membership.store'), membershipPayload());
 
@@ -174,19 +178,29 @@ it('takes a membership application and emails the parent', function () {
         ->and($application->full_name)->toBe('Brian Okello Mukasa')
         ->and($application->preferred_schedule)->toBeNull()
         ->and($application->meta['parent_name'])->toBe('Grace Okello')
-        ->and($application->meta['emergency_name'])->toBe('Peter Okello');
+        ->and($application->meta['emergency_name'])->toBe('Peter Okello')
+        ->and($application->meta['term_report_1'])->not->toBeEmpty()
+        ->and($application->meta['term_report_2'])->not->toBeEmpty()
+        ->and($application->meta['term_report_3'])->not->toBeEmpty();
+
+    Storage::disk('public')->assertExists($application->meta['term_report_1']);
+    Storage::disk('public')->assertExists($application->meta['term_report_2']);
+    Storage::disk('public')->assertExists($application->meta['term_report_3']);
     Mail::assertSent(MembershipApplicationReceived::class, fn ($mail) => $mail->hasTo('grace@example.com'));
 
     $this->get(route('registration.membership'))
         ->assertOk()
         ->assertSee('Membership application')
         ->assertSee('Emergency contact name')
+        ->assertSee('Most recent term')
+        ->assertSee('Term before that')
         ->assertDontSee('First camp')
         ->assertDontSee('Pesapal');
 });
 
 it('sends the parent to Pesapal and marks the application paid once Pesapal confirms', function () {
     Mail::fake();
+    Storage::fake('public');
     config([
         'services.pesapal.consumer_key' => 'key',
         'services.pesapal.consumer_secret' => 'secret',

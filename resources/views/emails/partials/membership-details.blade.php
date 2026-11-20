@@ -22,6 +22,11 @@
         'Photos' => $meta['photo_consent'] ?? null,
         'Medical / special needs' => $meta['medical_notes'] ?? null,
     ];
+    $reports = [
+        'Most recent term' => $meta['term_report_1'] ?? null,
+        'Previous term' => $meta['term_report_2'] ?? null,
+        'Term before that' => $meta['term_report_3'] ?? null,
+    ];
 @endphp
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
     @foreach($rows as $label => $value)
@@ -33,3 +38,19 @@
         @endif
     @endforeach
 </table>
+@if(collect($reports)->filter()->isNotEmpty())
+    <p style="margin:18px 0 8px;font-size:15px;color:#0f172a;">School reports</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+            @foreach($reports as $label => $path)
+                @if(filled($path))
+                    @php $url = \Illuminate\Support\Facades\Storage::disk('public')->url($path); @endphp
+                    <td style="padding:0 8px 0 0;vertical-align:top;width:33%;">
+                        <a href="{{ $url }}" style="color:#ea580c;font-size:12px;font-weight:700;text-decoration:none;">{{ $label }}</a>
+                        <img src="{{ $url }}" alt="{{ $label }}" width="180" style="display:block;margin-top:6px;width:100%;max-width:180px;height:auto;border-radius:8px;border:1px solid #e2e8f0;">
+                    </td>
+                @endif
+            @endforeach
+        </tr>
+    </table>
+@endif

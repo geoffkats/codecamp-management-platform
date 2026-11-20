@@ -172,7 +172,7 @@
                             <p class="text-xs uppercase tracking-wide text-slate-500 mb-2">Additional Details</p>
                             <div class="grid sm:grid-cols-2 gap-3">
                                 @foreach($this->selectedRequest->meta as $key => $value)
-                                    @if($value)
+                                    @if($value && ! str_starts_with((string) $key, 'term_report_'))
                                         <div>
                                             <p class="text-xs uppercase tracking-wide text-slate-500">{{ ucwords(str_replace('_', ' ', $key)) }}</p>
                                             <p class="font-semibold text-slate-900 dark:text-white">
@@ -194,6 +194,26 @@
                                     Application fee {{ $membership->isPaid() ? 'paid' : 'unpaid' }}
                                 </span>
                             </div>
+                            @php
+                                $termReports = [
+                                    'Most recent term' => $membership->meta['term_report_1'] ?? null,
+                                    'Previous term' => $membership->meta['term_report_2'] ?? null,
+                                    'Term before that' => $membership->meta['term_report_3'] ?? null,
+                                ];
+                            @endphp
+                            @if(collect($termReports)->filter()->isNotEmpty())
+                                <div class="grid gap-3 sm:grid-cols-3">
+                                    @foreach($termReports as $label => $path)
+                                        @if(filled($path))
+                                            <a href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($path) }}" target="_blank" class="block">
+                                                <p class="text-xs text-slate-500">{{ $label }}</p>
+                                                <img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($path) }}" alt="{{ $label }}" class="mt-1 h-36 w-full rounded-lg object-cover ring-1 ring-slate-200 dark:ring-zinc-700">
+                                            </a>
+                                        @endif
+                                    @endforeach
+                                </div>
+                            @endif
+
                             <div class="grid sm:grid-cols-3 gap-3">
                                 <div>
                                     <p class="text-xs text-slate-500">Date of birth</p>

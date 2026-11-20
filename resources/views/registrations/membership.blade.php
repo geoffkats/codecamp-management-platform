@@ -42,7 +42,7 @@
             </aside>
 
             <main class="px-4 py-8 sm:px-8 sm:py-10 lg:px-12 lg:py-12">
-                <form method="POST" action="{{ route('registration.membership.store') }}" class="mx-auto max-w-3xl space-y-8">
+                <form method="POST" action="{{ route('registration.membership.store') }}" enctype="multipart/form-data" class="mx-auto max-w-3xl space-y-8">
                     @csrf
 
                     @if($errors->any())
@@ -146,6 +146,26 @@
                         <div>
                             <label class="{{ $label }}" for="medical_notes">Allergies, medical conditions or learning needs <span class="font-normal text-slate-400">(optional)</span></label>
                             <textarea id="medical_notes" name="medical_notes" rows="3" class="{{ $input }}" placeholder="Anything our instructors should know before class.">{{ old('medical_notes') }}</textarea>
+                        </div>
+
+                        <div class="space-y-4 border-t border-slate-200 pt-6 dark:border-slate-800">
+                            <div>
+                                <h3 class="text-base font-bold text-slate-900 dark:text-white">School reports</h3>
+                                <p class="text-sm text-slate-500">Photos of the report cards from the last three school terms. JPG, PNG or WEBP, up to 5 MB each.</p>
+                            </div>
+                            <div class="grid gap-5 sm:grid-cols-3">
+                                @foreach([
+                                    'term_report_1' => 'Most recent term',
+                                    'term_report_2' => 'Previous term',
+                                    'term_report_3' => 'Term before that',
+                                ] as $name => $caption)
+                                    <div>
+                                        <label class="{{ $label }}" for="{{ $name }}">{{ $caption }}</label>
+                                        <input id="{{ $name }}" type="file" name="{{ $name }}" accept="image/jpeg,image/png,image/webp" required class="{{ $input }} file:mr-3 file:rounded-lg file:border-0 file:bg-orange-600 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white">
+                                        @error($name)<p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>@enderror
+                                    </div>
+                                @endforeach
+                            </div>
                         </div>
                     </section>
 
