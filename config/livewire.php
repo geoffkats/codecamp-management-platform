@@ -65,7 +65,9 @@ return [
 
     'temporary_file_upload' => [
         'disk' => null,        // Example: 'local', 's3'              | Default: 'default'
-        'rules' => null,       // Example: ['file', 'mimes:png,jpg']  | Default: ['required', 'file', 'max:12288'] (12MB)
+        // Assignments allow 20 MB files. The default 12 MB cap rejects those uploads
+        // before the component runs, so submit looks like nothing was attached.
+        'rules' => ['required', 'file', 'max:25600'],
         'directory' => null,   // Example: 'tmp'                      | Default: 'livewire-tmp'
         'middleware' => null,  // Example: 'throttle:5,1'             | Default: 'throttle:60,1'
         'preview_mimes' => [   // Supported file types for temporary pre-signed file URLs...
@@ -74,7 +76,7 @@ return [
             'jpg', 'jpeg', 'mpga', 'webp', 'wma',
             'pdf', 'html', 'htm', 'css', 'txt',
         ],
-        'max_upload_time' => 5, // Max duration (in minutes) before an upload is invalidated...
+        'max_upload_time' => 30, // Slow connections need longer than the 5 minute default.
         'cleanup' => true, // Should cleanup temporary uploads older than 24 hrs...
     ],
 
