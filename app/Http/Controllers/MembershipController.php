@@ -23,9 +23,8 @@ class MembershipController extends Controller
     public const RELATIONSHIPS = ['Mother', 'Father', 'Guardian'];
 
     public const LAPTOPS = [
-        'Has their own laptop',
-        'Will need a camp laptop',
-        'Not sure yet',
+        'Yes',
+        'No',
     ];
 
     public const EXPERIENCE = [

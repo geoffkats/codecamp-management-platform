@@ -122,7 +122,7 @@
                                 @error('tshirt_size')<p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>@enderror
                             </div>
                             <div>
-                                <label class="{{ $label }}" for="laptop">Laptop for class</label>
+                                <label class="{{ $label }}" for="laptop">Do they own a laptop?</label>
                                 <select id="laptop" name="laptop" required class="{{ $input }}">
                                     <option value="">Select</option>
                                     @foreach($laptops as $option)

@@ -9,7 +9,7 @@
         'Class' => $application->school_level,
         'Course interest' => $application->course_interest,
         'T-shirt size' => $meta['tshirt_size'] ?? null,
-        'Laptop' => $meta['laptop'] ?? null,
+        'Owns a laptop' => $meta['laptop'] ?? null,
         'Coding experience' => $meta['experience'] ?? null,
         'Parent / guardian' => trim(($meta['parent_name'] ?? '').(! empty($meta['parent_relationship']) ? ' ('.$meta['parent_relationship'].')' : '')),
         'Occupation' => $meta['parent_occupation'] ?? null,
