@@ -19,6 +19,7 @@ return [
             ['label' => 'Schools', 'route' => 'admin.schools', 'icon' => 'building-library', 'match' => 'admin.schools*'],
             ['label' => 'Enrollments', 'route' => 'admin.enrollments', 'icon' => 'clipboard-document-list', 'match' => 'admin.enrollments'],
             ['label' => 'Registration Requests', 'route' => 'admin.registration-requests', 'icon' => 'inbox-arrow-down', 'match' => 'admin.registration-requests', 'keywords' => 'signups applications'],
+            ['label' => 'Membership Applications', 'route' => 'admin.membership-applications.index', 'icon' => 'identification', 'match' => 'admin.membership-applications.*', 'keywords' => 'membership codecamp applications'],
         ]],
         ['label' => 'Programs', 'icon' => 'flag', 'items' => [
             ['label' => 'Courses', 'route' => 'courses.index', 'icon' => 'book-open', 'match' => 'courses.*'],
@@ -113,6 +114,7 @@ return [
         ['label' => 'Oversight', 'icon' => 'eye', 'items' => [
             ['label' => 'Students', 'route' => 'students.index', 'icon' => 'user-group', 'match' => 'students.*', 'keywords' => 'learners children'],
             ['label' => 'Enrollments', 'route' => 'admin.enrollments', 'icon' => 'clipboard-document-list', 'match' => 'admin.enrollments'],
+            ['label' => 'Membership Applications', 'route' => 'admin.membership-applications.index', 'icon' => 'identification', 'match' => 'admin.membership-applications.*', 'keywords' => 'membership codecamp applications'],
             ['label' => 'Code Camps', 'route' => 'admin.camps.index', 'icon' => 'flag', 'match' => 'admin.camps.*'],
             ['label' => 'Content Approval', 'route' => 'content-approvals.index', 'icon' => 'shield-check', 'match' => 'content-approvals.*', 'badge' => 'pending_approvals'],
             ['label' => 'Submissions', 'route' => 'submissions.index', 'icon' => 'inbox-stack', 'match' => 'submissions.*', 'badge' => 'pending_submissions'],

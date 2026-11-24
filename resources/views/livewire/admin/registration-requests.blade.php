@@ -11,6 +11,7 @@
                         {{ $stats['awaiting_payment'] }} membership {{ $stats['awaiting_payment'] === 1 ? 'fee' : 'fees' }} unpaid
                     </button>
                 @endif
+                <a href="{{ route('admin.membership-applications.index') }}" wire:navigate class="text-xs font-semibold text-orange-600 hover:underline">Membership applications</a>
                 <a href="{{ route('registration.membership') }}" target="_blank" class="text-xs font-semibold text-orange-600 hover:underline">Open membership form ↗</a>
             </div>
         </div>
@@ -111,7 +112,11 @@
                                     </select>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <button type="button" wire:click="viewRequest({{ $request->id }})" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-semibold text-xs">View</button>
+                                    @if($request->isMembership())
+                                        <a href="{{ route('admin.membership-applications.show', $request) }}" wire:navigate class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-semibold text-xs">View full</a>
+                                    @else
+                                        <button type="button" wire:click="viewRequest({{ $request->id }})" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-semibold text-xs">View</button>
+                                    @endif
                                 </td>
                             </tr>
                         @empty

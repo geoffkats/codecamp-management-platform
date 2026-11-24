@@ -354,6 +354,8 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['can:manage_enrollments'])->prefix('admin')->name('admin.')->group(function () {
         Route::get('/enrollments', \App\Livewire\Admin\EnrollmentManagement::class)->name('enrollments');
         Route::get('/registration-requests', \App\Livewire\Admin\RegistrationRequests::class)->name('registration-requests');
+        Route::get('/membership-applications', \App\Livewire\Admin\MembershipApplications\Index::class)->name('membership-applications.index');
+        Route::get('/membership-applications/{application}', \App\Livewire\Admin\MembershipApplications\Show::class)->name('membership-applications.show');
         Route::get('/student-progress', \App\Livewire\Admin\StudentProgressReport::class)->name('student-progress.index');
         Route::get('/student-progress/{student}', \App\Livewire\Admin\StudentProgressDetail::class)->name('student-progress.show');
     });
