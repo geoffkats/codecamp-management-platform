@@ -29,7 +29,7 @@
 
                 <ul class="relative mt-10 space-y-4 px-6 pb-10 text-sm text-slate-200 sm:px-10 lg:mt-0 lg:px-12 lg:pb-12">
                     @foreach([
-                        'Child details, school and T-shirt size',
+                        'Child details, school reports and teacher references',
                         'Parents, home address and a second contact',
                         'Emergency contact and who may pick the child up',
                     ] as $point)
@@ -143,9 +143,44 @@
                             </div>
                         </div>
 
-                        <div>
-                            <label class="{{ $label }}" for="medical_notes">Allergies, medical conditions or learning needs <span class="font-normal text-slate-400">(optional)</span></label>
-                            <textarea id="medical_notes" name="medical_notes" rows="3" class="{{ $input }}" placeholder="Anything our instructors should know before class.">{{ old('medical_notes') }}</textarea>
+                        <div class="space-y-4 border-t border-slate-200 pt-6 dark:border-slate-800">
+                            <div>
+                                <h3 class="text-base font-bold text-slate-900 dark:text-white">Health and learning</h3>
+                                <p class="text-sm text-slate-500">Helps our team keep the child safe and supported at camp.</p>
+                            </div>
+
+                            <div>
+                                <label class="{{ $label }}" for="medical_notes">Any medical conditions that may arise during camp <span class="font-normal text-slate-400">(optional)</span></label>
+                                <textarea id="medical_notes" name="medical_notes" rows="3" class="{{ $input }}" placeholder="Allergies, asthma, seizures, or anything instructors should know.">{{ old('medical_notes') }}</textarea>
+                            </div>
+
+                            <div>
+                                <span class="{{ $label }}">History of mental illness</span>
+                                <div class="mt-2 flex flex-wrap gap-4 text-sm text-slate-700 dark:text-slate-200">
+                                    @foreach(['No', 'Yes'] as $option)
+                                        <label class="inline-flex items-center gap-2">
+                                            <input type="radio" name="mental_illness" value="{{ $option }}" @checked(old('mental_illness', 'No') === $option) class="border-slate-300 text-orange-600 focus:ring-orange-500" required>
+                                            <span>{{ $option }}</span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                                @error('mental_illness')<p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>@enderror
+                            </div>
+
+                            <div>
+                                <label class="{{ $label }}" for="special_care">Does the child need any special care or attention? <span class="font-normal text-slate-400">(optional)</span></label>
+                                <textarea id="special_care" name="special_care" rows="3" class="{{ $input }}" placeholder="Support they may need during class or breaks.">{{ old('special_care') }}</textarea>
+                            </div>
+
+                            <div>
+                                <label class="{{ $label }}" for="passions">Any passions you have noticed in your child? <span class="font-normal text-slate-400">(optional)</span></label>
+                                <textarea id="passions" name="passions" rows="3" class="{{ $input }}" placeholder="Games, drawing, robots, storytelling, maths…">{{ old('passions') }}</textarea>
+                            </div>
+
+                            <div>
+                                <label class="{{ $label }}" for="weaknesses">Any known weakness he or she could have? <span class="font-normal text-slate-400">(optional)</span></label>
+                                <textarea id="weaknesses" name="weaknesses" rows="3" class="{{ $input }}" placeholder="Areas where they may need extra patience or support.">{{ old('weaknesses') }}</textarea>
+                            </div>
                         </div>
 
                         <div class="space-y-4 border-t border-slate-200 pt-6 dark:border-slate-800">
@@ -167,6 +202,41 @@
                                 @endforeach
                             </div>
                         </div>
+                    </section>
+
+                    <section class="space-y-5 border-t border-slate-200 pt-8 dark:border-slate-800">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Teacher references</h2>
+                            <p class="text-sm text-slate-500">Two teachers who know the child at school.</p>
+                        </div>
+
+                        @foreach([1, 2] as $n)
+                            <div class="rounded-2xl border border-slate-200 p-4 dark:border-slate-800 sm:p-5">
+                                <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">Teacher {{ $n }}</p>
+                                <div class="mt-4 grid gap-5 sm:grid-cols-2">
+                                    <div>
+                                        <label class="{{ $label }}" for="teacher{{ $n }}_name">Full name</label>
+                                        <input id="teacher{{ $n }}_name" type="text" name="teacher{{ $n }}_name" value="{{ old('teacher'.$n.'_name') }}" required class="{{ $input }}">
+                                        @error('teacher'.$n.'_name')<p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>@enderror
+                                    </div>
+                                    <div>
+                                        <label class="{{ $label }}" for="teacher{{ $n }}_school">School</label>
+                                        <input id="teacher{{ $n }}_school" type="text" name="teacher{{ $n }}_school" value="{{ old('teacher'.$n.'_school') }}" required class="{{ $input }}">
+                                        @error('teacher'.$n.'_school')<p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>@enderror
+                                    </div>
+                                    <div>
+                                        <label class="{{ $label }}" for="teacher{{ $n }}_subject">Subject</label>
+                                        <input id="teacher{{ $n }}_subject" type="text" name="teacher{{ $n }}_subject" value="{{ old('teacher'.$n.'_subject') }}" required class="{{ $input }}">
+                                        @error('teacher'.$n.'_subject')<p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>@enderror
+                                    </div>
+                                    <div>
+                                        <label class="{{ $label }}" for="teacher{{ $n }}_phone">Phone number</label>
+                                        <input id="teacher{{ $n }}_phone" type="tel" name="teacher{{ $n }}_phone" value="{{ old('teacher'.$n.'_phone') }}" required class="{{ $input }}">
+                                        @error('teacher'.$n.'_phone')<p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>@enderror
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
                     </section>
 
                     <section class="space-y-5 border-t border-slate-200 pt-8 dark:border-slate-800">

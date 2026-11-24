@@ -20,7 +20,23 @@
         'Emergency contact' => trim(($meta['emergency_name'] ?? '').(! empty($meta['emergency_phone']) ? ' · '.$meta['emergency_phone'] : '')),
         'Pickup' => $meta['pickup_person'] ?? null,
         'Photos' => $meta['photo_consent'] ?? null,
-        'Medical / special needs' => $meta['medical_notes'] ?? null,
+        'Medical conditions' => $meta['medical_notes'] ?? null,
+        'History of mental illness' => $meta['mental_illness'] ?? null,
+        'Special care or attention' => $meta['special_care'] ?? null,
+        'Passions' => $meta['passions'] ?? null,
+        'Known weaknesses' => $meta['weaknesses'] ?? null,
+        'Teacher 1' => trim(implode(' · ', array_filter([
+            $meta['teacher1_name'] ?? null,
+            $meta['teacher1_school'] ?? null,
+            $meta['teacher1_subject'] ?? null,
+            $meta['teacher1_phone'] ?? null,
+        ]))),
+        'Teacher 2' => trim(implode(' · ', array_filter([
+            $meta['teacher2_name'] ?? null,
+            $meta['teacher2_school'] ?? null,
+            $meta['teacher2_subject'] ?? null,
+            $meta['teacher2_phone'] ?? null,
+        ]))),
     ];
     $reports = [
         'Most recent term' => $meta['term_report_1'] ?? null,

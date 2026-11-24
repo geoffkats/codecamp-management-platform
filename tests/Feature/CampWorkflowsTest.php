@@ -149,6 +149,18 @@ function membershipPayload(array $overrides = []): array
         'tshirt_size' => 'M',
         'laptop' => 'Has their own laptop',
         'experience' => 'New to coding',
+        'mental_illness' => 'No',
+        'special_care' => 'Needs reminders to take breaks',
+        'passions' => 'Building robots and drawing',
+        'weaknesses' => 'Gets frustrated when stuck',
+        'teacher1_name' => 'Jane Nabwire',
+        'teacher1_school' => 'Kampala Parents School',
+        'teacher1_subject' => 'Mathematics',
+        'teacher1_phone' => '0772111000',
+        'teacher2_name' => 'David Ssewanyana',
+        'teacher2_school' => 'Kampala Parents School',
+        'teacher2_subject' => 'Science',
+        'teacher2_phone' => '0772111001',
         'parent_name' => 'Grace Okello',
         'parent_relationship' => 'Mother',
         'email' => 'grace@example.com',
@@ -179,6 +191,10 @@ it('takes a membership application and emails the parent', function () {
         ->and($application->preferred_schedule)->toBeNull()
         ->and($application->meta['parent_name'])->toBe('Grace Okello')
         ->and($application->meta['emergency_name'])->toBe('Peter Okello')
+        ->and($application->meta['mental_illness'])->toBe('No')
+        ->and($application->meta['passions'])->toBe('Building robots and drawing')
+        ->and($application->meta['teacher1_name'])->toBe('Jane Nabwire')
+        ->and($application->meta['teacher2_phone'])->toBe('0772111001')
         ->and($application->meta['term_report_1'])->not->toBeEmpty()
         ->and($application->meta['term_report_2'])->not->toBeEmpty()
         ->and($application->meta['term_report_3'])->not->toBeEmpty();
@@ -192,6 +208,8 @@ it('takes a membership application and emails the parent', function () {
         ->assertOk()
         ->assertSee('Membership application')
         ->assertSee('Emergency contact name')
+        ->assertSee('Teacher references')
+        ->assertSee('History of mental illness')
         ->assertSee('Most recent term')
         ->assertSee('Term before that')
         ->assertDontSee('First camp')

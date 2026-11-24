@@ -172,7 +172,11 @@
                             <p class="text-xs uppercase tracking-wide text-slate-500 mb-2">Additional Details</p>
                             <div class="grid sm:grid-cols-2 gap-3">
                                 @foreach($this->selectedRequest->meta as $key => $value)
-                                    @if($value && ! str_starts_with((string) $key, 'term_report_'))
+                                    @if($value && ! str_starts_with((string) $key, 'term_report_') && ! in_array((string) $key, [
+                                        'teacher1_name', 'teacher1_school', 'teacher1_subject', 'teacher1_phone',
+                                        'teacher2_name', 'teacher2_school', 'teacher2_subject', 'teacher2_phone',
+                                        'mental_illness', 'special_care', 'passions', 'weaknesses',
+                                    ], true))
                                         <div>
                                             <p class="text-xs uppercase tracking-wide text-slate-500">{{ ucwords(str_replace('_', ' ', $key)) }}</p>
                                             <p class="font-semibold text-slate-900 dark:text-white">
@@ -213,6 +217,43 @@
                                     @endforeach
                                 </div>
                             @endif
+
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <div>
+                                    <p class="text-xs text-slate-500">Teacher 1</p>
+                                    <p class="font-semibold text-slate-900 dark:text-white">{{ trim(implode(' · ', array_filter([
+                                        $membership->meta['teacher1_name'] ?? null,
+                                        $membership->meta['teacher1_school'] ?? null,
+                                        $membership->meta['teacher1_subject'] ?? null,
+                                        $membership->meta['teacher1_phone'] ?? null,
+                                    ]))) ?: '-' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-slate-500">Teacher 2</p>
+                                    <p class="font-semibold text-slate-900 dark:text-white">{{ trim(implode(' · ', array_filter([
+                                        $membership->meta['teacher2_name'] ?? null,
+                                        $membership->meta['teacher2_school'] ?? null,
+                                        $membership->meta['teacher2_subject'] ?? null,
+                                        $membership->meta['teacher2_phone'] ?? null,
+                                    ]))) ?: '-' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-slate-500">Mental illness history</p>
+                                    <p class="font-semibold text-slate-900 dark:text-white">{{ $membership->meta['mental_illness'] ?? '-' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-slate-500">Special care</p>
+                                    <p class="font-semibold text-slate-900 dark:text-white">{{ $membership->meta['special_care'] ?? '-' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-slate-500">Passions</p>
+                                    <p class="font-semibold text-slate-900 dark:text-white">{{ $membership->meta['passions'] ?? '-' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-slate-500">Known weaknesses</p>
+                                    <p class="font-semibold text-slate-900 dark:text-white">{{ $membership->meta['weaknesses'] ?? '-' }}</p>
+                                </div>
+                            </div>
 
                             <div class="grid sm:grid-cols-3 gap-3">
                                 <div>
