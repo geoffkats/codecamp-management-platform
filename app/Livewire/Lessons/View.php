@@ -5,14 +5,10 @@ namespace App\Livewire\Lessons;
 use App\Models\CourseEnrollment;
 use App\Models\CourseModule;
 use App\Models\Lesson;
-use App\Models\StudentLessonProgress;
 use App\Models\VideoProgress;
-use App\Models\UserProgress;
-use App\Services\BadgeAwardingService;
 use App\Services\LessonCompletionService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -91,22 +87,17 @@ class View extends Component
             $this->loadVideoProgress();
         }
 
-        // Check lesson completion
-        $this->checkLessonCompletion();
-        
-        // Check completion requirements
-        $this->checkCompletionStatus();
-
-        // Find previous and next lessons
-        $this->findAdjacentLessons();
-
-        // Mark lesson as started if not already
+        // Record start first (never wipes completed), then evaluate auto-complete.
         $this->markLessonAsStarted();
+        $this->checkLessonCompletion();
+        $this->checkCompletionStatus();
+        $this->findAdjacentLessons();
     }
     
     public function checkCompletionStatus()
     {
         $service = app(LessonCompletionService::class);
+        $this->checkLessonCompletion();
         $check = $service->canCompleteLesson($this->lesson, Auth::user());
         
         $this->completionStatus = $check;
@@ -157,17 +148,8 @@ class View extends Component
 
     private function checkLessonCompletion()
     {
-        // Check both student_lesson_progress and lesson_progress
-        $studentProgress = StudentLessonProgress::where('user_id', Auth::id())
-            ->where('lesson_id', $this->lesson->id)
-            ->first();
-
-        $lessonProgress = \App\Models\LessonProgress::where('user_id', Auth::id())
-            ->where('lesson_id', $this->lesson->id)
-            ->first();
-
-        $this->isLessonCompleted = ($studentProgress && $studentProgress->status === 'completed') || 
-                                   ($lessonProgress && $lessonProgress->is_completed);
+        $this->isLessonCompleted = app(LessonCompletionService::class)
+            ->isLessonCompleted(Auth::user(), $this->lesson);
     }
 
     private function findAdjacentLessons()
@@ -232,16 +214,7 @@ class View extends Component
             return;
         }
 
-        StudentLessonProgress::updateOrCreate(
-            [
-                'user_id' => Auth::id(),
-                'lesson_id' => $this->lesson->id,
-            ],
-            [
-                'status' => 'in_progress',
-                'started_at' => now(),
-            ]
-        );
+        app(LessonCompletionService::class)->ensureStarted($user, $this->lesson);
     }
 
 
@@ -289,179 +262,35 @@ class View extends Component
 
             return;
         }
-        
-        // Wrap everything in a transaction for data integrity
-        DB::transaction(function () {
-            $this->executeCompletion();
-        });
 
-        // Fire confetti + XP toast on the frontend
-        $points = 10;
-        if ($this->lesson->difficulty_level) {
-            $points = match(strtolower($this->lesson->difficulty_level)) {
-                'beginner' => 5, 'intermediate' => 10, 'advanced' => 15, default => 10,
-            };
-        }
-        $this->dispatch('lesson-completed', xp: $points, title: $this->lesson->title);
-    }
-    
-    private function executeCompletion()
-    {
-        // Calculate points to award based on difficulty
-        $points = 10; // Default points
-        if ($this->lesson->difficulty_level) {
-            $points = match(strtolower($this->lesson->difficulty_level)) {
-                'beginner' => 5,
-                'intermediate' => 10,
-                'advanced' => 15,
-                default => 10,
-            };
-        }
+        $result = app(LessonCompletionService::class)->completeIfEligible(Auth::user(), $this->lesson);
 
-        // Mark lesson as completed
-        $timeSpent = $this->calculateTimeSpent();
-        $studentProgress = StudentLessonProgress::updateOrCreate(
-            [
-                'user_id' => Auth::id(),
-                'lesson_id' => $this->lesson->id,
-            ],
-            [
-                'status' => 'completed',
-                'progress_percentage' => 100,
-                'completed_at' => now(),
-                'time_spent_minutes' => round($timeSpent / 60, 2),
-                'last_accessed_at' => now(),
-                'completion_data' => [
-                    'completed_at' => now()->toIso8601String(),
-                    'video_completed' => $this->isVideoCompleted,
-                    'points_earned' => $points,
-                ],
-            ]
-        );
-        
-        // Also update lesson_progress table for compatibility
-        \App\Models\LessonProgress::updateOrCreate(
-            [
-                'user_id' => Auth::id(),
-                'lesson_id' => $this->lesson->id,
-            ],
-            [
-                'is_completed' => true,
-                'completed_at' => now(),
-                'time_spent' => $timeSpent,
-            ]
-        );
-
-        // Award lesson completion points (safe from duplicates)
-        $pointsService = app(\App\Services\PointsService::class);
-        $pointsService->awardLessonPoints(Auth::id(), $this->course->id, $this->lesson->id, $points, $timeSpent);
-
-        // Update course enrollment progress
-        $this->updateCourseProgress();
-
-        // Check and award badges for lesson completion
-        $badgeService = app(BadgeAwardingService::class);
-        $badgeService->onLessonComplete(Auth::user());
-        $badgeService->checkLessonCompletionBadges(Auth::user());
-        $badgeService->checkLevelBadges(Auth::user());
-        $badgeService->checkPointMilestoneBadges(Auth::user());
-
-        // Clear cache after completion
-        Cache::forget("lesson.{$this->lesson->id}.user." . Auth::id());
-
-        // Refresh lesson completion status
-        $this->checkLessonCompletion();
-        $this->isLessonCompleted = true;
-        $this->canComplete = true;
-        
-        session()->flash('message', 'Lesson completed! Great job! ðŸŽ‰');
-        
-        // Dispatch events to update UI
-        $this->dispatch('lesson-completed');
-        $this->dispatch('course-progress-updated');
-    }
-
-    private function calculateTimeSpent()
-    {
-        $progress = StudentLessonProgress::where('user_id', Auth::id())
-            ->where('lesson_id', $this->lesson->id)
-            ->first();
-
-        if ($progress && $progress->started_at) {
-            // Use abs() to prevent negative values and ensure positive integer
-            return abs(now()->diffInSeconds($progress->started_at));
-        }
-
-        return 0;
-    }
-
-    private function updateCourseProgress()
-    {
-        // Optimize: Use database query instead of loading all lessons
-        $totalLessons = Lesson::whereHas('module', function($q) {
-            $q->where('course_id', $this->course->id);
-        })->count();
-
-        if ($totalLessons === 0) {
+        if (! ($result['completed'] ?? false)) {
             return;
         }
 
-        $allLessonIds = Lesson::whereHas('module', function($q) {
-            $q->where('course_id', $this->course->id);
-        })->pluck('id')->toArray();
+        if ($this->enrollment) {
+            $this->enrollment->refresh();
+        }
 
-        // Single query for all completed lessons from student_lesson_progress
-        $completedLessonIds1 = StudentLessonProgress::where('user_id', Auth::id())
-            ->whereIn('lesson_id', $allLessonIds)
-            ->where('status', 'completed')
-            ->pluck('lesson_id')
-            ->toArray();
+        $this->checkLessonCompletion();
+        $this->isLessonCompleted = true;
+        $this->canComplete = true;
 
-        // Single query for all completed lessons from lesson_progress
-        $completedLessonIds2 = \App\Models\LessonProgress::where('user_id', Auth::id())
-            ->whereIn('lesson_id', $allLessonIds)
-            ->where('is_completed', true)
-            ->pluck('lesson_id')
-            ->toArray();
+        if (! ($result['already'] ?? false)) {
+            session()->flash('message', 'Lesson completed! Great job!');
+        }
 
-        // Merge and get unique count
-        $completedLessonIds = array_unique(array_merge($completedLessonIds1, $completedLessonIds2));
-        $completedLessons = count($completedLessonIds);
+        $points = (int) ($result['points'] ?? 0);
+        $this->dispatch('lesson-completed', xp: $points, title: $this->lesson->title);
+        $this->dispatch('course-progress-updated');
 
-        $progressPercentage = $totalLessons > 0 ? round(($completedLessons / $totalLessons) * 100, 2) : 0;
-
-        // Refresh enrollment to get fresh data
-        $this->enrollment->refresh();
-
-        $isCompleted = $this->enrollment->completed_at !== null || $completedLessons >= $totalLessons;
-
-        // Update enrollment
-        $this->enrollment->update([
-            'progress_percentage' => $isCompleted ? 100 : $progressPercentage,
-            'lessons_completed' => $completedLessons,
-        ]);
-
-        // Check if course is completed
-        if ($completedLessons >= $totalLessons && !$this->enrollment->completed_at) {
-            $this->enrollment->update([
-                'completed_at' => now(),
-                'progress_percentage' => 100,
-            ]);
-            
-            // Award course completion points (safe from duplicates)
-            $pointsService = app(\App\Services\PointsService::class);
-            $pointsService->awardCourseCompletionPoints(Auth::id(), $this->course->id);
-
-            // Check and award badges for course completion
-            $badgeService = app(BadgeAwardingService::class);
-            $badgeService->checkCourseCompletionBadges(Auth::user());
-            $badgeService->checkLevelBadges(Auth::user());
-            $badgeService->checkPointMilestoneBadges(Auth::user());
-
-            // Auto-generate certificate only when explicitly enabled.
-            if (config('certificate.auto_generate_on_course_completion', false)) {
-                $this->generateCertificate();
-            }
+        if (
+            $this->enrollment
+            && $this->enrollment->completed_at
+            && config('certificate.auto_generate_on_course_completion', false)
+        ) {
+            $this->generateCertificate();
         }
     }
 
@@ -501,11 +330,8 @@ class View extends Component
 
         $allLessonIds = $modules->pluck('lessons')->flatten()->pluck('id')->toArray();
 
-        $completedLessonIds = empty($allLessonIds) ? [] : StudentLessonProgress::where('user_id', Auth::id())
-            ->whereIn('lesson_id', $allLessonIds)
-            ->where('status', 'completed')
-            ->pluck('lesson_id')
-            ->toArray();
+        $completedLessonIds = app(LessonCompletionService::class)
+            ->completedLessonIds(Auth::user(), $allLessonIds);
 
         $courseProgress = $this->enrollment
             ? (int) ($this->enrollment->progress_percentage ?? 0)

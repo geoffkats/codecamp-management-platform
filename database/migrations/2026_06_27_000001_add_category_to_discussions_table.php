@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('discussions')) {
+            return;
+        }
+
         Schema::table('discussions', function (Blueprint $table) {
             if (! Schema::hasColumn('discussions', 'category')) {
                 $table->string('category', 30)->default('general')->after('title');

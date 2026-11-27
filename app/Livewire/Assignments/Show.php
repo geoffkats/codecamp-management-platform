@@ -162,7 +162,12 @@ class Show extends Component
         }
 
         session()->flash('message', 'Assignment submitted successfully!');
-        
+
+        if ($this->assignment->lesson) {
+            app(\App\Services\LessonCompletionService::class)
+                ->completeIfEligible(Auth::user(), $this->assignment->lesson);
+        }
+
         // Dispatch event for lesson view to refresh
         $this->dispatch('assignment-submitted');
         

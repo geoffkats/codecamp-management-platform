@@ -633,6 +633,7 @@ class Take extends Component
             ]);
 
             $this->showResults = true;
+            $this->tryCompleteLinkedLesson();
             $this->dispatch('assessment-completed');
             session()->flash('message', 'Assignment submitted successfully! Waiting for instructor review.');
 
@@ -748,6 +749,7 @@ class Take extends Component
         }
 
         $this->showResults = true;
+        $this->tryCompleteLinkedLesson();
         $this->dispatch('assessment-completed');
 
         if ($needsManualGrading) {
@@ -774,6 +776,16 @@ class Take extends Component
             ]);
             $this->addError('submit', 'An error occurred while submitting. Please try again.');
         }
+    }
+
+    protected function tryCompleteLinkedLesson(): void
+    {
+        $lesson = $this->assessment->lesson;
+        if (! $lesson) {
+            return;
+        }
+
+        app(LessonCompletionService::class)->completeIfEligible(Auth::user(), $lesson);
     }
 
     protected function questionCount(): int

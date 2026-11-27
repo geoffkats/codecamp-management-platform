@@ -58,17 +58,16 @@ class Learn extends Component
 
     private function getFirstIncompleteLesson()
     {
+        $service = app(\App\Services\LessonCompletionService::class);
+        $user = Auth::user();
+
         foreach ($this->course->modules as $module) {
             foreach ($module->lessons as $lesson) {
-                $progress = StudentLessonProgress::where('user_id', Auth::id())
-                    ->where('lesson_id', $lesson->id)
-                    ->first();
-                
                 if ($lesson->is_locked) {
                     continue;
                 }
 
-                if (!$progress || !$progress->is_completed) {
+                if (! $service->isLessonCompleted($user, $lesson)) {
                     return $lesson;
                 }
             }
@@ -78,16 +77,12 @@ class Learn extends Component
 
     private function markLessonAsStarted($lessonId)
     {
-        StudentLessonProgress::updateOrCreate(
-            [
-                'user_id' => Auth::id(),
-                'lesson_id' => $lessonId,
-            ],
-            [
-                'status' => 'in_progress',
-                'started_at' => now(),
-            ]
-        );
+        $lesson = Lesson::find($lessonId);
+        if (! $lesson) {
+            return;
+        }
+
+        app(\App\Services\LessonCompletionService::class)->ensureStarted(Auth::user(), $lesson);
 
         // Create user progress entry
         \App\Models\UserProgress::create([
@@ -107,17 +102,8 @@ class Learn extends Component
 
     public function isLessonCompleted($lessonId)
     {
-        // Check both student_lesson_progress and lesson_progress
-        $studentProgress = StudentLessonProgress::where('user_id', Auth::id())
-            ->where('lesson_id', $lessonId)
-            ->first();
-
-        $lessonProgress = \App\Models\LessonProgress::where('user_id', Auth::id())
-            ->where('lesson_id', $lessonId)
-            ->first();
-
-        return ($studentProgress && $studentProgress->status === 'completed') || 
-               ($lessonProgress && $lessonProgress->is_completed);
+        return app(\App\Services\LessonCompletionService::class)
+            ->isLessonCompleted(Auth::user(), (int) $lessonId);
     }
 
     public function getCourseProgress()

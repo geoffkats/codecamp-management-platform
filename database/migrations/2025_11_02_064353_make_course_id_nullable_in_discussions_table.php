@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('discussions')) {
+            return;
+        }
+
         Schema::table('discussions', function (Blueprint $table) {
             $table->foreignId('course_id')->nullable()->change();
         });
@@ -21,6 +25,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! Schema::hasTable('discussions')) {
+            return;
+        }
+
         Schema::table('discussions', function (Blueprint $table) {
             $table->foreignId('course_id')->nullable(false)->change();
         });

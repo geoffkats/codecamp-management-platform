@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('discussions')) {
+            return;
+        }
+
         Schema::table('discussions', function (Blueprint $table) {
             // Add indexes for frequently queried columns
             $table->index('created_at');

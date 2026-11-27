@@ -4,7 +4,9 @@ namespace App\Services\Assessments;
 
 use App\Models\AssessmentAttempt;
 use App\Models\Grade;
+use App\Models\Lesson;
 use App\Models\User;
+use App\Services\LessonCompletionService;
 use App\Support\LetterGrade;
 
 /**
@@ -83,6 +85,14 @@ class AttemptGradeRecorder
                 'is_final' => true,
             ]
         );
+
+        if ($passed && $assessment?->lesson_id) {
+            $lesson = Lesson::find($assessment->lesson_id);
+            $student = User::find($attempt->user_id);
+            if ($lesson && $student) {
+                app(LessonCompletionService::class)->completeIfEligible($student, $lesson);
+            }
+        }
 
         return ['max' => $max, 'percentage' => $percentage, 'passed' => $passed, 'letter' => $letter];
     }
